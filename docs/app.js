@@ -607,6 +607,32 @@ function buildFieldProfiles(records){
   });
 }
 
+function aggregateDescriptionField(records,selector){
+  const m=new Map();
+  records.forEach(r=>{
+    const value=selector(r);if(!value)return;
+    const k=norm(value);if(!k)return;
+    if(!m.has(k))m.set(k,{name:value,count:0,total:0});
+    const x=m.get(k);x.count++;x.total+=r.amount||0;
+  });
+  return [...m.values()].sort((a,b)=>b.count-a.count||b.total-a.total);
+}
+function buildDescriptionIntelligence(records){
+  const parsed=records.filter(r=>r.narration);
+  const withCounterparty=records.filter(r=>r.extracted?.counterparty);
+  const fallbackUsed=records.filter(r=>r.counterpartyFromDescription);
+  const identifiers=records.filter(r=>r.extracted&&(r.extracted.account||r.extracted.phone||r.extracted.email||r.extracted.wallet));
+  return{
+    parsed:parsed.length,
+    withCounterparty:withCounterparty.length,
+    fallbackUsed:fallbackUsed.length,
+    identifiers:identifiers.length,
+    categories:aggregateDescriptionField(parsed,r=>r.extracted?.category&&r.extracted.category!=='Other / Unclassified'?r.extracted.category:''),
+    channels:aggregateDescriptionField(parsed,r=>r.extracted?.channel),
+    counterparties:aggregateDescriptionField(withCounterparty,r=>r.extracted?.counterparty)
+  };
+}
+
 function transactionAnalysis(records){
   const currency=($('currencyCode').value.trim()||'NGN').toUpperCase();
   const ins=records.filter(t=>t.direction==='inflow'),outs=records.filter(t=>t.direction==='outflow'),unknown=records.filter(t=>t.direction==='unknown');
@@ -617,7 +643,8 @@ function transactionAnalysis(records){
   const originMap=new Map(origins.map(x=>[norm(x.name),x]));
   const both=benefits.filter(x=>originMap.has(norm(x.name))&&norm(x.name)!=='unknown counterparty').map(x=>({name:x.name,out:x.total,in:originMap.get(norm(x.name)).total}));
   const cryptoRx=/\b(crypto|bitcoin|btc|ethereum|eth|usdt|usdc|binance|bybit|kucoin|okx|coinbase|wallet|vasp|virtual asset)\b/i;
-  const cryptoTx=records.filter(t=>cryptoRx.test(Object.values(t.values).join(' '))),cryptoExposure=sum(cryptoTx,x=>x.amount),alerts=[];
+  const cryptoTx=records.filter(t=>cryptoRx.test(Object.values(t.values).join(' ')+' '+(t.extracted?.clean||''))),cryptoExposure=sum(cryptoTx,x=>x.amount),alerts=[];
+  const descriptionIntel=buildDescriptionIntelligence(records);
   const add=(title,severity,score,detail,evidence)=>alerts.push({title,severity,score,detail,evidence});
   if(passRatio>=90&&totalIn)add('High pass-through activity','high',18,passRatio.toFixed(1)+'% of inflow was matched by total outflow.','Inflow '+fmt(totalIn,currency)+'; outflow '+fmt(totalOut,currency)+'.');
   else if(passRatio>=75&&totalIn)add('Elevated pass-through activity','medium',10,passRatio.toFixed(1)+'% of inflow was matched by outflow.','Review transaction purpose and retention pattern.');
@@ -632,7 +659,7 @@ function transactionAnalysis(records){
   if(cryptoExposure)add('Crypto / VASP-related exposure detected','medium',10,cryptoTx.length+' transaction(s) contained crypto/VASP textual indicators.','Observed value '+fmt(cryptoExposure,currency)+'. Text-based screening only.');
   if(unknown.length)add('Unresolved transaction direction','low',3,unknown.length+' transaction(s) could not be classified as inflow or outflow.','Review mapping and subject identifier.');
   const riskScore=Math.min(100,sum(alerts,x=>x.score)),risk=riskScore>=60?'critical':riskScore>=40?'high':riskScore>=18?'medium':'low';
-  return{kind:'transaction',currency,records,txs:records,ins,outs,unknown,totalIn,totalOut,net:totalIn-totalOut,origins,benefits,rapid,structured,passRatio,concentration,both,cryptoTx,cryptoExposure,alerts,riskScore,risk,first:dated[0]?.date||null,last:dated[dated.length-1]?.date||null,profiles:buildFieldProfiles(records)};
+  return{kind:'transaction',currency,records,txs:records,ins,outs,unknown,totalIn,totalOut,net:totalIn-totalOut,origins,benefits,rapid,structured,passRatio,concentration,both,cryptoTx,cryptoExposure,descriptionIntel,alerts,riskScore,risk,first:dated[0]?.date||null,last:dated[dated.length-1]?.date||null,profiles:buildFieldProfiles(records)};
 }
 
 function universalAnalysis(records){
@@ -665,6 +692,26 @@ function renderMetrics(a){
     m=[['Records',a.records.length.toLocaleString()],['Mapped Fields',a.mappedCount.toLocaleString()],['Completeness',a.completeness.toFixed(1)+'%'],['Repeated Identifier Signals',a.repeatedSignals.length.toLocaleString()]];
   }
   $('metricCards').innerHTML=m.map(x=>'<article class="card metric"><div class="value">'+esc(x[1])+'</div><div class="label">'+esc(x[0])+'</div></article>').join('');
+}
+
+function renderDescriptionIntelligence(a){
+  const d=a.descriptionIntel||{parsed:0,withCounterparty:0,fallbackUsed:0,identifiers:0,categories:[],channels:[],counterparties:[]};
+  $('descriptionCoverage').textContent=d.parsed.toLocaleString()+' descriptions parsed';
+  const metrics=[
+    ['Descriptions Parsed',d.parsed.toLocaleString()],
+    ['Counterparties Extracted',d.withCounterparty.toLocaleString()],
+    ['Used as Fallback Party',d.fallbackUsed.toLocaleString()],
+    ['Identifiers Detected',d.identifiers.toLocaleString()]
+  ];
+  $('descriptionMetrics').innerHTML=metrics.map(x=>'<article class="card metric"><div class="value">'+esc(x[1])+'</div><div class="label">'+esc(x[0])+'</div></article>').join('');
+  const rows=[
+    ...d.counterparties.slice(0,8).map(x=>({kind:'Counterparty',name:x.name,count:x.count,total:x.total})),
+    ...d.categories.slice(0,6).map(x=>({kind:'Meaning',name:x.name,count:x.count,total:x.total})),
+    ...d.channels.slice(0,6).map(x=>({kind:'Channel',name:x.name,count:x.count,total:x.total}))
+  ];
+  $('descriptionIntelligenceTable').innerHTML='<table><thead><tr><th>Type</th><th>Extracted value</th><th class="num">Records</th><th class="num">Observed value</th></tr></thead><tbody>'
+    +(rows.map(x=>'<tr><td>'+esc(x.kind)+'</td><td class="description-derived">'+esc(x.name)+'</td><td class="num">'+x.count+'</td><td class="num">'+esc(fmt(x.total,a.currency))+'</td></tr>').join('')||'<tr><td colspan="4">No meaningful description-derived patterns were extracted.</td></tr>')
+    +'</tbody></table>';
 }
 
 function renderCounterparty(id,rows,total,currency){
@@ -713,11 +760,15 @@ function renderRecords(){
   let rows=a.records.filter(r=>{
     if(a.kind==='transaction'&&f!=='all'&&r.direction!==f)return false;
     if(!q)return true;
-    return norm(Object.values(r.values).join(' ')).includes(q);
+    return norm(Object.values(r.values).join(' ')+' '+(r.extracted?.meaning||'')+' '+(r.sheet||'')).includes(q);
   }).slice(0,300);
-  const directionHead=a.kind==='transaction'?'<th>Direction</th>':'';
-  $('transactionTable').innerHTML='<table><thead><tr><th>#</th>'+directionHead+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'
-    +(rows.map(r=>'<tr><td>'+r.row+'</td>'+(a.kind==='transaction'?'<td>'+esc(r.direction)+'</td>':'')+cols.map(c=>'<td>'+esc(r.values[c.id]??'')+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="'+(cols.length+(a.kind==='transaction'?2:1))+'">No matching records.</td></tr>')+'</tbody></table>';
+  const derivedHead=a.kind==='transaction'?'<th>Direction</th><th>Source Sheet</th><th>Extracted Meaning</th><th>Derived Counterparty</th>':'';
+  $('transactionTable').innerHTML='<table><thead><tr><th>#</th>'+derivedHead+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'
+    +(rows.map(r=>'<tr><td>'+r.row+'</td>'
+      +(a.kind==='transaction'?'<td>'+esc(r.direction)+'</td><td>'+esc(r.sheet||'')+'</td><td><span class="description-meaning">'+esc(r.extracted?.category||'')+'</span><br><small>'+esc(r.extracted?.meaning||'')+'</small></td><td>'+esc(r.extracted?.counterparty||'')+(r.counterpartyFromDescription?' <span class="source-badge">USED</span>':'')+'</td>':'')
+      +cols.map(c=>'<td>'+esc(r.values[c.id]??'')+'</td>').join('')+'</tr>').join('')
+      ||'<tr><td colspan="'+(cols.length+(a.kind==='transaction'?5:1))+'">No matching records.</td></tr>')
+    +'</tbody></table>';
 }
 
 function makeDraft(a){
@@ -738,6 +789,8 @@ function makeDraft(a){
   if(a.rapid.length)lines.push('• '+a.rapid.length+' rapid-movement match(es) met the analyst-configured parameters.');
   if(a.cryptoExposure)lines.push('• '+a.cryptoTx.length+' transaction(s), with observed value of '+fmt(a.cryptoExposure,a.currency)+', contained crypto/VASP textual indicators.');
   if(a.unknown.length)lines.push('• '+a.unknown.length+' transaction(s) had unresolved direction and require data review.');
+  if(a.descriptionIntel?.parsed)lines.push('• FinIntel parsed '+a.descriptionIntel.parsed+' transaction description(s), extracted probable counterparties from '+a.descriptionIntel.withCounterparty+' record(s), and used description-derived counterparties as fallback data in '+a.descriptionIntel.fallbackUsed+' record(s).');
+  if(a.descriptionIntel?.categories?.[0])lines.push('• The most frequently inferred description category was '+a.descriptionIntel.categories[0].name+' ('+a.descriptionIntel.categories[0].count+' record(s)).');
   lines.push('','AML/CFT INDICATORS FOR REVIEW');
   if(a.alerts.length)a.alerts.forEach((x,i)=>lines.push((i+1)+'. '+x.title+': '+x.detail));else lines.push('No material rule-based indicator triggered under the current settings.');
   lines.push('','INFERENCE','The foregoing indicators are screening outputs and should be assessed alongside KYC/CDD information, source of funds/wealth, transaction purpose, counterparty information, intelligence holdings and corroborative material. The system does not determine that money laundering, terrorist financing or another predicate offence occurred.');
@@ -757,6 +810,7 @@ function renderAnalysis(a){
   if(a.kind==='transaction'){
     renderCounterparty('originatorTable',a.origins,a.totalIn,a.currency);
     renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
+    renderDescriptionIntelligence(a);
     renderAlerts(a);renderNetwork(a);
   }
   renderProfiles(a);renderRecords();
@@ -770,8 +824,13 @@ function download(filename,text,type){
 function csvEscape(v){const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
 function exportCSV(){
   const a=state.analysis;if(!a)return;const cols=mappedColumnsForExport();
-  const h=['Source Row',...(a.kind==='transaction'?['Direction']:[]),...cols.map(c=>c.label)];
-  const rows=a.records.map(r=>[r.row,...(a.kind==='transaction'?[r.direction]:[]),...cols.map(c=>r.values[c.id]??'')].map(csvEscape).join(','));
+  const derived=a.kind==='transaction'?['Direction','Source Sheet','Extracted Meaning','Extracted Counterparty','Extracted Channel','Extracted Account/ID','Extracted Phone','Extracted Email','Extracted Wallet']:[];
+  const h=['Source Row',...derived,...cols.map(c=>c.label)];
+  const rows=a.records.map(r=>[
+    r.row,
+    ...(a.kind==='transaction'?[r.direction,r.sheet||'',r.extracted?.meaning||'',r.extracted?.counterparty||'',r.extracted?.channel||'',r.extracted?.account||'',r.extracted?.phone||'',r.extracted?.email||'',r.extracted?.wallet||'']:[]),
+    ...cols.map(c=>r.values[c.id]??'')
+  ].map(csvEscape).join(','));
   download('finintel_standardised_'+state.datasetType+'.csv',[h.map(csvEscape).join(','),...rows].join('\n'),'text/csv');
 }
 function reportHtml(){
@@ -780,9 +839,12 @@ function reportHtml(){
   let tx='';
   if(a.kind==='transaction'){
     const cp=(rows,total)=>rows.slice(0,15).map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(r.name)+'</td><td>'+r.count+'</td><td>'+esc(fmt(r.total,a.currency))+'</td><td>'+(total?(r.total/total*100).toFixed(1):'0')+'%</td></tr>').join('');
-    tx='<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
+    const d=a.descriptionIntel||{parsed:0,withCounterparty:0,fallbackUsed:0,categories:[]};
+    tx='<h2>Description Intelligence</h2><p>'+d.parsed+' description(s) parsed; '+d.withCounterparty+' probable counterparty extraction(s); '+d.fallbackUsed+' used as fallback counterparty data.</p>'
+      +(d.categories.length?'<p>Leading inferred meanings: '+esc(d.categories.slice(0,5).map(x=>x.name+' ('+x.count+')').join(', '))+'.</p>':'')
+      +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -845,7 +907,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
 $('clearAllBtn').onclick=()=>{
   state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;
@@ -863,4 +925,4 @@ $$('.step').forEach(b=>b.onclick=()=>{
 
 renderCustomFieldList();
 renderTemplateSelect();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.1').then(r=>r.update()).catch(()=>{}));
