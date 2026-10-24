@@ -1,10 +1,10 @@
 {
-  "name":"FinIntel AML",
+  "name":"FinIntel AML v2",
   "short_name":"FinIntel",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",
   "background_color":"#06121b",
   "theme_color":"#071722",
-  "description":"Privacy-first financial intelligence and AML/CFT analysis workbench."
+  "description":"Configurable financial intelligence and AML/CFT analysis workbench with universal schema mapping."
 }
