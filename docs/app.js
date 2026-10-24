@@ -607,7 +607,7 @@ function extractDescriptionMeaning(value){
 
   const topConfidence=selected?.confidence||0;
   const confidence=topConfidence>=75?'high':topConfidence>=50||channel||category!=='Other / Unclassified'?'medium':'low';
-  return{clean,category,channel,counterparty,counterpartyType,entities,account,phone,email,wallet,directionHint,meaning:pieces.join(' • '),confidence};
+  return{clean,category,channel,counterparty,counterpartyType,counterpartyConfidence:selected?.confidence||0,entities,account,phone,email,wallet,directionHint,meaning:pieces.join(' • '),confidence};
 }
 function direction(raw,o,b,subject,debit,credit,amountInfo,sheetHint,desc){
   if(credit>0&&debit<=0)return'inflow';
@@ -878,7 +878,7 @@ function renderRecords(){
   const derivedHead=a.kind==='transaction'?'<th>Direction</th><th>Source Sheet</th><th>Extracted Meaning</th><th>Derived Counterparty</th>':'';
   $('transactionTable').innerHTML='<table><thead><tr><th>#</th>'+derivedHead+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'
     +(rows.map(r=>'<tr><td>'+r.row+'</td>'
-      +(a.kind==='transaction'?'<td>'+esc(r.direction)+'</td><td>'+esc(r.sheet||'')+'</td><td><span class="description-meaning">'+esc(r.extracted?.category||'')+'</span><br><small>'+esc(r.extracted?.meaning||'')+'</small></td><td>'+esc(r.extracted?.counterparty||'')+(r.extracted?.counterpartyType?'<br><small>'+esc(r.extracted.counterpartyType)+' • '+esc((r.extracted.entities?.[0]?.confidence||0)+'% confidence')+'</small>':'')+(r.counterpartyFromDescription?' <span class="source-badge">USED</span>':'')+'</td>':'')
+      +(a.kind==='transaction'?'<td>'+esc(r.direction)+'</td><td>'+esc(r.sheet||'')+'</td><td><span class="description-meaning">'+esc(r.extracted?.category||'')+'</span><br><small>'+esc(r.extracted?.meaning||'')+'</small></td><td>'+esc(r.extracted?.counterparty||'')+(r.extracted?.counterpartyType?'<br><small>'+esc(r.extracted.counterpartyType)+' • '+esc((r.extracted.counterpartyConfidence||0)+'% confidence')+'</small>':'')+(r.counterpartyFromDescription?' <span class="source-badge">USED</span>':'')+'</td>':'')
       +cols.map(c=>'<td>'+esc(r.values[c.id]??'')+'</td>').join('')+'</tr>').join('')
       ||'<tr><td colspan="'+(cols.length+(a.kind==='transaction'?5:1))+'">No matching records.</td></tr>')
     +'</tbody></table>';
@@ -937,11 +937,11 @@ function download(filename,text,type){
 function csvEscape(v){const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
 function exportCSV(){
   const a=state.analysis;if(!a)return;const cols=mappedColumnsForExport();
-  const derived=a.kind==='transaction'?['Direction','Source Sheet','Extracted Meaning','Extracted Counterparty','Extracted Channel','Extracted Account/ID','Extracted Phone','Extracted Email','Extracted Wallet']:[];
+  const derived=a.kind==='transaction'?['Direction','Source Sheet','Extracted Meaning','Extracted Counterparty','Extracted Entity Type','Entity Confidence','All Extracted Entities','Extracted Channel','Extracted Account/ID','Extracted Phone','Extracted Email','Extracted Wallet']:[];
   const h=['Source Row',...derived,...cols.map(c=>c.label)];
   const rows=a.records.map(r=>[
     r.row,
-    ...(a.kind==='transaction'?[r.direction,r.sheet||'',r.extracted?.meaning||'',r.extracted?.counterparty||'',r.extracted?.channel||'',r.extracted?.account||'',r.extracted?.phone||'',r.extracted?.email||'',r.extracted?.wallet||'']:[]),
+    ...(a.kind==='transaction'?[r.direction,r.sheet||'',r.extracted?.meaning||'',r.extracted?.counterparty||'',r.extracted?.counterpartyType||'',r.extracted?.counterpartyConfidence||'',(r.extracted?.entities||[]).map(e=>e.name+' ['+e.type+', '+e.confidence+'%]').join(' | '),r.extracted?.channel||'',r.extracted?.account||'',r.extracted?.phone||'',r.extracted?.email||'',r.extracted?.wallet||'']:[]),
     ...cols.map(c=>r.values[c.id]??'')
   ].map(csvEscape).join(','));
   download('finintel_standardised_'+state.datasetType+'.csv',[h.map(csvEscape).join(','),...rows].join('\n'),'text/csv');
