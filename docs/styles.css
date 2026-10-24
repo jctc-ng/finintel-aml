@@ -44,3 +44,23 @@ dialog::backdrop{background:rgba(0,0,0,.68)}
 .source-badge.custom{border-color:#755f2d;color:#f3d071}
 @media(max-width:1000px){.schema-layout{grid-template-columns:minmax(0,1fr)}.schema-panel{position:static}.template-bar{grid-template-columns:minmax(0,1fr) auto}.template-bar input{grid-column:1/2}}
 @media(max-width:650px){.header-actions{gap:6px}.header-actions .btn{padding:8px 9px;font-size:.76rem}.template-bar{grid-template-columns:minmax(0,1fr)}.template-bar input{grid-column:auto}.schema-dialog-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* FinIntel AML v2.1 — loader progress + description intelligence */
+.loader-progress{margin:14px 0 4px;border:1px solid #285167;background:#071923;border-radius:14px;padding:13px}
+.loader-progress-head{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.loader-progress-head strong{overflow-wrap:anywhere}.loader-progress-head span{color:#8eeafb;font-weight:900;white-space:nowrap}
+.loader-track{height:10px;background:#061119;border:1px solid #173848;border-radius:999px;overflow:hidden;margin:9px 0}
+.loader-track span{display:block;height:100%;width:0;background:linear-gradient(90deg,#1689aa,#28c77e);transition:width .2s ease}
+.loader-progress p{margin:0;color:var(--muted);font-size:.84rem;overflow-wrap:anywhere}
+.loader-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+.sheet-summary{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0}
+.sheet-chip{display:inline-flex;gap:6px;align-items:center;border:1px solid #285167;background:#071923;color:#c7dbe4;border-radius:999px;padding:6px 9px;font-size:.78rem}
+.sheet-chip.inflow{border-color:#286b52;color:#8ce8b8}.sheet-chip.outflow{border-color:#87513b;color:#ffc09d}
+.compact-metrics{grid-template-columns:repeat(4,minmax(0,1fr));margin:14px 0}
+.compact-metrics .metric{box-shadow:none;background:#081923}
+.description-meaning{font-weight:800;color:#dce9ee}
+.description-original{max-width:420px;color:#a9bdc6;overflow-wrap:anywhere}
+.description-derived{color:#8fe9f7}
+.confidence{display:inline-block;padding:3px 7px;border-radius:999px;border:1px solid #2c5c6e;font-size:.72rem;color:#a7dfeb}
+@media(max-width:850px){.loader-metrics,.compact-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.loader-metrics,.compact-metrics{grid-template-columns:minmax(0,1fr)}}
