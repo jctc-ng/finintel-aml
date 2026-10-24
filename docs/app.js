@@ -71,9 +71,9 @@ const DATASET_LABELS={
 const autoPatterns={
   date:[/^date$/i,/transaction.*date/i,/value.*date/i,/posting.*date/i,/timestamp/i,/created.*at/i,/time$/i],
   amount:[/^amount$/i,/transaction.*amount/i,/value$/i,/amt$/i],
-  direction:[/^direction$/i,/dr.?cr/i,/debit.?credit/i,/flow/i],
-  debit:[/^debit$/i,/debit.*amount/i,/withdrawal.*amount/i,/money.*out/i],
-  credit:[/^credit$/i,/credit.*amount/i,/deposit.*amount/i,/money.*in/i],
+  direction:[/^direction$/i,/dr.?cr/i,/debit.?credit/i,/transaction.*direction/i,/flow.*type/i],
+  debit:[/^debit$/i,/debit.*amount/i,/^outflow$/i,/outflow.*amount/i,/withdrawal.*amount/i,/money.*out/i],
+  credit:[/^credit$/i,/credit.*amount/i,/^inflow$/i,/inflow.*amount/i,/deposit.*amount/i,/money.*in/i],
   originator:[/originator/i,/sender/i,/source.*name/i,/payer/i,/from.*name/i],
   beneficiary:[/beneficiary/i,/receiver/i,/recipient/i,/payee/i,/to.*name/i],
   narration:[/narration/i,/description/i,/remarks/i,/memo/i,/details/i],
@@ -137,7 +137,7 @@ const SAMPLE_CSV='Date,Amount,Direction,Originator,Beneficiary,Narration,Account
 +'2026-01-25 15:30,19000000,Debit,Subject Account,Prime Logistics Ltd,Transfer,0011223344';
 
 const state={
-  rawRows:[],columns:[],sourceName:'',sourceType:'',
+  rawRows:[],columns:[],sourceName:'',sourceType:'',sheets:[],
   datasetType:'transaction',
   sourceMapping:{},
   standardized:[],
@@ -161,6 +161,36 @@ function mappedFields(){return state.columns.map(source=>({source,field:fieldByI
 function signature(cols=state.columns){return [...cols].map(norm).sort().join('|');}
 function datasetLabel(){return DATASET_LABELS[state.datasetType]||state.datasetType;}
 
+function setLoaderProgress(percent,phase,detail=''){
+  const box=$('loaderProgress');if(!box)return;
+  box.hidden=false;
+  const p=Math.max(0,Math.min(100,Math.round(Number(percent)||0)));
+  $('loaderPercent').textContent=p+'%';
+  $('loaderBar').style.width=p+'%';
+  $('loaderPhase').textContent=phase||'Loading dataset…';
+  $('loaderDetail').textContent=detail||'';
+}
+function resetLoaderProgress(){
+  if($('loaderProgress'))$('loaderProgress').hidden=true;
+  if($('loaderBar'))$('loaderBar').style.width='0%';
+}
+function readLocalFile(file,mode,onProgress){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(reader.error||new Error('Unable to read the selected file.'));
+    reader.onprogress=e=>{
+      if(e.lengthComputable&&onProgress)onProgress(e.loaded/e.total);
+    };
+    reader.onload=()=>resolve(reader.result);
+    if(mode==='arrayBuffer')reader.readAsArrayBuffer(file);else reader.readAsText(file);
+  });
+}
+function sheetDirectionHint(name){
+  const n=norm(name);
+  if(/\b(inflow|credit|credits|deposit|deposits|incoming|receipts?)\b/.test(n))return'inflow';
+  if(/\b(outflow|debit|debits|withdrawal|withdrawals|outgoing|payments?)\b/.test(n))return'outflow';
+  return'';
+}
 function parseCSV(text){
   const rows=[];let row=[],field='',quoted=false;
   for(let i=0;i<text.length;i++){
@@ -184,11 +214,32 @@ function parseCSV(text){
 
 async function importFile(file){
   const ext=(file.name.split('.').pop()||'').toLowerCase();
-  if(ext==='csv')return{rows:parseCSV(await file.text()),type:'CSV'};
+  setLoaderProgress(2,'Opening dataset',file.name);
+  if(ext==='csv'){
+    const text=await readLocalFile(file,'text',p=>setLoaderProgress(5+p*45,'Reading CSV',Math.round(p*100)+'% of file read'));
+    setLoaderProgress(58,'Parsing rows','Converting CSV text into transaction records…');
+    const rows=parseCSV(text).map(r=>({...r,__finintel_sheet:'CSV',__finintel_sheet_direction:''}));
+    setLoaderProgress(82,'Discovering schema',rows.length.toLocaleString()+' rows detected');
+    return{rows,type:'CSV',sheets:[{name:'CSV',rows:rows.length,directionHint:''}]};
+  }
   if(ext==='xlsx'||ext==='xls'){
     if(!window.XLSX)throw new Error('Excel parser unavailable. Check internet access or convert the file to CSV.');
-    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'}),name=wb.SheetNames[0];
-    return{rows:XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:'',raw:false}),type:'Excel ('+name+')'};
+    const buffer=await readLocalFile(file,'arrayBuffer',p=>setLoaderProgress(5+p*38,'Reading Excel workbook',Math.round(p*100)+'% of file read'));
+    setLoaderProgress(46,'Opening workbook','Detecting worksheets…');
+    const wb=XLSX.read(buffer,{type:'array'});
+    const sheets=[],rows=[];
+    const names=wb.SheetNames||[];
+    for(let i=0;i<names.length;i++){
+      const name=names[i],hint=sheetDirectionHint(name);
+      setLoaderProgress(48+((i+1)/Math.max(1,names.length))*35,'Reading worksheet',name+' ('+(i+1)+' of '+names.length+')');
+      const parsed=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:'',raw:false});
+      if(!parsed.length)continue;
+      parsed.forEach(r=>rows.push({...r,__finintel_sheet:name,__finintel_sheet_direction:hint}));
+      sheets.push({name,rows:parsed.length,directionHint:hint});
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    setLoaderProgress(88,'Discovering schema',rows.length.toLocaleString()+' rows across '+sheets.length+' non-empty sheet(s)');
+    return{rows,type:'Excel',sheets};
   }
   throw new Error('Unsupported file type. Use CSV, XLSX or XLS.');
 }
@@ -212,17 +263,22 @@ function findMatchingTemplate(){
   return state.templates.find(t=>t.signature===sig&&t.datasetType===state.datasetType)||null;
 }
 
-function loadRows(rows,name,type){
+function loadRows(rows,name,type,sheets=[]){
   if(!rows.length)throw new Error('No data rows were found.');
+  setLoaderProgress(92,'Preparing mapping','Standardising headers and detecting likely fields…');
   state.rawRows=rows;
-  state.columns=Array.from(new Set(rows.flatMap(r=>Object.keys(r))));
+  state.columns=Array.from(new Set(rows.flatMap(r=>Object.keys(r)))).filter(c=>!c.startsWith('__finintel_'));
+  state.sheets=sheets.length?sheets:[{name:type||'Dataset',rows:rows.length,directionHint:''}];
   state.sourceName=name;state.sourceType=type;state.datasetType=$('datasetType').value;
   state.sourceMapping=defaultMapping();
   $('datasetEmpty').hidden=true;$('datasetInfo').hidden=false;
   $('rowCount').textContent=rows.length.toLocaleString();
   $('columnCount').textContent=state.columns.length.toLocaleString();
+  $('sheetCount').textContent=state.sheets.length.toLocaleString();
   $('fileType').textContent=type;
+  $('sheetSummary').innerHTML=state.sheets.map(s=>'<span class="sheet-chip '+esc(s.directionHint||'')+'">'+esc(s.name)+' • '+s.rows.toLocaleString()+' rows'+(s.directionHint?' • '+s.directionHint:'')+'</span>').join('');
   $('columnTags').innerHTML=state.columns.map(c=>'<span>'+esc(c)+'</span>').join('');
+  setLoaderProgress(100,'Dataset ready',rows.length.toLocaleString()+' rows • '+state.columns.length+' columns • '+state.sheets.length+' sheet(s)');
   status('importStatus',name+': '+rows.length.toLocaleString()+' rows loaded locally.');
   refreshMappingUI();
   const t=findMatchingTemplate();
@@ -230,7 +286,7 @@ function loadRows(rows,name,type){
     $('templateSelect').value=t.id;
     status('templateStatus','Matching saved template found: '+t.name+'. Click Apply to use it.');
   }else status('templateStatus','');
-  setStep(2);
+  setTimeout(()=>setStep(2),180);
 }
 
 function optionHtml(selected){
@@ -332,9 +388,11 @@ function validateMapping(){
   const mapped=Object.values(state.sourceMapping).filter(Boolean);
   if(!mapped.length)return'Map at least one source column to a FinIntel field.';
   if(state.datasetType==='transaction'){
-    if(!mapped.includes('date'))return'Transaction analysis requires a Date field.';
-    const valid=(mapped.includes('amount')&&mapped.includes('direction'))||mapped.includes('debit')||mapped.includes('credit')||(mapped.includes('amount')&&mapped.includes('originator')&&mapped.includes('beneficiary'));
-    if(!valid)return'Transaction analysis requires Amount + Direction, Debit/Credit, or Amount + Originator + Beneficiary.';
+    if(!mapped.includes('date'))return'Transaction analysis requires Transaction Date.';
+    const hasValue=mapped.includes('amount')||mapped.includes('debit')||mapped.includes('credit');
+    if(!hasValue)return'Map Amount, Inflow/Credit, Outflow/Debit, or a combination of those amount fields.';
+    const hasDirectionSource=mapped.includes('direction')||mapped.includes('debit')||mapped.includes('credit')||mapped.includes('narration')||state.sheets.some(s=>s.directionHint);
+    if(mapped.includes('amount')&&!hasDirectionSource)return'With a single Amount column, also map Description/Direction or use signed amounts / direction-specific sheets so FinIntel can determine inflow and outflow.';
   }
   return'';
 }
@@ -350,13 +408,23 @@ function renderMappedSummary(){
   $('structuringCount').closest('label').hidden=state.datasetType!=='transaction';
 }
 
-function parseAmount(v){
-  if(typeof v==='number')return Number.isFinite(v)?Math.abs(v):0;
-  let s=String(v==null?'':v).trim();if(!s)return 0;
-  const neg=/^\(.*\)$/.test(s)||/^-/.test(s);
-  s=s.replace(/[(),]/g,'').replace(/[^0-9.\-]/g,'');
-  const n=Number(s);return Number.isFinite(n)?Math.abs(neg?-n:n):0;
+function parseAmountInfo(v){
+  if(v===null||v===undefined||String(v).trim()==='')return{amount:0,signed:0,signHint:'',explicitSign:false};
+  if(typeof v==='number'){
+    if(!Number.isFinite(v))return{amount:0,signed:0,signHint:'',explicitSign:false};
+    return{amount:Math.abs(v),signed:v,signHint:v<0?'outflow':'',explicitSign:v<0};
+  }
+  const original=String(v).trim();
+  const paren=/^\(.*\)$/.test(original);
+  const explicitPlus=/^\s*\+/.test(original);
+  const explicitMinus=/^\s*-/.test(original)||paren;
+  let cleaned=original.replace(/[(),]/g,'').replace(/[^0-9.+\-]/g,'');
+  const n=Number(cleaned);
+  if(!Number.isFinite(n))return{amount:0,signed:0,signHint:'',explicitSign:false};
+  const signed=paren?-Math.abs(n):n;
+  return{amount:Math.abs(signed),signed,signHint:explicitMinus||signed<0?'outflow':explicitPlus?'inflow':'',explicitSign:explicitMinus||explicitPlus};
 }
+function parseAmount(v){return parseAmountInfo(v).amount;}
 function parseDate(v){
   if(v instanceof Date&&!isNaN(v))return v;
   const s=String(v==null?'':v).trim();if(!s)return null;
@@ -364,12 +432,96 @@ function parseDate(v){
   if(dm){let y=Number(dm[3]);if(y<100)y+=2000;const d=new Date(y,Number(dm[2])-1,Number(dm[1]),Number(dm[4]||0),Number(dm[5]||0),Number(dm[6]||0));return isNaN(d)?null:d;}
   const d=new Date(s);return isNaN(d)?null:d;
 }
-function direction(raw,o,b,subject,debit,credit){
+
+const DESC_GENERIC=/\b(nip|neft|rtgs|transfer|trf|payment|pay|credit|debit|mobile|internet|online|web|banking|session|reference|ref|txn|transaction|narration|remark|pos|atm|ussd|cash|deposit|withdrawal|fee|charge|vat|stamp|duty|beneficiary|originator|sender|receiver|recipient|from|to|via)\b/ig;
+function cleanDescription(v){
+  return String(v==null?'':v)
+    .replace(/[\u0000-\u001F\u007F]/g,' ')
+    .replace(/[_*#~]+/g,' ')
+    .replace(/\s*[|;]+\s*/g,' | ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+function probableNameCandidate(text){
+  const explicit=[
+    /(?:from|sender|originator|payer)\s*[:\-\/]?\s*([A-Za-z][A-Za-z.'’ \-]{2,55})/i,
+    /(?:to|beneficiary|recipient|receiver|payee)\s*[:\-\/]?\s*([A-Za-z][A-Za-z.'’ \-]{2,55})/i
+  ];
+  for(const rx of explicit){
+    const m=text.match(rx);
+    if(m){
+      const x=m[1].split(/\s(?:ref|reference|acct|account|bank|via|on)\b/i)[0].trim().replace(/[\-\/|]+$/,'');
+      if(x.split(/\s+/).length<=7&&x.replace(DESC_GENERIC,'').trim().length>=3)return x;
+    }
+  }
+  const parts=text.split(/[\/|;:]+|\s+-\s+/).map(x=>x.trim()).filter(Boolean);
+  const scored=parts.map(p=>{
+    const noIds=p.replace(/\b\d{5,}\b/g,' ').replace(/\b[A-F0-9]{12,}\b/ig,' ').replace(DESC_GENERIC,' ').replace(/\s+/g,' ').trim();
+    const words=noIds.split(/\s+/).filter(Boolean);
+    const letters=(noIds.match(/[A-Za-z]/g)||[]).length;
+    const bad=/\b(ngn|usd|eur|gbp|bank|limited|ltd|plc)\b/i.test(noIds)&&words.length===1;
+    const score=(words.length>=2&&words.length<=6?3:0)+(letters>=6?2:0)+(noIds===noIds.toUpperCase()?1:0)-(bad?3:0);
+    return{value:noIds,score};
+  }).filter(x=>x.value.length>=4&&!/^\d/.test(x.value));
+  scored.sort((a,b)=>b.score-a.score);
+  return scored[0]?.score>=4?scored[0].value:'';
+}
+function extractDescriptionMeaning(value){
+  const original=String(value==null?'':value),clean=cleanDescription(original),lower=clean.toLowerCase();
+  if(!clean)return{clean:'',category:'Unclassified',channel:'',counterparty:'',account:'',phone:'',email:'',wallet:'',directionHint:'',meaning:'No description',confidence:'low'};
+  const email=(clean.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)||[])[0]||'';
+  const phone=(clean.match(/(?:\+?234|0)(?:70|80|81|90|91)\d{8}\b/)||[])[0]||'';
+  const eth=(clean.match(/\b0x[a-fA-F0-9]{40}\b/)||[])[0]||'';
+  const btc=(clean.match(/\b(?:bc1[a-zA-HJ-NP-Z0-9]{20,}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b/)||[])[0]||'';
+  const wallet=eth||btc;
+  const account=(clean.match(/\b\d{10,16}\b/g)||[]).find(x=>x!==phone.replace(/\D/g,''))||'';
+  const channels=[
+    ['NIP',/\bnip\b/i],['NEFT',/\bneft\b/i],['RTGS',/\brtgs\b/i],['POS',/\bpos\b|point of sale/i],
+    ['ATM',/\batm\b/i],['USSD',/\bussd\b/i],['Mobile Banking',/mobile (?:app|banking)|\bmob\b/i],
+    ['Internet Banking',/internet banking|web banking|\bweb\b/i],['Cash',/\bcash\b/i],['Card',/\bcard\b/i]
+  ];
+  const channel=(channels.find(x=>x[1].test(clean))||[])[0]||'';
+  const categories=[
+    ['Salary / Payroll',/\bsalary\b|\bpayroll\b|\bwages?\b/i],
+    ['Loan / Credit',/\bloan\b|\bcredit facility\b|\brepayment\b/i],
+    ['Crypto / VASP',/\bcrypto\b|\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\busdt\b|\busdc\b|\bbinance\b|\bbybit\b|\bkucoin\b|\bokx\b|\bcoinbase\b|\bvasp\b/i],
+    ['Cash Withdrawal',/\bcash withdrawal\b|\bwithdrawal\b/i],
+    ['Cash Deposit',/\bcash deposit\b|\bdeposit\b/i],
+    ['POS / Merchant Purchase',/\bpos\b|\bmerchant\b|\bpurchase\b|\bcard payment\b/i],
+    ['ATM',/\batm\b/i],
+    ['Bill / Utility Payment',/\bbill\b|\butility\b|\belectricity\b|\bwater\b|\bdstv\b|\bgotv\b/i],
+    ['Airtime / Data',/\bairtime\b|\bdata bundle\b|\bdata purchase\b/i],
+    ['Bank Fee / Charge',/\bfee\b|\bcharge\b|\bvat\b|\bstamp duty\b|\bcommission\b/i],
+    ['Tax / Government Payment',/\btax\b|\bfirs\b|\bremita\b|\bgovernment\b/i],
+    ['Refund / Reversal',/\brefund\b|\breversal\b|\breversed\b/i],
+    ['Transfer',/\btransfer\b|\btrf\b|\bnip\b|\bneft\b|\brtgs\b/i]
+  ];
+  const category=(categories.find(x=>x[1].test(clean))||[])[0]||'Other / Unclassified';
+  let inScore=0,outScore=0;
+  if(/\b(from|received|receipt|credit|credited|deposit|inflow|salary)\b/i.test(clean))inScore+=2;
+  if(/\b(to|sent|debit|debited|payment|purchase|withdrawal|outflow|fee|charge)\b/i.test(clean))outScore+=2;
+  if(/\brefund received\b/i.test(clean))inScore+=2;
+  const directionHint=inScore>outScore?'inflow':outScore>inScore?'outflow':'';
+  const counterparty=probableNameCandidate(clean);
+  const pieces=[category];
+  if(channel)pieces.push(channel);
+  if(counterparty)pieces.push('Counterparty: '+counterparty);
+  if(account)pieces.push('Account-like ID: '+account);
+  if(wallet)pieces.push('Wallet detected');
+  if(email)pieces.push('Email detected');
+  if(phone)pieces.push('Phone detected');
+  const confidence=(counterparty||wallet||email||phone||account)&&category!=='Other / Unclassified'?'high':counterparty||channel||category!=='Other / Unclassified'?'medium':'low';
+  return{clean,category,channel,counterparty,account,phone,email,wallet,directionHint,meaning:pieces.join(' • '),confidence};
+}
+function direction(raw,o,b,subject,debit,credit,amountInfo,sheetHint,desc){
   if(credit>0&&debit<=0)return'inflow';
   if(debit>0&&credit<=0)return'outflow';
   const d=norm(raw).replace(/[^a-z]/g,'');
   if(/^(credit|cr|inflow|deposit|incoming)$/.test(d))return'inflow';
   if(/^(debit|dr|outflow|withdrawal|outgoing)$/.test(d))return'outflow';
+  if(sheetHint==='inflow'||sheetHint==='outflow')return sheetHint;
+  if(amountInfo?.signHint)return amountInfo.signHint;
+  if(desc?.directionHint)return desc.directionHint;
   const s=norm(subject);
   if(s){if(norm(b).includes(s)&&!norm(o).includes(s))return'inflow';if(norm(o).includes(s)&&!norm(b).includes(s))return'outflow';}
   return'unknown';
@@ -380,23 +532,25 @@ function standardize(){
   return state.rawRows.map((raw,i)=>{
     const values={};
     Object.entries(state.sourceMapping).forEach(([source,fid])=>{if(fid)values[fid]=raw[source]??'';});
-    const debit=parseAmount(values.debit),credit=parseAmount(values.credit);
-    const amount=values.amount!==undefined?parseAmount(values.amount):Math.max(debit,credit);
-    const originator=String(values.originator??'').trim(),beneficiary=String(values.beneficiary??'').trim();
-    const record={
-      row:i+2,
-      values,
-      raw,
-      date:parseDate(values.date),
-      dateRaw:String(values.date??''),
-      amount,
-      direction:state.datasetType==='transaction'?direction(values.direction,originator,beneficiary,subject,debit,credit):'n/a',
-      originator,beneficiary,
-      narration:String(values.narration??'').trim(),
-      account:String(values.account??values.wallet??'').trim(),
-      txid:String(values.txid??'').trim()
+    const debit=parseAmount(values.debit),credit=parseAmount(values.credit),amountInfo=parseAmountInfo(values.amount);
+    const amount=values.amount!==undefined&&String(values.amount).trim()!==''?amountInfo.amount:Math.max(debit,credit);
+    const explicitOriginator=String(values.originator??'').trim(),explicitBeneficiary=String(values.beneficiary??'').trim();
+    const narration=String(values.narration??'').trim();
+    const extracted=extractDescriptionMeaning(narration);
+    const sheet=String(raw.__finintel_sheet??'');
+    const sheetHint=String(raw.__finintel_sheet_direction??'');
+    const flow=state.datasetType==='transaction'?direction(values.direction,explicitOriginator,explicitBeneficiary,subject,debit,credit,amountInfo,sheetHint,extracted):'n/a';
+    let originator=explicitOriginator,beneficiary=explicitBeneficiary;
+    let counterpartyFromDescription=false;
+    if(extracted.counterparty){
+      if(flow==='inflow'&&!originator){originator=extracted.counterparty;counterpartyFromDescription=true;}
+      if(flow==='outflow'&&!beneficiary){beneficiary=extracted.counterparty;counterpartyFromDescription=true;}
+    }
+    return{
+      row:i+2,values,raw,date:parseDate(values.date),dateRaw:String(values.date??''),amount,direction:flow,
+      originator,beneficiary,narration,account:String(values.account??values.wallet??'').trim(),
+      txid:String(values.txid??'').trim(),sheet,sheetHint,extracted,counterpartyFromDescription
     };
-    return record;
   });
 }
 
@@ -640,7 +794,13 @@ function renderSchemaDialog(){
 $('fileInput').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;
   status('importStatus','Reading file locally…');
-  try{const x=await importFile(f);loadRows(x.rows,f.name,x.type);}catch(err){status('importStatus',err.message,true);}
+  try{
+    const x=await importFile(f);
+    loadRows(x.rows,f.name,x.type,x.sheets||[]);
+  }catch(err){
+    setLoaderProgress(100,'Import failed',err.message||'Unable to load dataset.');
+    status('importStatus',err.message,true);
+  }
 });
 $('datasetType').addEventListener('change',()=>{
   state.datasetType=$('datasetType').value;
@@ -648,7 +808,11 @@ $('datasetType').addEventListener('change',()=>{
 });
 $('loadSampleBtn').onclick=()=>{
   $('datasetType').value='transaction';state.datasetType='transaction';
-  try{loadRows(parseCSV(SAMPLE_CSV),'sample_transactions.csv','Sample CSV');}catch(err){status('importStatus',err.message,true);}
+  try{
+    setLoaderProgress(25,'Loading sample','Reading synthetic transaction dataset…');
+    const rows=parseCSV(SAMPLE_CSV).map(r=>({...r,__finintel_sheet:'Sample',__finintel_sheet_direction:''}));
+    loadRows(rows,'sample_transactions.csv','Sample CSV',[{name:'Sample',rows:rows.length,directionHint:''}]);
+  }catch(err){status('importStatus',err.message,true);}
 };
 $('addCustomFieldBtn').onclick=addCustomField;
 $('saveTemplateBtn').onclick=saveTemplate;
@@ -684,8 +848,8 @@ $('copySummaryBtn').onclick=async()=>{
 $('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
 $('clearAllBtn').onclick=()=>{
-  state.rawRows=[];state.columns=[];state.sourceMapping={};state.standardized=[];state.analysis=null;
-  $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');setStep(1);
+  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;
+  $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();setStep(1);
 };
 $('schemaLibraryBtn').onclick=()=>{renderSchemaDialog();$('schemaDialog').showModal();};
 $('closeSchemaDialog').onclick=()=>$('schemaDialog').close();
