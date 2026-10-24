@@ -1,0 +1,22 @@
+Date,Amount,Direction,Originator,Beneficiary,Narration,Account
+2026-01-02 09:10,9800000,Credit,John Musa,Subject Account,Transfer,0011223344
+2026-01-02 10:20,9700000,Credit,Amina Bello,Subject Account,Transfer,0011223344
+2026-01-02 11:15,9900000,Credit,ABC Trading Ltd,Subject Account,Transfer,0011223344
+2026-01-02 13:30,28500000,Debit,Subject Account,Prime Logistics Ltd,Vendor payment,0011223344
+2026-01-05 08:40,15000000,Credit,Northline Ventures,Subject Account,Transfer,0011223344
+2026-01-05 09:05,14800000,Debit,Subject Account,Crypto Exchange NG,VASP funding,0011223344
+2026-01-07 14:00,2500000,Credit,Chidi Okafor,Subject Account,Transfer,0011223344
+2026-01-07 14:15,2450000,Debit,Subject Account,Beneficiary Z,Transfer,0011223344
+2026-01-09 09:00,9950000,Credit,Delta Services,Subject Account,Transfer,0011223344
+2026-01-09 12:05,9850000,Credit,Omega Global,Subject Account,Transfer,0011223344
+2026-01-09 15:10,19000000,Debit,Subject Account,Prime Logistics Ltd,Transfer,0011223344
+2026-01-12 10:00,500000,Credit,Musa Ibrahim,Subject Account,Personal transfer,0011223344
+2026-01-13 10:00,700000,Credit,Hauwa Aliyu,Subject Account,Personal transfer,0011223344
+2026-01-14 11:00,1000000,Debit,Subject Account,John Musa,Refund,0011223344
+2026-01-18 08:00,40000000,Credit,Emerald Projects Ltd,Subject Account,Contract payment,0011223344
+2026-01-18 08:35,39500000,Debit,Subject Account,Prime Logistics Ltd,Transfer,0011223344
+2026-01-21 09:20,3000000,Credit,Blue Rock Ltd,Subject Account,Transfer,0011223344
+2026-01-21 10:10,2900000,Debit,Subject Account,Crypto Exchange NG,VASP funding,0011223344
+2026-01-25 12:00,9750000,Credit,Sunrise Retail,Subject Account,Transfer,0011223344
+2026-01-25 13:00,9700000,Credit,Greenway Stores,Subject Account,Transfer,0011223344
+2026-01-25 15:30,19000000,Debit,Subject Account,Prime Logistics Ltd,Transfer,0011223344
