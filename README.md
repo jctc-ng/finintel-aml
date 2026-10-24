@@ -124,3 +124,74 @@ FinIntel_AML_MVP/
 - natural-language querying of authorised case data.
 
 AI should remain an assistive layer, with all substantive findings reviewable by an analyst.
+
+
+---
+
+## FinIntel AML v2 — Universal Schema Architecture
+
+Version 2 removes the fixed-column limitation.
+
+### 1. Dynamic Schema Builder
+Analysts can create reusable FinIntel fields directly in the browser. A custom field contains:
+- field name;
+- data type;
+- category;
+- sensitivity classification;
+- optional description.
+
+Supported types include text, number, date/time, currency amount, entity, identifier, account, phone, email, crypto wallet, blockchain transaction, IP address, device ID, geography and boolean.
+
+Custom schema definitions are stored in browser localStorage in the public MVP. Transaction/case data is not stored there by FinIntel.
+
+### 2. Universal Source-Column Mapping
+FinIntel now presents every source column and lets the analyst choose:
+- a core FinIntel field;
+- a custom FinIntel field;
+- or Ignore / Unmapped.
+
+Mapped custom data is preserved in the standardized record and can be exported and profiled.
+
+### 3. Saved Import Templates
+Mappings can be saved as reusable templates such as:
+- Bank A transaction format;
+- Bank B KYC format;
+- Bitget export;
+- VASP deposit/withdrawal format;
+- company registry format.
+
+Templates are matched against the source-column signature and can be reapplied when the same structure is received later.
+
+### 4. Dataset Types
+The MVP now supports:
+- Transaction Data;
+- Customer / KYC Data;
+- Entity / Company Data;
+- Crypto / VASP Data;
+- Other / Custom Dataset.
+
+Transaction datasets continue through the AML/CFT scenario engine. Other dataset types receive mapped-field profiling, completeness analysis, uniqueness analysis and repeated identifier/entity signals.
+
+### Universal processing model
+
+```text
+RAW CSV / XLSX
+      ↓
+DATASET TYPE
+      ↓
+SCHEMA DISCOVERY
+      ↓
+SOURCE COLUMN → CORE / CUSTOM FIELD
+      ↓
+STANDARDISED RECORD
+      ↓
+TRANSACTION AML ANALYSIS
+        or
+UNIVERSAL DATA PROFILING
+      ↓
+ANALYST REVIEW / EXPORT / REPORT
+```
+
+### Important limitation of the public MVP
+
+The current v2 schema library and templates are browser-local conveniences. They are not yet centrally governed, versioned or shared between analysts. A production institutional version should move schema governance, templates, cases, audit history and permissions into a protected backend.
