@@ -442,6 +442,7 @@ const BANK_WORDS=new Set([
 ]);
 const LEGAL_ENTITY_RX=/\b(ltd|limited|plc|llc|inc|incorporated|enterprises?|enterprise|ventures?|venture|services?|service|solutions?|solution|logistics?|global|trading|projects?|project|resources?|resource|holdings?|holding|foundation|association|cooperative|co-op|company|companies|group|industries|industry|international|investment|investments|consulting|consultancy|technologies|technology|systems?|system|stores?|store|mart|supermarket|pharmacy|hospital|clinic|school|academy|university|college|ministry|department|agency|commission|authority|secretariat|hotel|restaurant|foods?|farm|farms|energy|oil|gas|construction|properties|property|estate|estates)\b/i;
 const MERCHANT_RX=/\b(shoprite|merchant|store|mart|supermarket|pharmacy|hotel|restaurant|foods?|airline|transport|fuel|petrol|station|market)\b/i;
+const COMPACT_ENTITY_SUFFIX_RX=/(LIMITED|LTD|PLC|LLC|INC|ENTERPRISES?|VENTURES?|SERVICES?|SOLUTIONS?|LOGISTICS?|TRADING|PROJECTS?|RESOURCES?|HOLDINGS?|FOUNDATION|COMPANY|GROUP|INDUSTRIES|INVESTMENTS?|TECHNOLOGIES|SYSTEMS?|STORES?|SUPERMARKET|PHARMACY|HOTEL|RESTAURANT|FOODS?|FARMS?|ENERGY|CONSTRUCTION|PROPERTIES|ESTATES)$/i;
 const PERSON_TITLE_RX=/^(mr|mrs|miss|ms|dr|prof|alhaji|hajiya|mallam|engr|chief|barr|pastor|imam)\.?\s+/i;
 
 function cleanDescription(v){
@@ -474,7 +475,7 @@ function stripNoiseTokens(v){
 function classifyEntityName(name,context=''){
   const n=String(name||'').trim(),ctx=String(context||'');
   if(!n)return'unknown';
-  if(LEGAL_ENTITY_RX.test(n))return MERCHANT_RX.test(n+' '+ctx)?'merchant':'company / organisation';
+  if(LEGAL_ENTITY_RX.test(n)||COMPACT_ENTITY_SUFFIX_RX.test(n.replace(/\s+/g,'')))return MERCHANT_RX.test(n+' '+ctx)?'merchant':'company / organisation';
   if(MERCHANT_RX.test(n+' '+ctx))return'merchant';
   if(/\b(bank|mfb|microfinance|psb)\b/i.test(n+' '+ctx))return'financial institution';
   const words=n.replace(PERSON_TITLE_RX,'').split(/\s+/).filter(Boolean);
@@ -487,7 +488,7 @@ function entityConfidence(name,source,context=''){
   const n=String(name||'').trim();
   if(source==='explicit')score+=45;
   if(source==='segment')score+=25;
-  if(LEGAL_ENTITY_RX.test(n))score+=25;
+  if(LEGAL_ENTITY_RX.test(n)||COMPACT_ENTITY_SUFFIX_RX.test(n.replace(/\s+/g,'')))score+=25;
   const words=n.replace(PERSON_TITLE_RX,'').split(/\s+/).filter(Boolean);
   if(words.length>=2&&words.length<=6)score+=20;
   if(n.length>=6)score+=10;
@@ -717,19 +718,31 @@ function aggregateDescriptionField(records,selector){
   });
   return [...m.values()].sort((a,b)=>b.count-a.count||b.total-a.total);
 }
+function aggregateExtractedEntities(records){
+  const m=new Map();
+  records.forEach(r=>(r.extracted?.entities||[]).forEach(e=>{
+    const key=norm(e.name)+'|'+e.type;
+    if(!m.has(key))m.set(key,{name:e.name,type:e.type,count:0,total:0,maxConfidence:0,roles:new Set()});
+    const x=m.get(key);x.count++;x.total+=r.amount||0;x.maxConfidence=Math.max(x.maxConfidence,e.confidence||0);x.roles.add(e.role||'unknown');
+  }));
+  return [...m.values()].map(x=>({...x,roles:[...x.roles]})).sort((a,b)=>b.count-a.count||b.total-a.total);
+}
 function buildDescriptionIntelligence(records){
   const parsed=records.filter(r=>r.narration);
   const withCounterparty=records.filter(r=>r.extracted?.counterparty);
   const fallbackUsed=records.filter(r=>r.counterpartyFromDescription);
   const identifiers=records.filter(r=>r.extracted&&(r.extracted.account||r.extracted.phone||r.extracted.email||r.extracted.wallet));
+  const entities=aggregateExtractedEntities(records);
   return{
     parsed:parsed.length,
     withCounterparty:withCounterparty.length,
     fallbackUsed:fallbackUsed.length,
     identifiers:identifiers.length,
+    entityCandidates:entities.length,
     categories:aggregateDescriptionField(parsed,r=>r.extracted?.category&&r.extracted.category!=='Other / Unclassified'?r.extracted.category:''),
     channels:aggregateDescriptionField(parsed,r=>r.extracted?.channel),
-    counterparties:aggregateDescriptionField(withCounterparty,r=>r.extracted?.counterparty)
+    counterparties:aggregateDescriptionField(withCounterparty,r=>r.extracted?.counterparty),
+    entities
   };
 }
 
@@ -795,22 +808,22 @@ function renderMetrics(a){
 }
 
 function renderDescriptionIntelligence(a){
-  const d=a.descriptionIntel||{parsed:0,withCounterparty:0,fallbackUsed:0,identifiers:0,categories:[],channels:[],counterparties:[]};
+  const d=a.descriptionIntel||{parsed:0,withCounterparty:0,fallbackUsed:0,identifiers:0,entityCandidates:0,categories:[],channels:[],counterparties:[],entities:[]};
   $('descriptionCoverage').textContent=d.parsed.toLocaleString()+' descriptions parsed';
   const metrics=[
     ['Descriptions Parsed',d.parsed.toLocaleString()],
+    ['Entities Identified',(d.entityCandidates||0).toLocaleString()],
     ['Counterparties Extracted',d.withCounterparty.toLocaleString()],
-    ['Used as Fallback Party',d.fallbackUsed.toLocaleString()],
-    ['Identifiers Detected',d.identifiers.toLocaleString()]
+    ['Used as Fallback Party',d.fallbackUsed.toLocaleString()]
   ];
   $('descriptionMetrics').innerHTML=metrics.map(x=>'<article class="card metric"><div class="value">'+esc(x[1])+'</div><div class="label">'+esc(x[0])+'</div></article>').join('');
   const rows=[
-    ...d.counterparties.slice(0,8).map(x=>({kind:'Counterparty',name:x.name,count:x.count,total:x.total})),
-    ...d.categories.slice(0,6).map(x=>({kind:'Meaning',name:x.name,count:x.count,total:x.total})),
-    ...d.channels.slice(0,6).map(x=>({kind:'Channel',name:x.name,count:x.count,total:x.total}))
+    ...(d.entities||[]).slice(0,12).map(x=>({kind:'Entity',name:x.name,entityType:x.type,confidence:x.maxConfidence,count:x.count,total:x.total})),
+    ...d.categories.slice(0,5).map(x=>({kind:'Meaning',name:x.name,entityType:'transaction meaning',confidence:'',count:x.count,total:x.total})),
+    ...d.channels.slice(0,5).map(x=>({kind:'Channel',name:x.name,entityType:'payment channel',confidence:'',count:x.count,total:x.total}))
   ];
-  $('descriptionIntelligenceTable').innerHTML='<table><thead><tr><th>Type</th><th>Extracted value</th><th class="num">Records</th><th class="num">Observed value</th></tr></thead><tbody>'
-    +(rows.map(x=>'<tr><td>'+esc(x.kind)+'</td><td class="description-derived">'+esc(x.name)+'</td><td class="num">'+x.count+'</td><td class="num">'+esc(fmt(x.total,a.currency))+'</td></tr>').join('')||'<tr><td colspan="4">No meaningful description-derived patterns were extracted.</td></tr>')
+  $('descriptionIntelligenceTable').innerHTML='<table><thead><tr><th>Type</th><th>Extracted value</th><th>Classification</th><th>Confidence</th><th class="num">Records</th><th class="num">Observed value</th></tr></thead><tbody>'
+    +(rows.map(x=>'<tr><td>'+esc(x.kind)+'</td><td class="description-derived">'+esc(x.name)+'</td><td>'+esc(x.entityType||'')+'</td><td>'+(x.confidence!==''?'<span class="confidence">'+esc(x.confidence+'%')+'</span>':'—')+'</td><td class="num">'+x.count+'</td><td class="num">'+esc(fmt(x.total,a.currency))+'</td></tr>').join('')||'<tr><td colspan="6">No meaningful description-derived patterns were extracted.</td></tr>')
     +'</tbody></table>';
 }
 
@@ -865,7 +878,7 @@ function renderRecords(){
   const derivedHead=a.kind==='transaction'?'<th>Direction</th><th>Source Sheet</th><th>Extracted Meaning</th><th>Derived Counterparty</th>':'';
   $('transactionTable').innerHTML='<table><thead><tr><th>#</th>'+derivedHead+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'
     +(rows.map(r=>'<tr><td>'+r.row+'</td>'
-      +(a.kind==='transaction'?'<td>'+esc(r.direction)+'</td><td>'+esc(r.sheet||'')+'</td><td><span class="description-meaning">'+esc(r.extracted?.category||'')+'</span><br><small>'+esc(r.extracted?.meaning||'')+'</small></td><td>'+esc(r.extracted?.counterparty||'')+(r.counterpartyFromDescription?' <span class="source-badge">USED</span>':'')+'</td>':'')
+      +(a.kind==='transaction'?'<td>'+esc(r.direction)+'</td><td>'+esc(r.sheet||'')+'</td><td><span class="description-meaning">'+esc(r.extracted?.category||'')+'</span><br><small>'+esc(r.extracted?.meaning||'')+'</small></td><td>'+esc(r.extracted?.counterparty||'')+(r.extracted?.counterpartyType?'<br><small>'+esc(r.extracted.counterpartyType)+' • '+esc((r.extracted.entities?.[0]?.confidence||0)+'% confidence')+'</small>':'')+(r.counterpartyFromDescription?' <span class="source-badge">USED</span>':'')+'</td>':'')
       +cols.map(c=>'<td>'+esc(r.values[c.id]??'')+'</td>').join('')+'</tr>').join('')
       ||'<tr><td colspan="'+(cols.length+(a.kind==='transaction'?5:1))+'">No matching records.</td></tr>')
     +'</tbody></table>';
@@ -889,7 +902,7 @@ function makeDraft(a){
   if(a.rapid.length)lines.push('• '+a.rapid.length+' rapid-movement match(es) met the analyst-configured parameters.');
   if(a.cryptoExposure)lines.push('• '+a.cryptoTx.length+' transaction(s), with observed value of '+fmt(a.cryptoExposure,a.currency)+', contained crypto/VASP textual indicators.');
   if(a.unknown.length)lines.push('• '+a.unknown.length+' transaction(s) had unresolved direction and require data review.');
-  if(a.descriptionIntel?.parsed)lines.push('• FinIntel parsed '+a.descriptionIntel.parsed+' transaction description(s), extracted probable counterparties from '+a.descriptionIntel.withCounterparty+' record(s), and used description-derived counterparties as fallback data in '+a.descriptionIntel.fallbackUsed+' record(s).');
+  if(a.descriptionIntel?.parsed)lines.push('• FinIntel parsed '+a.descriptionIntel.parsed+' transaction description(s), identified '+(a.descriptionIntel.entityCandidates||0)+' distinct entity candidate(s), extracted probable counterparties from '+a.descriptionIntel.withCounterparty+' record(s), and used description-derived counterparties as fallback data in '+a.descriptionIntel.fallbackUsed+' record(s).');
   if(a.descriptionIntel?.categories?.[0])lines.push('• The most frequently inferred description category was '+a.descriptionIntel.categories[0].name+' ('+a.descriptionIntel.categories[0].count+' record(s)).');
   lines.push('','AML/CFT INDICATORS FOR REVIEW');
   if(a.alerts.length)a.alerts.forEach((x,i)=>lines.push((i+1)+'. '+x.title+': '+x.detail));else lines.push('No material rule-based indicator triggered under the current settings.');
