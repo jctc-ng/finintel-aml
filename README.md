@@ -195,3 +195,77 @@ ANALYST REVIEW / EXPORT / REPORT
 ### Important limitation of the public MVP
 
 The current v2 schema library and templates are browser-local conveniences. They are not yet centrally governed, versioned or shared between analysts. A production institutional version should move schema governance, templates, cases, audit history and permissions into a protected backend.
+
+
+---
+
+## FinIntel AML v2.1 — Real-World Transaction Ingestion
+
+Version 2.1 improves ingestion for common bank/VASP export formats.
+
+### Minimum practical transaction fields
+
+FinIntel can now work with the common three-column layout:
+
+```text
+Transaction Date
+Description
+Amount
+```
+
+Where explicit Originator/Beneficiary columns are absent, the Description Intelligence engine attempts to extract a probable counterparty and transaction meaning from the narration. All extracted values remain analyst-reviewable.
+
+### Supported inflow/outflow layouts
+
+FinIntel supports several common designs:
+
+1. **Single signed Amount column**
+   - explicit `+` amount → inflow;
+   - explicit `-` amount or bracketed negative amount → outflow.
+
+2. **Separate Inflow/Credit and Outflow/Debit columns**
+   - a positive inflow/credit with blank or zero outflow → inflow;
+   - a positive outflow/debit with blank or zero inflow → outflow.
+
+3. **Separate Excel worksheets**
+   - sheet names such as `Inflow`, `Credits`, `Deposits`, `Outflow`, `Debits`, `Withdrawals` or similar are used as direction hints;
+   - all non-empty sheets are combined into one analysis dataset;
+   - the original sheet name is preserved on each standardized record.
+
+4. **Direction column**
+   - values such as Credit/CR/Inflow/Deposit and Debit/DR/Outflow/Withdrawal remain supported.
+
+5. **Description-derived direction**
+   - when structured direction data is absent, narration terms such as `from`, `received`, `credited`, `to`, `payment`, `withdrawal` and similar language can provide a fallback direction clue.
+
+FinIntel uses the strongest available evidence first: separate debit/credit columns, explicit direction, sheet direction, signed amount, description clue, then subject-based originator/beneficiary inference.
+
+### Multi-sheet workbook loading
+
+The Excel loader now:
+- reads every non-empty worksheet rather than only the first sheet;
+- reports file-read and sheet-processing progress;
+- displays the number of rows, columns and sheets loaded;
+- preserves source-sheet metadata;
+- automatically identifies direction hints from common sheet names.
+
+### Description Intelligence
+
+FinIntel cleans noisy transaction narrations and attempts to extract:
+
+- probable counterparty names;
+- account-like identifiers;
+- Nigerian-format phone numbers;
+- email addresses;
+- Ethereum and common Bitcoin wallet formats;
+- transaction channels such as NIP, NEFT, RTGS, POS, ATM, USSD, mobile banking, web banking, cash and card;
+- transaction meaning/category such as transfer, salary/payroll, loan/credit, crypto/VASP, cash deposit/withdrawal, POS/merchant purchase, bills/utilities, airtime/data, bank charges, tax/government payment and refund/reversal;
+- direction clues.
+
+Where no structured originator or beneficiary exists, a description-derived counterparty may be used as a fallback for counterparty aggregation and flow analysis. The record review and CSV export identify these derived values so the analyst can verify them.
+
+### Important limitation
+
+Description extraction in v2.1 is deterministic/rule-based, not a protected large-language-model service. Noisy bank narrations can be ambiguous. Extracted names, meanings and direction clues are therefore analytical suggestions and must be reviewed against the original description and supporting records.
+
+A future protected institutional version can add a semantic/AI layer after the deterministic parser, with the original description retained for audit and verification.
