@@ -4,24 +4,26 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#071722" />
-  <meta name="description" content="FinIntel AML — privacy-first financial intelligence and AML/CFT analysis workbench." />
-  <title>FinIntel AML</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1" />
-  <link rel="stylesheet" href="styles.css?v=1.0.0" />
+  <meta name="description" content="FinIntel AML v2 — configurable financial intelligence and AML/CFT analysis workbench." />
+  <title>FinIntel AML v2</title>
+  <link rel="manifest" href="manifest.webmanifest?v=2" />
+  <link rel="stylesheet" href="styles.css?v=2.0.0" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
+
   <header class="topbar">
     <div class="brand">
       <img src="https://raw.githubusercontent.com/jctc-ng/jctc-cyberguard/main/docs/assets/jctc-logo.jpeg" alt="JCTC logo" />
       <div>
         <p class="kicker">FINANCIAL INTELLIGENCE & AML/CFT ANALYSIS</p>
-        <h1>FinIntel AML</h1>
-        <p class="sub">Analyst Workbench • Browser-first MVP</p>
+        <h1>FinIntel AML <span class="version">v2</span></h1>
+        <p class="sub">Universal Schema • Analyst Workbench • Browser-first MVP</p>
       </div>
     </div>
     <div class="header-actions">
       <span class="privacy-chip">Local analysis</span>
+      <button id="schemaLibraryBtn" class="btn ghost" type="button">Schema Library</button>
       <button id="clearAllBtn" class="btn ghost" type="button">Clear Session</button>
     </div>
   </header>
@@ -29,19 +31,19 @@
   <main id="main" class="shell">
     <section class="hero card">
       <div>
-        <p class="kicker">HOW THIS VERSION HANDLES DATA</p>
-        <h2>Upload the transaction file. The analysis runs in your browser.</h2>
-        <p>CSV and XLSX files are read locally on the analyst's device. This MVP does not upload transaction records to GitHub or to a FinIntel server.</p>
+        <p class="kicker">UNIVERSAL DATA INGESTION</p>
+        <h2>FinIntel now adapts to the dataset instead of forcing the dataset into fixed columns.</h2>
+        <p>Upload transaction, KYC, entity, crypto or custom datasets. Map each source column to a standard FinIntel field, a reusable custom field, or leave it unmapped.</p>
       </div>
       <div class="hero-note">
-        <strong>Important</strong>
-        <p>Use sanitised/demo data on the public GitHub Pages deployment. Real STR/SAR, KYC, bank and intelligence data should only be processed in an approved protected environment.</p>
+        <strong>Public MVP privacy rule</strong>
+        <p>Mappings, custom fields and templates are stored in this browser. Use synthetic or sanitised data on GitHub Pages. Real operational data belongs in an approved protected deployment.</p>
       </div>
     </section>
 
     <section class="stepper" aria-label="Workflow">
       <button class="step active" data-step="1"><span>1</span> Import</button>
-      <button class="step" data-step="2"><span>2</span> Map Columns</button>
+      <button class="step" data-step="2"><span>2</span> Schema & Mapping</button>
       <button class="step" data-step="3"><span>3</span> Configure</button>
       <button class="step" data-step="4"><span>4</span> Analyse</button>
       <button class="step" data-step="5"><span>5</span> Review</button>
@@ -51,15 +53,26 @@
       <div class="grid two">
         <article class="card pad">
           <p class="kicker">STEP 1</p>
-          <h3>Import transaction data</h3>
+          <h3>Import any supported dataset</h3>
+
+          <label for="datasetType">Dataset type</label>
+          <select id="datasetType" class="full-select">
+            <option value="transaction">Transaction Data</option>
+            <option value="kyc">Customer / KYC Data</option>
+            <option value="entity">Entity / Company Data</option>
+            <option value="crypto">Crypto / VASP Data</option>
+            <option value="custom">Other / Custom Dataset</option>
+          </select>
+
           <label class="dropzone" for="fileInput">
             <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
             <span class="drop-icon">⇧</span>
             <strong>Choose CSV or Excel file</strong>
             <small>CSV works fully offline. Excel parsing uses the browser-loaded SheetJS library.</small>
           </label>
+
           <div class="button-row">
-            <button id="loadSampleBtn" class="btn secondary" type="button">Load Sample Dataset</button>
+            <button id="loadSampleBtn" class="btn secondary" type="button">Load Transaction Sample</button>
             <a class="btn ghost linkbtn" href="sample-data/sample_transactions.csv" download>Download Sample CSV</a>
           </div>
           <p id="importStatus" class="status" aria-live="polite"></p>
@@ -74,7 +87,7 @@
               <div><span id="columnCount">0</span><small>Columns</small></div>
               <div><span id="fileType">—</span><small>Type</small></div>
             </div>
-            <h4>Detected columns</h4>
+            <h4>Detected source columns</h4>
             <div id="columnTags" class="tags"></div>
           </div>
         </article>
@@ -82,16 +95,92 @@
     </section>
 
     <section id="step2" class="stage" hidden>
-      <div class="card pad">
-        <p class="kicker">STEP 2</p>
-        <h3>Map source columns to FinIntel fields</h3>
-        <p class="muted">Different institutions use different column names. Map what your file calls each field. At minimum, map a date and either (Amount + Direction) or (Debit + Credit).</p>
-        <div id="mappingGrid" class="mapping-grid"></div>
-        <div class="button-row end">
-          <button id="backToImport" class="btn ghost" type="button">Back</button>
-          <button id="confirmMappingBtn" class="btn primary" type="button">Confirm Mapping</button>
-        </div>
-        <p id="mappingStatus" class="status error" aria-live="polite"></p>
+      <div class="grid schema-layout">
+        <article class="card pad">
+          <div class="section-title">
+            <div>
+              <p class="kicker">STEP 2</p>
+              <h3>Universal column mapping</h3>
+            </div>
+            <span id="mappingDatasetType" class="dataset-pill">Transaction Data</span>
+          </div>
+          <p class="muted">Each source column can map to a core field, a custom FinIntel field, or be ignored. FinIntel preserves mapped custom values for future analysis and entity resolution.</p>
+
+          <div class="template-bar">
+            <select id="templateSelect"><option value="">— Saved import templates —</option></select>
+            <button id="applyTemplateBtn" class="btn ghost" type="button">Apply</button>
+            <input id="templateName" type="text" placeholder="Template name, e.g. Bank A Format" />
+            <button id="saveTemplateBtn" class="btn secondary" type="button">Save Current Mapping</button>
+          </div>
+          <p id="templateStatus" class="status" aria-live="polite"></p>
+
+          <div class="mapping-table-wrap">
+            <table class="mapping-table">
+              <thead><tr><th>Source Column</th><th>Sample Value</th><th>Map To</th><th>Field Type</th></tr></thead>
+              <tbody id="mappingRows"></tbody>
+            </table>
+          </div>
+
+          <div class="button-row end">
+            <button id="backToImport" class="btn ghost" type="button">Back</button>
+            <button id="confirmMappingBtn" class="btn primary" type="button">Confirm Mapping</button>
+          </div>
+          <p id="mappingStatus" class="status error" aria-live="polite"></p>
+        </article>
+
+        <aside class="card pad schema-panel">
+          <p class="kicker">DYNAMIC SCHEMA BUILDER</p>
+          <h3>Create a FinIntel field</h3>
+          <p class="muted">Custom fields remain available for future files on this browser.</p>
+
+          <label>Field name<input id="customFieldName" type="text" placeholder="e.g. Device ID" /></label>
+          <label>Data type
+            <select id="customFieldType">
+              <option value="text">Text</option>
+              <option value="number">Number</option>
+              <option value="date">Date / Time</option>
+              <option value="currency">Currency Amount</option>
+              <option value="entity">Person / Entity</option>
+              <option value="identifier">Identifier</option>
+              <option value="account">Account</option>
+              <option value="phone">Phone</option>
+              <option value="email">Email</option>
+              <option value="wallet">Crypto Wallet</option>
+              <option value="blockchain_tx">Blockchain Transaction</option>
+              <option value="ip">IP Address</option>
+              <option value="device">Device ID</option>
+              <option value="geography">Geography</option>
+              <option value="boolean">Yes / No</option>
+            </select>
+          </label>
+          <label>Category
+            <select id="customFieldCategory">
+              <option value="transaction">Transaction</option>
+              <option value="identity">Identity</option>
+              <option value="account">Account</option>
+              <option value="contact">Contact</option>
+              <option value="institution">Institution</option>
+              <option value="technical">Technical</option>
+              <option value="crypto">Cryptocurrency</option>
+              <option value="geography">Geographic</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>Sensitivity
+            <select id="customFieldSensitivity">
+              <option value="internal">Internal</option>
+              <option value="confidential">Confidential</option>
+              <option value="highly-sensitive">Highly Sensitive</option>
+              <option value="public">Public</option>
+            </select>
+          </label>
+          <label>Description<textarea id="customFieldDescription" rows="3" placeholder="What does this field represent?"></textarea></label>
+          <button id="addCustomFieldBtn" class="btn primary wide" type="button">Add Custom Field</button>
+          <p id="schemaStatus" class="status" aria-live="polite"></p>
+
+          <h4>Custom schema library</h4>
+          <div id="customFieldList" class="schema-list"></div>
+        </aside>
       </div>
     </section>
 
@@ -110,23 +199,19 @@
             <label>Reference band (%)<input id="structuringBand" type="number" value="10" min="1" max="50" /></label>
             <label>Minimum repeated transactions<input id="structuringCount" type="number" value="3" min="2" max="50" /></label>
           </div>
-          <div class="notice">
-            <strong>Reference amount is analyst-configured.</strong>
-            <p>It is not presented as a legal or regulatory threshold. Set it according to the case, institution, product and applicable policy.</p>
+          <div id="transactionConfigNotice" class="notice">
+            <strong>Transaction scenario parameters</strong>
+            <p>The reference amount is analyst-configured and is not presented as a legal or regulatory threshold.</p>
           </div>
         </article>
 
         <article class="card pad">
-          <p class="kicker">DIRECTION LOGIC</p>
-          <h3>How FinIntel determines inflow and outflow</h3>
-          <ol class="explain-list">
-            <li>If a Direction column is mapped, FinIntel uses values such as credit/inflow/CR and debit/outflow/DR.</li>
-            <li>If Debit and Credit columns are mapped, positive Credit is inflow and positive Debit is outflow.</li>
-            <li>If neither is available, FinIntel can infer direction when the subject appears in Originator or Beneficiary.</li>
-          </ol>
+          <p class="kicker">MAPPED SCHEMA</p>
+          <h3>Fields available to this analysis</h3>
+          <div id="mappedFieldSummary" class="schema-summary"></div>
           <div class="button-row end">
             <button id="backToMapping" class="btn ghost" type="button">Back</button>
-            <button id="runAnalysisBtn" class="btn primary" type="button">Run AML/CFT Analysis</button>
+            <button id="runAnalysisBtn" class="btn primary" type="button">Run Analysis</button>
           </div>
           <p id="configStatus" class="status error" aria-live="polite"></p>
         </article>
@@ -136,8 +221,8 @@
     <section id="step4" class="stage" hidden>
       <div class="card pad loading-card">
         <div class="spinner" aria-hidden="true"></div>
-        <h3>Analysing transactions…</h3>
-        <p id="analysisProgress">Standardising the dataset.</p>
+        <h3>Analysing dataset…</h3>
+        <p id="analysisProgress">Standardising mapped fields.</p>
       </div>
     </section>
 
@@ -153,35 +238,45 @@
 
       <section id="metricCards" class="metric-grid"></section>
 
-      <section class="grid two results-grid">
-        <article class="card pad">
-          <div class="section-title"><div><p class="kicker">COUNTERPARTIES</p><h3>Top Originators</h3></div></div>
-          <div id="originatorTable" class="table-wrap"></div>
-        </article>
-        <article class="card pad">
-          <div class="section-title"><div><p class="kicker">COUNTERPARTIES</p><h3>Top Beneficiaries</h3></div></div>
-          <div id="beneficiaryTable" class="table-wrap"></div>
-        </article>
+      <section id="transactionResults">
+        <section class="grid two results-grid">
+          <article class="card pad">
+            <p class="kicker">COUNTERPARTIES</p>
+            <h3>Top Originators</h3>
+            <div id="originatorTable" class="table-wrap"></div>
+          </article>
+          <article class="card pad">
+            <p class="kicker">COUNTERPARTIES</p>
+            <h3>Top Beneficiaries</h3>
+            <div id="beneficiaryTable" class="table-wrap"></div>
+          </article>
+        </section>
+
+        <section class="grid two results-grid">
+          <article class="card pad">
+            <p class="kicker">AML/CFT SCENARIO ENGINE</p>
+            <h3>Indicators requiring analyst review</h3>
+            <div id="alertsList" class="alert-list"></div>
+          </article>
+          <article class="card pad">
+            <p class="kicker">FLOW OF FUNDS</p>
+            <h3>Counterparty relationship view</h3>
+            <div id="networkView" class="network-view"></div>
+          </article>
+        </section>
       </section>
 
-      <section class="grid two results-grid">
-        <article class="card pad">
-          <p class="kicker">AML/CFT SCENARIO ENGINE</p>
-          <h3>Indicators requiring analyst review</h3>
-          <div id="alertsList" class="alert-list"></div>
-        </article>
-        <article class="card pad">
-          <p class="kicker">FLOW OF FUNDS</p>
-          <h3>Counterparty relationship view</h3>
-          <div id="networkView" class="network-view"></div>
-        </article>
+      <section id="universalProfile" class="card pad results-grid">
+        <p class="kicker">UNIVERSAL DATA PROFILE</p>
+        <h3>Mapped-field profiling</h3>
+        <div id="fieldProfileTable" class="table-wrap"></div>
       </section>
 
       <section class="card pad results-grid">
-        <p class="kicker">TRANSACTION REVIEW</p>
-        <h3>Standardised transactions</h3>
+        <p class="kicker">RECORD REVIEW</p>
+        <h3>Standardised mapped records</h3>
         <div class="toolbar">
-          <input id="txSearch" type="search" placeholder="Search originator, beneficiary, narration…" />
+          <input id="txSearch" type="search" placeholder="Search mapped record values…" />
           <select id="directionFilter"><option value="all">All directions</option><option value="inflow">Inflows</option><option value="outflow">Outflows</option><option value="unknown">Unknown</option></select>
           <button id="exportCsvBtn" class="btn ghost" type="button">Export Standardised CSV</button>
         </div>
@@ -199,14 +294,15 @@
           </div>
           <p id="reportStatus" class="status" aria-live="polite"></p>
         </article>
+
         <article class="card pad">
           <p class="kicker">ANALYST CONTROL</p>
-          <h3>What the system does not decide</h3>
+          <h3>Interpretation guardrails</h3>
           <ul class="guardrails">
-            <li>It does not determine that money laundering or terrorist financing occurred.</li>
-            <li>It does not substitute for KYC/CDD, source-of-funds verification, legal analysis or human intelligence judgment.</li>
-            <li>Indicators are explainable screening outputs for analyst review.</li>
-            <li>False positives and legitimate explanations must be assessed before escalation.</li>
+            <li>FinIntel does not determine that money laundering or terrorist financing occurred.</li>
+            <li>Custom fields are schema definitions, not automatic indicators.</li>
+            <li>Mappings and templates should be reviewed before every analysis.</li>
+            <li>Operational use requires a protected deployment with institutional governance.</li>
           </ul>
           <button id="newAnalysisBtn" class="btn ghost wide" type="button">Start New Analysis</button>
         </article>
@@ -214,12 +310,21 @@
     </section>
   </main>
 
+  <dialog id="schemaDialog">
+    <div class="dialog-head">
+      <div><p class="kicker">SCHEMA LIBRARY</p><h3>FinIntel fields</h3></div>
+      <button id="closeSchemaDialog" class="btn ghost" type="button">Close</button>
+    </div>
+    <p class="muted">Core fields are built into FinIntel. Custom fields are stored locally in this browser.</p>
+    <div id="schemaDialogContent"></div>
+  </dialog>
+
   <footer>
     <img src="https://raw.githubusercontent.com/jctc-ng/jctc-cyberguard/main/docs/assets/jctc-logo.jpeg" alt="JCTC logo" />
-    <div><strong>FinIntel AML MVP</strong><p>Algorithms identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v2</strong><p>Algorithms identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=1.0.0" defer></script>
+  <script src="app.js?v=2.0.0" defer></script>
 </body>
 </html>
