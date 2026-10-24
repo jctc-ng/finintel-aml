@@ -269,3 +269,35 @@ Where no structured originator or beneficiary exists, a description-derived coun
 Description extraction in v2.1 is deterministic/rule-based, not a protected large-language-model service. Noisy bank narrations can be ambiguous. Extracted names, meanings and direction clues are therefore analytical suggestions and must be reviewed against the original description and supporting records.
 
 A future protected institutional version can add a semantic/AI layer after the deterministic parser, with the original description retained for audit and verification.
+
+
+### FinIntel AML v2.2 — Name & Entity Extraction
+
+Description Intelligence now includes entity extraction designed for noisy financial narrations. It:
+- segments slash-, colon-, pipe- and hyphen-delimited narrations;
+- strips common transaction/channel/reference/account tokens before scoring candidate names;
+- recognizes explicit roles such as FROM/SENDER/ORIGINATOR/PAYER and TO/BENEFICIARY/RECIPIENT/PAYEE;
+- excludes common bank/channel tokens from name candidates;
+- classifies candidates as person/name, company/organisation, merchant, financial institution, possible compressed name/entity, or other entity;
+- detects common legal-entity terms and compact suffixes such as LTD/PLC/ENTERPRISES/VENTURES/SERVICES/LOGISTICS/TRADING/PROJECTS;
+- retains multiple entity candidates with role and confidence rather than forcing one answer;
+- selects the best direction-consistent counterparty for originator/beneficiary fallback;
+- exposes entity type, confidence, and all extracted entities in standardized exports.
+
+Example:
+
+```text
+NIP/CR/GTB/0123456789/MUHAMMADUSMAN/REF8821
+```
+
+may yield a probable compressed name/entity candidate `MUHAMMADUSMAN` rather than discarding the narration as unstructured noise.
+
+Example:
+
+```text
+NIP TRF TO PRIME LOGISTICS LTD 0123456789 REF ABC998
+```
+
+can yield `PRIME LOGISTICS LTD` as a probable company/organisation and beneficiary candidate.
+
+These are analyst-reviewable extraction hypotheses, not identity determinations.
