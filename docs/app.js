@@ -435,42 +435,126 @@ function parseDate(v){
   const d=new Date(s);return isNaN(d)?null:d;
 }
 
-const DESC_GENERIC=/\b(nip|neft|rtgs|transfer|trf|payment|pay|credit|debit|mobile|internet|online|web|banking|session|reference|ref|txn|transaction|narration|remark|pos|atm|ussd|cash|deposit|withdrawal|fee|charge|vat|stamp|duty|beneficiary|originator|sender|receiver|recipient|from|to|via)\b/ig;
+const DESC_GENERIC=/\b(nip|neft|rtgs|transfer|trf|payment|pay|credit|debit|mobile|internet|online|web|banking|session|reference|ref|txn|transaction|narration|remark|remarks|pos|atm|ussd|cash|deposit|withdrawal|fee|charge|vat|stamp|duty|beneficiary|originator|sender|receiver|recipient|payer|payee|from|to|via|cr|dr)\b/ig;
+const BANK_WORDS=new Set([
+  'GTB','GTBANK','UBA','FBN','FIRSTBANK','ACCESS','ZENITH','FCMB','FIDELITY','POLARIS','WEMA','KEYSTONE','UNION','ECOBANK','STERLING','STANBIC','IBTC','JAIZ','TAJ','LOTUS','PROVIDUS','OPTIMUS','GLOBUS','PREMIUMTRUST',
+  'BANK','MFB','MICROFINANCE','PSB','PAYSTACK','FLUTTERWAVE','MONIEPOINT','OPAY','PALMPAY','KUDA'
+]);
+const LEGAL_ENTITY_RX=/\b(ltd|limited|plc|llc|inc|incorporated|enterprises?|enterprise|ventures?|venture|services?|service|solutions?|solution|logistics?|global|trading|projects?|project|resources?|resource|holdings?|holding|foundation|association|cooperative|co-op|company|companies|group|industries|industry|international|investment|investments|consulting|consultancy|technologies|technology|systems?|system|stores?|store|mart|supermarket|pharmacy|hospital|clinic|school|academy|university|college|ministry|department|agency|commission|authority|secretariat|hotel|restaurant|foods?|farm|farms|energy|oil|gas|construction|properties|property|estate|estates)\b/i;
+const MERCHANT_RX=/\b(shoprite|merchant|store|mart|supermarket|pharmacy|hotel|restaurant|foods?|airline|transport|fuel|petrol|station|market)\b/i;
+const PERSON_TITLE_RX=/^(mr|mrs|miss|ms|dr|prof|alhaji|hajiya|mallam|engr|chief|barr|pastor|imam)\.?\s+/i;
+
 function cleanDescription(v){
   return String(v==null?'':v)
     .replace(/[\u0000-\u001F\u007F]/g,' ')
     .replace(/[_*#~]+/g,' ')
-    .replace(/\s*[|;]+\s*/g,' | ')
+    .replace(/[\\]+/g,'/')
     .replace(/\s+/g,' ')
     .trim();
 }
-function probableNameCandidate(text){
-  const explicit=[
-    /(?:from|sender|originator|payer)\s*[:\-\/]?\s*([A-Za-z][A-Za-z.'’ \-]{2,55})/i,
-    /(?:to|beneficiary|recipient|receiver|payee)\s*[:\-\/]?\s*([A-Za-z][A-Za-z.'’ \-]{2,55})/i
+function titleCaseEntity(v){
+  const s=String(v||'').trim();
+  if(!s)return'';
+  if(/[a-z]/.test(s))return s.replace(/\b([a-z])/g,m=>m.toUpperCase());
+  return s.toLowerCase().replace(/\b[a-z]/g,m=>m.toUpperCase()).replace(/\b(Ltd|Plc|Llc|Inc)\b/g,m=>m.toUpperCase());
+}
+function stripNoiseTokens(v){
+  let s=String(v||'')
+    .replace(/\b(?:ref(?:erence)?|session|txn|transaction|trace|rrn|stan|tid|terminal|batch|seq|sequence|id)\s*[:#\-]?\s*[A-Z0-9\-]{3,}\b/ig,' ')
+    .replace(/\b(?:acct?|account|a\/c)\s*[:#\-]?\s*\d{6,18}\b/ig,' ')
+    .replace(/\b\d{6,18}\b/g,' ')
+    .replace(/\b[A-F0-9]{18,}\b/ig,' ')
+    .replace(DESC_GENERIC,' ')
+    .replace(/[()[\]{}]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+  const parts=s.split(/\s+/).filter(Boolean).filter(t=>!BANK_WORDS.has(t.toUpperCase()));
+  return parts.join(' ').replace(/^[\-\/|:,.]+|[\-\/|:,.]+$/g,'').trim();
+}
+function classifyEntityName(name,context=''){
+  const n=String(name||'').trim(),ctx=String(context||'');
+  if(!n)return'unknown';
+  if(LEGAL_ENTITY_RX.test(n))return MERCHANT_RX.test(n+' '+ctx)?'merchant':'company / organisation';
+  if(MERCHANT_RX.test(n+' '+ctx))return'merchant';
+  if(/\b(bank|mfb|microfinance|psb)\b/i.test(n+' '+ctx))return'financial institution';
+  const words=n.replace(PERSON_TITLE_RX,'').split(/\s+/).filter(Boolean);
+  if(words.length>=2&&words.length<=6&&!/\d/.test(n))return'person / name';
+  if(words.length===1&&n.length>=7&&!/\d/.test(n))return'possible compressed name / entity';
+  return'other entity';
+}
+function entityConfidence(name,source,context=''){
+  let score=0;
+  const n=String(name||'').trim();
+  if(source==='explicit')score+=45;
+  if(source==='segment')score+=25;
+  if(LEGAL_ENTITY_RX.test(n))score+=25;
+  const words=n.replace(PERSON_TITLE_RX,'').split(/\s+/).filter(Boolean);
+  if(words.length>=2&&words.length<=6)score+=20;
+  if(n.length>=6)score+=10;
+  if(/\d/.test(n))score-=25;
+  if(BANK_WORDS.has(n.toUpperCase()))score-=40;
+  if(/^(transfer|payment|credit|debit|unknown|cash|nip|neft|rtgs|pos|atm|ussd)$/i.test(n))score-=40;
+  if(/\b(from|to|sender|recipient|beneficiary|originator)\b/i.test(context))score+=5;
+  return Math.max(0,Math.min(100,score));
+}
+function addEntityCandidate(list,value,role,source,context){
+  const cleaned=stripNoiseTokens(value);
+  if(!cleaned||cleaned.length<3)return;
+  if(/^[A-Z]{2,6}$/i.test(cleaned)&&BANK_WORDS.has(cleaned.toUpperCase()))return;
+  if(/^\d+$/.test(cleaned))return;
+  const name=titleCaseEntity(cleaned);
+  const confidence=entityConfidence(name,source,context);
+  if(confidence<35)return;
+  const type=classifyEntityName(name,context);
+  const key=norm(name)+'|'+role;
+  const existing=list.find(x=>norm(x.name)+'|'+x.role===key);
+  if(existing){existing.confidence=Math.max(existing.confidence,confidence);return;}
+  list.push({name,type,role,confidence,source});
+}
+function extractEntitiesFromDescription(text){
+  const clean=cleanDescription(text),entities=[];
+  if(!clean)return entities;
+
+  const explicitPatterns=[
+    {role:'originator',rx:/(?:^|[\s\/|;:,-])(?:from|sender|originator|payer)\s*[:\-\/]?\s*([^\/|;:]{3,80})/ig},
+    {role:'beneficiary',rx:/(?:^|[\s\/|;:,-])(?:to|beneficiary|recipient|receiver|payee)\s*[:\-\/]?\s*([^\/|;:]{3,80})/ig}
   ];
-  for(const rx of explicit){
-    const m=text.match(rx);
-    if(m){
-      const x=m[1].split(/\s(?:ref|reference|acct|account|bank|via|on)\b/i)[0].trim().replace(/[\-\/|]+$/,'');
-      if(x.split(/\s+/).length<=7&&x.replace(DESC_GENERIC,'').trim().length>=3)return x;
+  explicitPatterns.forEach(p=>{
+    let m;
+    while((m=p.rx.exec(clean))){
+      let value=m[1].split(/\s+(?:ref|reference|acct|account|bank|via|on|session|txn|rrn)\b/i)[0];
+      addEntityCandidate(entities,value,p.role,'explicit',m[0]);
     }
-  }
-  const parts=text.split(/[\/|;:]+|\s+-\s+/).map(x=>x.trim()).filter(Boolean);
-  const scored=parts.map(p=>{
-    const noIds=p.replace(/\b\d{5,}\b/g,' ').replace(/\b[A-F0-9]{12,}\b/ig,' ').replace(DESC_GENERIC,' ').replace(/\s+/g,' ').trim();
-    const words=noIds.split(/\s+/).filter(Boolean);
-    const letters=(noIds.match(/[A-Za-z]/g)||[]).length;
-    const bad=/\b(ngn|usd|eur|gbp|bank|limited|ltd|plc)\b/i.test(noIds)&&words.length===1;
-    const score=(words.length>=2&&words.length<=6?3:0)+(letters>=6?2:0)+(noIds===noIds.toUpperCase()?1:0)-(bad?3:0);
-    return{value:noIds,score};
-  }).filter(x=>x.value.length>=4&&!/^\d/.test(x.value));
-  scored.sort((a,b)=>b.score-a.score);
-  return scored[0]?.score>=4?scored[0].value:'';
+  });
+
+  const segments=clean.split(/[\/|;:]+|\s+-\s+/).map(s=>s.trim()).filter(Boolean);
+  segments.forEach((seg,idx)=>{
+    const upper=seg.toUpperCase();
+    if(BANK_WORDS.has(upper))return;
+    if(/^(CR|DR|NIP|NEFT|RTGS|POS|ATM|USSD|WEB|MOBILE|TRANSFER|TRF|PAYMENT|CREDIT|DEBIT)$/i.test(seg))return;
+    if(/^(?:REF|RRN|STAN|SESSION|TXN|TID)[A-Z0-9\-]*$/i.test(seg))return;
+    if(/^\+?\d{6,18}$/.test(seg))return;
+    const cleaned=stripNoiseTokens(seg);
+    if(!cleaned)return;
+    const role=/\b(from|sender|originator|payer)\b/i.test(segments[Math.max(0,idx-1)]||'')?'originator':
+      /\b(to|beneficiary|recipient|receiver|payee)\b/i.test(segments[Math.max(0,idx-1)]||'')?'beneficiary':'unknown';
+    addEntityCandidate(entities,cleaned,role,'segment',seg);
+  });
+
+  entities.sort((a,b)=>b.confidence-a.confidence);
+  return entities;
+}
+function chooseCounterpartyEntity(entities,directionHint){
+  if(!entities.length)return null;
+  const preferredRole=directionHint==='inflow'?'originator':directionHint==='outflow'?'beneficiary':'';
+  return entities.find(e=>e.role===preferredRole)||entities.find(e=>e.role!=='unknown')||entities[0];
+}
+function probableNameCandidate(text,directionHint=''){
+  return chooseCounterpartyEntity(extractEntitiesFromDescription(text),directionHint)?.name||'';
 }
 function extractDescriptionMeaning(value){
-  const original=String(value==null?'':value),clean=cleanDescription(original),lower=clean.toLowerCase();
-  if(!clean)return{clean:'',category:'Unclassified',channel:'',counterparty:'',account:'',phone:'',email:'',wallet:'',directionHint:'',meaning:'No description',confidence:'low'};
+  const original=String(value==null?'':value),clean=cleanDescription(original);
+  if(!clean)return{clean:'',category:'Unclassified',channel:'',counterparty:'',counterpartyType:'',entities:[],account:'',phone:'',email:'',wallet:'',directionHint:'',meaning:'No description',confidence:'low'};
   const email=(clean.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)||[])[0]||'';
   const phone=(clean.match(/(?:\+?234|0)(?:70|80|81|90|91)\d{8}\b/)||[])[0]||'';
   const eth=(clean.match(/\b0x[a-fA-F0-9]{40}\b/)||[])[0]||'';
@@ -499,21 +583,30 @@ function extractDescriptionMeaning(value){
     ['Transfer',/\btransfer\b|\btrf\b|\bnip\b|\bneft\b|\brtgs\b/i]
   ];
   const category=(categories.find(x=>x[1].test(clean))||[])[0]||'Other / Unclassified';
+
   let inScore=0,outScore=0;
-  if(/\b(from|received|receipt|credit|credited|deposit|inflow|salary)\b/i.test(clean))inScore+=2;
-  if(/\b(to|sent|debit|debited|payment|purchase|withdrawal|outflow|fee|charge)\b/i.test(clean))outScore+=2;
+  if(/\b(from|received|receipt|credit|credited|deposit|inflow|salary|\bcr\b)\b/i.test(clean))inScore+=2;
+  if(/\b(to|sent|debit|debited|payment|purchase|withdrawal|outflow|fee|charge|\bdr\b)\b/i.test(clean))outScore+=2;
   if(/\brefund received\b/i.test(clean))inScore+=2;
   const directionHint=inScore>outScore?'inflow':outScore>inScore?'outflow':'';
-  const counterparty=probableNameCandidate(clean);
+
+  const entities=extractEntitiesFromDescription(clean);
+  const selected=chooseCounterpartyEntity(entities,directionHint);
+  const counterparty=selected?.name||'';
+  const counterpartyType=selected?.type||'';
+
   const pieces=[category];
   if(channel)pieces.push(channel);
-  if(counterparty)pieces.push('Counterparty: '+counterparty);
+  if(counterparty)pieces.push((counterpartyType||'Entity')+': '+counterparty);
+  if(entities.length>1)pieces.push(entities.length+' entity candidates');
   if(account)pieces.push('Account-like ID: '+account);
   if(wallet)pieces.push('Wallet detected');
   if(email)pieces.push('Email detected');
   if(phone)pieces.push('Phone detected');
-  const confidence=(counterparty||wallet||email||phone||account)&&category!=='Other / Unclassified'?'high':counterparty||channel||category!=='Other / Unclassified'?'medium':'low';
-  return{clean,category,channel,counterparty,account,phone,email,wallet,directionHint,meaning:pieces.join(' • '),confidence};
+
+  const topConfidence=selected?.confidence||0;
+  const confidence=topConfidence>=75?'high':topConfidence>=50||channel||category!=='Other / Unclassified'?'medium':'low';
+  return{clean,category,channel,counterparty,counterpartyType,entities,account,phone,email,wallet,directionHint,meaning:pieces.join(' • '),confidence};
 }
 function direction(raw,o,b,subject,debit,credit,amountInfo,sheetHint,desc){
   if(credit>0&&debit<=0)return'inflow';
