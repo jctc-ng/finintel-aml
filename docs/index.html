@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#071722" />
-  <meta name="description" content="FinIntel AML v2 — configurable financial intelligence and AML/CFT analysis workbench." />
-  <title>FinIntel AML v2</title>
-  <link rel="manifest" href="manifest.webmanifest?v=2" />
-  <link rel="stylesheet" href="styles.css?v=2.0.0" />
+  <meta name="description" content="FinIntel AML v2.1 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <title>FinIntel AML v2.1</title>
+  <link rel="manifest" href="manifest.webmanifest?v=2.1" />
+  <link rel="stylesheet" href="styles.css?v=2.1.0" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -17,8 +17,8 @@
       <img src="https://raw.githubusercontent.com/jctc-ng/jctc-cyberguard/main/docs/assets/jctc-logo.jpeg" alt="JCTC logo" />
       <div>
         <p class="kicker">FINANCIAL INTELLIGENCE & AML/CFT ANALYSIS</p>
-        <h1>FinIntel AML <span class="version">v2</span></h1>
-        <p class="sub">Universal Schema • Analyst Workbench • Browser-first MVP</p>
+        <h1>FinIntel AML <span class="version">v2.1</span></h1>
+        <p class="sub">Universal Schema • Description Intelligence • Analyst Workbench</p>
       </div>
     </div>
     <div class="header-actions">
@@ -68,8 +68,17 @@
             <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
             <span class="drop-icon">⇧</span>
             <strong>Choose CSV or Excel file</strong>
-            <small>CSV works fully offline. Excel parsing uses the browser-loaded SheetJS library.</small>
+            <small>CSV works fully offline. Excel workbooks can contain one or several sheets, including separate Inflow and Outflow sheets.</small>
           </label>
+
+          <div id="loaderProgress" class="loader-progress" hidden aria-live="polite">
+            <div class="loader-progress-head">
+              <strong id="loaderPhase">Preparing dataset…</strong>
+              <span id="loaderPercent">0%</span>
+            </div>
+            <div class="loader-track" aria-hidden="true"><span id="loaderBar"></span></div>
+            <p id="loaderDetail">Waiting for file.</p>
+          </div>
 
           <div class="button-row">
             <button id="loadSampleBtn" class="btn secondary" type="button">Load Transaction Sample</button>
@@ -82,11 +91,13 @@
           <p class="kicker">DATA STATUS</p>
           <div id="datasetEmpty" class="emptybox">No dataset loaded.</div>
           <div id="datasetInfo" hidden>
-            <div class="mini-metrics">
+            <div class="mini-metrics loader-metrics">
               <div><span id="rowCount">0</span><small>Rows</small></div>
               <div><span id="columnCount">0</span><small>Columns</small></div>
+              <div><span id="sheetCount">0</span><small>Sheets</small></div>
               <div><span id="fileType">—</span><small>Type</small></div>
             </div>
+            <div id="sheetSummary" class="sheet-summary"></div>
             <h4>Detected source columns</h4>
             <div id="columnTags" class="tags"></div>
           </div>
@@ -104,7 +115,7 @@
             </div>
             <span id="mappingDatasetType" class="dataset-pill">Transaction Data</span>
           </div>
-          <p class="muted">Each source column can map to a core field, a custom FinIntel field, or be ignored. FinIntel preserves mapped custom values for future analysis and entity resolution.</p>
+          <p class="muted">Each source column can map to a core field, a custom FinIntel field, or be ignored. For ordinary bank statements, the practical minimum is <strong>Transaction Date + Description + Amount</strong>. FinIntel can infer flow direction from separate Inflow/Outflow columns, signed amounts, Inflow/Outflow sheet names, and description clues.</p>
 
           <div class="template-bar">
             <select id="templateSelect"><option value="">— Saved import templates —</option></select>
@@ -252,6 +263,19 @@
           </article>
         </section>
 
+        <section class="card pad results-grid">
+          <div class="section-title">
+            <div>
+              <p class="kicker">DESCRIPTION INTELLIGENCE</p>
+              <h3>Meaning extracted from unclean transaction descriptions</h3>
+            </div>
+            <span id="descriptionCoverage" class="dataset-pill">0 parsed</span>
+          </div>
+          <p class="muted">FinIntel cleans narration text and extracts probable counterparties, transaction channels, account/phone/email/wallet identifiers, and transaction meaning. Extracted names are used as fallback counterparties when structured sender/beneficiary columns are absent.</p>
+          <div id="descriptionMetrics" class="metric-grid compact-metrics"></div>
+          <div id="descriptionIntelligenceTable" class="table-wrap"></div>
+        </section>
+
         <section class="grid two results-grid">
           <article class="card pad">
             <p class="kicker">AML/CFT SCENARIO ENGINE</p>
@@ -321,10 +345,10 @@
 
   <footer>
     <img src="https://raw.githubusercontent.com/jctc-ng/jctc-cyberguard/main/docs/assets/jctc-logo.jpeg" alt="JCTC logo" />
-    <div><strong>FinIntel AML v2</strong><p>Algorithms identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v2.1</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.0.0" defer></script>
+  <script src="app.js?v=2.1.0" defer></script>
 </body>
 </html>
