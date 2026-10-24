@@ -2,7 +2,116 @@
 
 const $=id=>document.getElementById(id);
 const $$=s=>Array.from(document.querySelectorAll(s));
-const state={rawRows:[],columns:[],sourceName:'',sourceType:'',mapping:{},standardized:[],analysis:null};
+
+const STORE={
+  custom:'finintel.v2.customFields',
+  templates:'finintel.v2.importTemplates'
+};
+
+const CORE_FIELDS=[
+  {id:'date',label:'Transaction / Record Date',type:'date',category:'transaction'},
+  {id:'amount',label:'Amount',type:'currency',category:'transaction'},
+  {id:'direction',label:'Direction',type:'text',category:'transaction'},
+  {id:'debit',label:'Debit Amount',type:'currency',category:'transaction'},
+  {id:'credit',label:'Credit Amount',type:'currency',category:'transaction'},
+  {id:'originator',label:'Originator / Sender',type:'entity',category:'transaction'},
+  {id:'beneficiary',label:'Beneficiary / Receiver',type:'entity',category:'transaction'},
+  {id:'narration',label:'Narration / Description',type:'text',category:'transaction'},
+  {id:'account',label:'Account / Wallet Identifier',type:'account',category:'account'},
+  {id:'txid',label:'Transaction ID / Hash',type:'identifier',category:'transaction'},
+  {id:'currency',label:'Currency',type:'text',category:'transaction'},
+  {id:'name',label:'Customer / Person Name',type:'entity',category:'identity'},
+  {id:'dob',label:'Date of Birth',type:'date',category:'identity'},
+  {id:'bvn',label:'BVN',type:'identifier',category:'identity',sensitivity:'highly-sensitive'},
+  {id:'nin',label:'NIN',type:'identifier',category:'identity',sensitivity:'highly-sensitive'},
+  {id:'phone',label:'Phone Number',type:'phone',category:'contact',sensitivity:'confidential'},
+  {id:'email',label:'Email Address',type:'email',category:'contact',sensitivity:'confidential'},
+  {id:'address',label:'Address',type:'text',category:'contact',sensitivity:'confidential'},
+  {id:'occupation',label:'Occupation',type:'text',category:'identity'},
+  {id:'source_of_funds',label:'Source of Funds',type:'text',category:'identity'},
+  {id:'source_of_wealth',label:'Source of Wealth',type:'text',category:'identity'},
+  {id:'risk_rating',label:'Customer Risk Rating',type:'text',category:'identity'},
+  {id:'entity_name',label:'Entity / Company Name',type:'entity',category:'entity'},
+  {id:'registration_no',label:'Registration Number',type:'identifier',category:'entity'},
+  {id:'entity_type',label:'Entity Type',type:'text',category:'entity'},
+  {id:'director',label:'Director',type:'entity',category:'entity'},
+  {id:'shareholder',label:'Shareholder',type:'entity',category:'entity'},
+  {id:'ubo',label:'Ultimate Beneficial Owner',type:'entity',category:'entity'},
+  {id:'ownership_pct',label:'Ownership Percentage',type:'number',category:'entity'},
+  {id:'country',label:'Country / Jurisdiction',type:'geography',category:'geography'},
+  {id:'asset',label:'Virtual Asset',type:'text',category:'crypto'},
+  {id:'quantity',label:'Asset Quantity',type:'number',category:'crypto'},
+  {id:'wallet',label:'Wallet Address',type:'wallet',category:'crypto'},
+  {id:'counterparty_wallet',label:'Counterparty Wallet',type:'wallet',category:'crypto'},
+  {id:'blockchain',label:'Blockchain',type:'text',category:'crypto'},
+  {id:'network',label:'Network',type:'text',category:'crypto'},
+  {id:'vasp_uid',label:'VASP / Exchange UID',type:'identifier',category:'crypto'},
+  {id:'transaction_type',label:'Transaction Type',type:'text',category:'crypto'},
+  {id:'ip',label:'IP Address',type:'ip',category:'technical',sensitivity:'confidential'},
+  {id:'device',label:'Device ID',type:'device',category:'technical',sensitivity:'confidential'},
+  {id:'channel',label:'Transaction / Access Channel',type:'text',category:'technical'},
+  {id:'branch',label:'Branch / Location',type:'geography',category:'institution'}
+];
+
+const TYPE_LABELS={
+  text:'Text',number:'Number',date:'Date / Time',currency:'Currency Amount',
+  entity:'Person / Entity',identifier:'Identifier',account:'Account',phone:'Phone',
+  email:'Email',wallet:'Crypto Wallet',blockchain_tx:'Blockchain Transaction',
+  ip:'IP Address',device:'Device ID',geography:'Geography',boolean:'Yes / No'
+};
+
+const DATASET_LABELS={
+  transaction:'Transaction Data',
+  kyc:'Customer / KYC Data',
+  entity:'Entity / Company Data',
+  crypto:'Crypto / VASP Data',
+  custom:'Other / Custom Dataset'
+};
+
+const autoPatterns={
+  date:[/^date$/i,/transaction.*date/i,/value.*date/i,/posting.*date/i,/timestamp/i,/created.*at/i,/time$/i],
+  amount:[/^amount$/i,/transaction.*amount/i,/value$/i,/amt$/i],
+  direction:[/^direction$/i,/dr.?cr/i,/debit.?credit/i,/flow/i],
+  debit:[/^debit$/i,/debit.*amount/i,/withdrawal.*amount/i,/money.*out/i],
+  credit:[/^credit$/i,/credit.*amount/i,/deposit.*amount/i,/money.*in/i],
+  originator:[/originator/i,/sender/i,/source.*name/i,/payer/i,/from.*name/i],
+  beneficiary:[/beneficiary/i,/receiver/i,/recipient/i,/payee/i,/to.*name/i],
+  narration:[/narration/i,/description/i,/remarks/i,/memo/i,/details/i],
+  account:[/account.*number/i,/account$/i,/wallet.*id/i],
+  txid:[/transaction.*id/i,/transaction.*ref/i,/reference/i,/tx.*hash/i,/hash/i,/txn/i],
+  currency:[/^currency$/i,/ccy/i],
+  name:[/^name$/i,/customer.*name/i,/full.*name/i,/client.*name/i],
+  dob:[/date.*birth/i,/dob/i],
+  bvn:[/^bvn$/i,/bank.*verification/i],
+  nin:[/^nin$/i,/national.*ident/i],
+  phone:[/phone/i,/mobile/i,/msisdn/i],
+  email:[/email/i,/e-mail/i],
+  address:[/^address$/i,/residential.*address/i],
+  occupation:[/occupation/i,/profession/i],
+  source_of_funds:[/source.*fund/i],
+  source_of_wealth:[/source.*wealth/i],
+  risk_rating:[/risk.*rating/i,/risk.*level/i],
+  entity_name:[/company.*name/i,/entity.*name/i,/legal.*name/i],
+  registration_no:[/registration/i,/rc.*number/i,/company.*number/i],
+  entity_type:[/entity.*type/i,/company.*type/i],
+  director:[/director/i],
+  shareholder:[/shareholder/i],
+  ubo:[/\bubo\b/i,/beneficial.*owner/i],
+  ownership_pct:[/ownership/i,/share.*percent/i,/percentage/i],
+  country:[/^country$/i,/jurisdiction/i],
+  asset:[/^asset$/i,/coin/i,/token/i],
+  quantity:[/quantity/i,/crypto.*amount/i,/asset.*amount/i],
+  wallet:[/^wallet$/i,/wallet.*address/i,/deposit.*address/i],
+  counterparty_wallet:[/counterparty.*wallet/i,/withdrawal.*address/i,/destination.*address/i],
+  blockchain:[/blockchain/i,/chain$/i],
+  network:[/^network$/i],
+  vasp_uid:[/\buid\b/i,/exchange.*id/i,/vasp.*id/i],
+  transaction_type:[/transaction.*type/i,/tx.*type/i],
+  ip:[/^ip$/i,/ip.*address/i],
+  device:[/device.*id/i,/device$/i,/imei/i],
+  channel:[/channel/i],
+  branch:[/branch/i,/location/i]
+};
 
 const SAMPLE_CSV='Date,Amount,Direction,Originator,Beneficiary,Narration,Account\n'
 +'2026-01-02 09:10,9800000,Credit,John Musa,Subject Account,Transfer,0011223344\n'
@@ -27,36 +136,30 @@ const SAMPLE_CSV='Date,Amount,Direction,Originator,Beneficiary,Narration,Account
 +'2026-01-25 13:00,9700000,Credit,Greenway Stores,Subject Account,Transfer,0011223344\n'
 +'2026-01-25 15:30,19000000,Debit,Subject Account,Prime Logistics Ltd,Transfer,0011223344';
 
-const MAP_FIELDS=[
-['date','Transaction date/time',true,'Date, timestamp, value date'],
-['amount','Amount',false,'Use when the file has one amount column'],
-['direction','Direction',false,'Credit/debit, inflow/outflow, CR/DR'],
-['debit','Debit amount',false,'Use when debit and credit are separate columns'],
-['credit','Credit amount',false,'Use when debit and credit are separate columns'],
-['originator','Originator / Sender',false,'Source, payer, sender, originator'],
-['beneficiary','Beneficiary / Receiver',false,'Recipient, payee, beneficiary'],
-['narration','Narration / Description',false,'Description, memo, remarks'],
-['account','Account / Wallet identifier',false,'Account number, wallet, UID'],
-['txid','Transaction ID / Hash',false,'Transaction reference, hash, ID']
-];
-
-const autoPatterns={
-date:[/^date$/i,/transaction.*date/i,/value.*date/i,/timestamp/i,/time/i],
-amount:[/^amount$/i,/transaction.*amount/i,/value/i,/amt/i],
-direction:[/direction/i,/dr.?cr/i,/debit.?credit/i,/type/i],
-debit:[/^debit$/i,/debit.*amount/i,/withdrawal/i,/money.*out/i],
-credit:[/^credit$/i,/credit.*amount/i,/deposit/i,/money.*in/i],
-originator:[/originator/i,/sender/i,/source/i,/payer/i,/from.*name/i],
-beneficiary:[/beneficiary/i,/receiver/i,/recipient/i,/payee/i,/to.*name/i],
-narration:[/narration/i,/description/i,/remarks/i,/memo/i,/details/i],
-account:[/account/i,/wallet/i,/uid/i,/customer.*id/i],
-txid:[/transaction.*id/i,/reference/i,/tx.*hash/i,/hash/i,/txn/i]
+const state={
+  rawRows:[],columns:[],sourceName:'',sourceType:'',
+  datasetType:'transaction',
+  sourceMapping:{},
+  standardized:[],
+  analysis:null,
+  customFields:loadJSON(STORE.custom,[]),
+  templates:loadJSON(STORE.templates,[])
 };
 
+function loadJSON(key,fallback){try{const v=JSON.parse(localStorage.getItem(key));return Array.isArray(v)?v:fallback;}catch{return fallback;}}
+function saveJSON(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{return false;}}
 function esc(v){return String(v==null?'':v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function norm(v){return String(v==null?'':v).trim().toLowerCase().replace(/\s+/g,' ');}
-function status(id,text,err){const e=$(id);if(!e)return;e.textContent=text||'';e.classList.toggle('error',!!err);}
+function slug(v){return norm(v).replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40)||'field';}
+function status(id,text,err=false){const e=$(id);if(!e)return;e.textContent=text||'';e.classList.toggle('error',!!err);}
 function setStep(n){$$('.stage').forEach(s=>{s.hidden=true;s.classList.remove('active');});const t=$('step'+n);t.hidden=false;t.classList.add('active');$$('.step').forEach(b=>b.classList.toggle('active',Number(b.dataset.step)===n));window.scrollTo({top:Math.max(0,t.offsetTop-110),behavior:'smooth'});}
+function allFields(){return [...CORE_FIELDS,...state.customFields];}
+function fieldById(id){return allFields().find(f=>f.id===id)||null;}
+function sourceForField(id){return Object.keys(state.sourceMapping).find(c=>state.sourceMapping[c]===id)||'';}
+function mappingCount(){return Object.values(state.sourceMapping).filter(Boolean).length;}
+function mappedFields(){return state.columns.map(source=>({source,field:fieldById(state.sourceMapping[source])})).filter(x=>x.field);}
+function signature(cols=state.columns){return [...cols].map(norm).sort().join('|');}
+function datasetLabel(){return DATASET_LABELS[state.datasetType]||state.datasetType;}
 
 function parseCSV(text){
   const rows=[];let row=[],field='',quoted=false;
@@ -90,72 +193,240 @@ async function importFile(file){
   throw new Error('Unsupported file type. Use CSV, XLSX or XLS.');
 }
 
-function loadRows(rows,name,type){
-  if(!rows.length)throw new Error('No transaction rows were found.');
-  state.rawRows=rows;state.columns=Array.from(new Set(rows.flatMap(r=>Object.keys(r))));state.sourceName=name;state.sourceType=type;
-  $('datasetEmpty').hidden=true;$('datasetInfo').hidden=false;
-  $('rowCount').textContent=rows.length.toLocaleString();$('columnCount').textContent=state.columns.length.toLocaleString();$('fileType').textContent=type;
-  $('columnTags').innerHTML=state.columns.map(c=>'<span>'+esc(c)+'</span>').join('');
-  status('importStatus',name+': '+rows.length.toLocaleString()+' rows loaded locally.');
-  buildMapping();setStep(2);
+function guessField(source){
+  const c=CORE_FIELDS.find(f=>(autoPatterns[f.id]||[]).some(p=>p.test(source)));
+  return c?.id||'';
 }
 
-function guess(field){for(const p of (autoPatterns[field]||[])){const f=state.columns.find(c=>p.test(c));if(f)return f;}return'';}
-function buildMapping(){
-  const g=$('mappingGrid');g.innerHTML='';
-  MAP_FIELDS.forEach(([key,label,req,hint])=>{
-    const d=document.createElement('div');d.className='map-item';const x=guess(key);
-    d.innerHTML='<label for="map-'+key+'">'+esc(label)+(req?' *':'')+'</label><select id="map-'+key+'"><option value="">— Not mapped —</option>'
-      +state.columns.map(c=>'<option value="'+esc(c)+'" '+(c===x?'selected':'')+'>'+esc(c)+'</option>').join('')
-      +'</select><small>'+esc(hint)+'</small>';g.appendChild(d);
+function defaultMapping(){
+  const used=new Set(),m={};
+  state.columns.forEach(c=>{
+    const g=guessField(c);
+    if(g&&!used.has(g)){m[c]=g;used.add(g);}else m[c]='';
   });
+  return m;
 }
-function readMapping(){const m={};MAP_FIELDS.forEach(([k])=>m[k]=$('map-'+k)?.value||'');return m;}
-function validateMapping(m){
-  if(!m.date)return'Map the transaction date/time column.';
-  if((m.amount&&m.direction)||m.debit||m.credit||(m.amount&&m.originator&&m.beneficiary))return'';
-  return'Map either Amount + Direction, Debit/Credit, or Amount + Originator + Beneficiary.';
+
+function findMatchingTemplate(){
+  const sig=signature();
+  return state.templates.find(t=>t.signature===sig&&t.datasetType===state.datasetType)||null;
 }
+
+function loadRows(rows,name,type){
+  if(!rows.length)throw new Error('No data rows were found.');
+  state.rawRows=rows;
+  state.columns=Array.from(new Set(rows.flatMap(r=>Object.keys(r))));
+  state.sourceName=name;state.sourceType=type;state.datasetType=$('datasetType').value;
+  state.sourceMapping=defaultMapping();
+  $('datasetEmpty').hidden=true;$('datasetInfo').hidden=false;
+  $('rowCount').textContent=rows.length.toLocaleString();
+  $('columnCount').textContent=state.columns.length.toLocaleString();
+  $('fileType').textContent=type;
+  $('columnTags').innerHTML=state.columns.map(c=>'<span>'+esc(c)+'</span>').join('');
+  status('importStatus',name+': '+rows.length.toLocaleString()+' rows loaded locally.');
+  refreshMappingUI();
+  const t=findMatchingTemplate();
+  if(t){
+    $('templateSelect').value=t.id;
+    status('templateStatus','Matching saved template found: '+t.name+'. Click Apply to use it.');
+  }else status('templateStatus','');
+  setStep(2);
+}
+
+function optionHtml(selected){
+  const coreGroups={};
+  CORE_FIELDS.forEach(f=>{(coreGroups[f.category]??=[]).push(f);});
+  let h='<option value="">— Ignore / Unmapped —</option>';
+  Object.keys(coreGroups).sort().forEach(cat=>{
+    h+='<optgroup label="Core • '+esc(cat)+'">';
+    coreGroups[cat].forEach(f=>h+='<option value="'+esc(f.id)+'" '+(selected===f.id?'selected':'')+'>'+esc(f.label)+'</option>');
+    h+='</optgroup>';
+  });
+  if(state.customFields.length){
+    h+='<optgroup label="Custom FinIntel Fields">';
+    state.customFields.forEach(f=>h+='<option value="'+esc(f.id)+'" '+(selected===f.id?'selected':'')+'>'+esc(f.label)+' ['+esc(f.category)+']</option>');
+    h+='</optgroup>';
+  }
+  return h;
+}
+
+function firstSample(col){
+  for(const r of state.rawRows.slice(0,12)){const v=r[col];if(v!==undefined&&String(v).trim()!=='')return String(v).slice(0,100);}
+  return '';
+}
+
+function refreshMappingUI(){
+  $('mappingDatasetType').textContent=datasetLabel();
+  const body=$('mappingRows');body.innerHTML='';
+  state.columns.forEach((col,i)=>{
+    const fid=state.sourceMapping[col]||'',f=fieldById(fid);
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td><div class="mapping-source">'+esc(col)+'</div></td>'
+      +'<td><div class="mapping-sample">'+esc(firstSample(col)||'—')+'</div></td>'
+      +'<td><select class="map-select" data-source="'+esc(col)+'">'+optionHtml(fid)+'</select></td>'
+      +'<td class="mapping-type" id="map-type-'+i+'">'+esc(f?TYPE_LABELS[f.type]||f.type:'Unmapped')+'</td>';
+    body.appendChild(tr);
+  });
+  $$('.map-select').forEach((sel,i)=>sel.addEventListener('change',()=>{
+    state.sourceMapping[sel.dataset.source]=sel.value;
+    const f=fieldById(sel.value);
+    $('map-type-'+i).textContent=f?(TYPE_LABELS[f.type]||f.type):'Unmapped';
+  }));
+  renderCustomFieldList();
+  renderTemplateSelect();
+}
+
+function renderCustomFieldList(){
+  const el=$('customFieldList');
+  if(!state.customFields.length){el.innerHTML='<div class="emptybox">No custom fields yet.</div>';return;}
+  el.innerHTML=state.customFields.map(f=>'<div class="schema-item"><div><strong>'+esc(f.label)+'</strong><small>'+esc(TYPE_LABELS[f.type]||f.type)+' • '+esc(f.category)+' • '+esc(f.sensitivity||'internal')+'</small></div><button class="icon-btn delete-custom" data-id="'+esc(f.id)+'" type="button">Delete</button></div>').join('');
+  $$('.delete-custom').forEach(b=>b.onclick=()=>deleteCustomField(b.dataset.id));
+}
+
+function addCustomField(){
+  const label=$('customFieldName').value.trim();
+  if(!label){status('schemaStatus','Enter a field name.',true);return;}
+  if(allFields().some(f=>norm(f.label)===norm(label))){status('schemaStatus','A field with this name already exists.',true);return;}
+  const id='custom_'+slug(label)+'_'+Date.now().toString(36);
+  const field={id,label,type:$('customFieldType').value,category:$('customFieldCategory').value,sensitivity:$('customFieldSensitivity').value,description:$('customFieldDescription').value.trim(),custom:true};
+  state.customFields.push(field);saveJSON(STORE.custom,state.customFields);
+  $('customFieldName').value='';$('customFieldDescription').value='';
+  refreshMappingUI();status('schemaStatus','Custom field added: '+label+'.');
+}
+
+function deleteCustomField(id){
+  const f=fieldById(id);if(!f||!f.custom)return;
+  state.customFields=state.customFields.filter(x=>x.id!==id);
+  Object.keys(state.sourceMapping).forEach(k=>{if(state.sourceMapping[k]===id)state.sourceMapping[k]='';});
+  saveJSON(STORE.custom,state.customFields);refreshMappingUI();status('schemaStatus','Custom field deleted.');
+}
+
+function renderTemplateSelect(){
+  const current=$('templateSelect').value;
+  $('templateSelect').innerHTML='<option value="">— Saved import templates —</option>'+state.templates.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+' • '+esc(DATASET_LABELS[t.datasetType]||t.datasetType)+'</option>').join('');
+  if(state.templates.some(t=>t.id===current))$('templateSelect').value=current;
+}
+
+function saveTemplate(){
+  const name=$('templateName').value.trim();
+  if(!name){status('templateStatus','Enter a template name.',true);return;}
+  if(!mappingCount()){status('templateStatus','Map at least one field before saving a template.',true);return;}
+  const existing=state.templates.find(t=>norm(t.name)===norm(name));
+  const item={id:existing?.id||('tpl_'+Date.now().toString(36)),name,datasetType:state.datasetType,signature:signature(),columns:[...state.columns],mapping:{...state.sourceMapping},updatedAt:new Date().toISOString()};
+  if(existing)state.templates=state.templates.map(t=>t.id===existing.id?item:t);else state.templates.push(item);
+  saveJSON(STORE.templates,state.templates);renderTemplateSelect();$('templateSelect').value=item.id;status('templateStatus','Template saved in this browser: '+name+'.');
+}
+
+function applyTemplate(){
+  const t=state.templates.find(x=>x.id===$('templateSelect').value);
+  if(!t){status('templateStatus','Select a saved template first.',true);return;}
+  const next={};
+  state.columns.forEach(c=>next[c]=(t.mapping[c]&&fieldById(t.mapping[c]))?t.mapping[c]:'');
+  state.sourceMapping=next;
+  if(t.datasetType!==state.datasetType)status('templateStatus','Template mapping applied. Note: it was saved for '+(DATASET_LABELS[t.datasetType]||t.datasetType)+'.');
+  else status('templateStatus','Template applied: '+t.name+'.');
+  refreshMappingUI();$('templateSelect').value=t.id;
+}
+
+function validateMapping(){
+  const mapped=Object.values(state.sourceMapping).filter(Boolean);
+  if(!mapped.length)return'Map at least one source column to a FinIntel field.';
+  if(state.datasetType==='transaction'){
+    if(!mapped.includes('date'))return'Transaction analysis requires a Date field.';
+    const valid=(mapped.includes('amount')&&mapped.includes('direction'))||mapped.includes('debit')||mapped.includes('credit')||(mapped.includes('amount')&&mapped.includes('originator')&&mapped.includes('beneficiary'));
+    if(!valid)return'Transaction analysis requires Amount + Direction, Debit/Credit, or Amount + Originator + Beneficiary.';
+  }
+  return'';
+}
+
+function renderMappedSummary(){
+  const rows=mappedFields();
+  $('mappedFieldSummary').innerHTML=rows.length?rows.map(x=>'<div class="schema-summary-row"><span><strong>'+esc(x.field.label)+'</strong><small>'+esc(x.source)+'</small></span><small>'+esc(x.field.category)+'</small><small>'+esc(TYPE_LABELS[x.field.type]||x.field.type)+'</small></div>').join(''):'<div class="emptybox">No fields mapped.</div>';
+  $('transactionConfigNotice').hidden=state.datasetType!=='transaction';
+  $('rapidHours').closest('label').hidden=state.datasetType!=='transaction';
+  $('rapidRatio').closest('label').hidden=state.datasetType!=='transaction';
+  $('structuringReference').closest('label').hidden=state.datasetType!=='transaction';
+  $('structuringBand').closest('label').hidden=state.datasetType!=='transaction';
+  $('structuringCount').closest('label').hidden=state.datasetType!=='transaction';
+}
+
 function parseAmount(v){
   if(typeof v==='number')return Number.isFinite(v)?Math.abs(v):0;
-  let s=String(v==null?'':v).trim();if(!s)return 0;const neg=/^\(.*\)$/.test(s)||/^-/.test(s);
-  s=s.replace(/[(),]/g,'').replace(/[^0-9.\-]/g,'');const n=Number(s);return Number.isFinite(n)?Math.abs(neg?-n:n):0;
+  let s=String(v==null?'':v).trim();if(!s)return 0;
+  const neg=/^\(.*\)$/.test(s)||/^-/.test(s);
+  s=s.replace(/[(),]/g,'').replace(/[^0-9.\-]/g,'');
+  const n=Number(s);return Number.isFinite(n)?Math.abs(neg?-n:n):0;
 }
 function parseDate(v){
-  if(v instanceof Date&&!isNaN(v))return v;const s=String(v==null?'':v).trim();if(!s)return null;
+  if(v instanceof Date&&!isNaN(v))return v;
+  const s=String(v==null?'':v).trim();if(!s)return null;
   const dm=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if(dm){let y=Number(dm[3]);if(y<100)y+=2000;const d=new Date(y,Number(dm[2])-1,Number(dm[1]),Number(dm[4]||0),Number(dm[5]||0),Number(dm[6]||0));return isNaN(d)?null:d;}
   const d=new Date(s);return isNaN(d)?null:d;
 }
 function direction(raw,o,b,subject,debit,credit){
-  if(credit>0&&debit<=0)return'inflow';if(debit>0&&credit<=0)return'outflow';
-  const d=norm(raw).replace(/[^a-z]/g,'');if(/^(credit|cr|inflow|deposit|incoming)$/.test(d))return'inflow';if(/^(debit|dr|outflow|withdrawal|outgoing)$/.test(d))return'outflow';
-  const s=norm(subject);if(s){if(norm(b).includes(s)&&!norm(o).includes(s))return'inflow';if(norm(o).includes(s)&&!norm(b).includes(s))return'outflow';}
+  if(credit>0&&debit<=0)return'inflow';
+  if(debit>0&&credit<=0)return'outflow';
+  const d=norm(raw).replace(/[^a-z]/g,'');
+  if(/^(credit|cr|inflow|deposit|incoming)$/.test(d))return'inflow';
+  if(/^(debit|dr|outflow|withdrawal|outgoing)$/.test(d))return'outflow';
+  const s=norm(subject);
+  if(s){if(norm(b).includes(s)&&!norm(o).includes(s))return'inflow';if(norm(o).includes(s)&&!norm(b).includes(s))return'outflow';}
   return'unknown';
 }
+
 function standardize(){
-  const m=state.mapping,subject=$('subjectName').value.trim();
-  return state.rawRows.map((r,i)=>{
-    const debit=m.debit?parseAmount(r[m.debit]):0,credit=m.credit?parseAmount(r[m.credit]):0;
-    const amount=m.amount?parseAmount(r[m.amount]):Math.max(debit,credit);
-    const o=m.originator?String(r[m.originator]??'').trim():'',b=m.beneficiary?String(r[m.beneficiary]??'').trim():'';
-    return{row:i+2,date:parseDate(r[m.date]),dateRaw:String(r[m.date]??''),amount,direction:direction(m.direction?r[m.direction]:'',o,b,subject,debit,credit),originator:o,beneficiary:b,narration:m.narration?String(r[m.narration]??'').trim():'',account:m.account?String(r[m.account]??'').trim():'',txid:m.txid?String(r[m.txid]??'').trim():''};
-  }).filter(t=>t.amount>0||t.originator||t.beneficiary||t.narration);
+  const subject=$('subjectName').value.trim();
+  return state.rawRows.map((raw,i)=>{
+    const values={};
+    Object.entries(state.sourceMapping).forEach(([source,fid])=>{if(fid)values[fid]=raw[source]??'';});
+    const debit=parseAmount(values.debit),credit=parseAmount(values.credit);
+    const amount=values.amount!==undefined?parseAmount(values.amount):Math.max(debit,credit);
+    const originator=String(values.originator??'').trim(),beneficiary=String(values.beneficiary??'').trim();
+    const record={
+      row:i+2,
+      values,
+      raw,
+      date:parseDate(values.date),
+      dateRaw:String(values.date??''),
+      amount,
+      direction:state.datasetType==='transaction'?direction(values.direction,originator,beneficiary,subject,debit,credit):'n/a',
+      originator,beneficiary,
+      narration:String(values.narration??'').trim(),
+      account:String(values.account??values.wallet??'').trim(),
+      txid:String(values.txid??'').trim()
+    };
+    return record;
+  });
 }
+
 const sum=(a,f=x=>x)=>a.reduce((n,x)=>n+(Number(f(x))||0),0);
 function group(txs,dir){
   const m=new Map();
-  txs.filter(t=>t.direction===dir).forEach(t=>{const name=(dir==='inflow'?t.originator:t.beneficiary)||'Unknown counterparty',k=norm(name)||'unknown';if(!m.has(k))m.set(k,{name,count:0,total:0});const x=m.get(k);x.count++;x.total+=t.amount;});
+  txs.filter(t=>t.direction===dir).forEach(t=>{
+    const name=(dir==='inflow'?t.originator:t.beneficiary)||'Unknown counterparty',k=norm(name)||'unknown';
+    if(!m.has(k))m.set(k,{name,count:0,total:0});
+    const x=m.get(k);x.count++;x.total+=t.amount;
+  });
   return Array.from(m.values()).sort((a,b)=>b.total-a.total);
 }
 function rapidMoves(txs,hours,ratio){
   const ins=txs.filter(t=>t.direction==='inflow'&&t.date),outs=txs.filter(t=>t.direction==='outflow'&&t.date),hits=[],ms=hours*3600000;
-  outs.forEach(out=>{const recent=ins.filter(i=>{const d=out.date-i.date;return d>=0&&d<=ms;});const incoming=sum(recent,x=>x.amount);if(incoming&&out.amount/incoming*100>=ratio)hits.push({out,recent,incoming,ratio:out.amount/incoming*100,minutes:(out.date-(recent[0]?.date||out.date))/60000});});
+  outs.forEach(out=>{
+    const recent=ins.filter(i=>{const d=out.date-i.date;return d>=0&&d<=ms;});
+    const incoming=sum(recent,x=>x.amount);
+    if(incoming&&out.amount/incoming*100>=ratio)hits.push({out,recent,incoming,ratio:out.amount/incoming*100,minutes:(out.date-(recent[0]?.date||out.date))/60000});
+  });
   return hits;
 }
 function structuring(txs,ref,band,min){
-  if(!ref)return[];const low=ref*(1-band/100),c=txs.filter(t=>t.amount>=low&&t.amount<=ref&&t.date).sort((a,b)=>a.date-b.date),groups=[];
-  for(let i=0;i<c.length;i++){const g=[c[i]];for(let j=i+1;j<c.length;j++){if((c[j].date-c[i].date)/86400000>7)break;g.push(c[j]);}if(g.length>=min){groups.push(g);i+=g.length-1;}}
+  if(!ref)return[];
+  const low=ref*(1-band/100),c=txs.filter(t=>t.amount>=low&&t.amount<=ref&&t.date).sort((a,b)=>a.date-b.date),groups=[];
+  for(let i=0;i<c.length;i++){
+    const g=[c[i]];
+    for(let j=i+1;j<c.length;j++){if((c[j].date-c[i].date)/86400000>7)break;g.push(c[j]);}
+    if(g.length>=min){groups.push(g);i+=g.length-1;}
+  }
   return groups;
 }
 function fmt(n,c){
@@ -164,15 +435,35 @@ function fmt(n,c){
 }
 function fmtDate(d){return d?new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(d):'Unknown';}
 
-function analyze(txs){
-  const currency=($('currencyCode').value.trim()||'NGN').toUpperCase(),ins=txs.filter(t=>t.direction==='inflow'),outs=txs.filter(t=>t.direction==='outflow'),unknown=txs.filter(t=>t.direction==='unknown');
-  const totalIn=sum(ins,x=>x.amount),totalOut=sum(outs,x=>x.amount),origins=group(txs,'inflow'),benefits=group(txs,'outflow'),dated=txs.filter(t=>t.date).sort((a,b)=>a.date-b.date);
+function buildFieldProfiles(records){
+  return mappedFields().map(({source,field})=>{
+    const vals=records.map(r=>String(r.values[field.id]??'').trim()).filter(Boolean);
+    const counts=new Map();
+    vals.forEach(v=>{const k=norm(v);if(k)counts.set(k,{value:v,count:(counts.get(k)?.count||0)+1});});
+    const sorted=[...counts.values()].sort((a,b)=>b.count-a.count);
+    const repeated=sorted.filter(x=>x.count>1);
+    return{
+      source,field,
+      nonEmpty:vals.length,
+      completeness:records.length?vals.length/records.length*100:0,
+      unique:counts.size,
+      repeatedValues:repeated.length,
+      topRepeated:repeated[0]||null
+    };
+  });
+}
+
+function transactionAnalysis(records){
+  const currency=($('currencyCode').value.trim()||'NGN').toUpperCase();
+  const ins=records.filter(t=>t.direction==='inflow'),outs=records.filter(t=>t.direction==='outflow'),unknown=records.filter(t=>t.direction==='unknown');
+  const totalIn=sum(ins,x=>x.amount),totalOut=sum(outs,x=>x.amount),origins=group(records,'inflow'),benefits=group(records,'outflow'),dated=records.filter(t=>t.date).sort((a,b)=>a.date-b.date);
   const rapid=rapidMoves(dated,Number($('rapidHours').value)||24,Number($('rapidRatio').value)||80);
-  const structured=structuring(txs,Number($('structuringReference').value)||0,Number($('structuringBand').value)||10,Number($('structuringCount').value)||3);
+  const structured=structuring(records,Number($('structuringReference').value)||0,Number($('structuringBand').value)||10,Number($('structuringCount').value)||3);
   const passRatio=totalIn?totalOut/totalIn*100:0,top5=sum(benefits.slice(0,5),x=>x.total),concentration=totalOut?top5/totalOut*100:0;
-  const originMap=new Map(origins.map(x=>[norm(x.name),x]));const both=benefits.filter(x=>originMap.has(norm(x.name))&&norm(x.name)!=='unknown counterparty').map(x=>({name:x.name,out:x.total,in:originMap.get(norm(x.name)).total}));
+  const originMap=new Map(origins.map(x=>[norm(x.name),x]));
+  const both=benefits.filter(x=>originMap.has(norm(x.name))&&norm(x.name)!=='unknown counterparty').map(x=>({name:x.name,out:x.total,in:originMap.get(norm(x.name)).total}));
   const cryptoRx=/\b(crypto|bitcoin|btc|ethereum|eth|usdt|usdc|binance|bybit|kucoin|okx|coinbase|wallet|vasp|virtual asset)\b/i;
-  const cryptoTx=txs.filter(t=>cryptoRx.test(t.originator+' '+t.beneficiary+' '+t.narration)),cryptoExposure=sum(cryptoTx,x=>x.amount),alerts=[];
+  const cryptoTx=records.filter(t=>cryptoRx.test(Object.values(t.values).join(' '))),cryptoExposure=sum(cryptoTx,x=>x.amount),alerts=[];
   const add=(title,severity,score,detail,evidence)=>alerts.push({title,severity,score,detail,evidence});
   if(passRatio>=90&&totalIn)add('High pass-through activity','high',18,passRatio.toFixed(1)+'% of inflow was matched by total outflow.','Inflow '+fmt(totalIn,currency)+'; outflow '+fmt(totalOut,currency)+'.');
   else if(passRatio>=75&&totalIn)add('Elevated pass-through activity','medium',10,passRatio.toFixed(1)+'% of inflow was matched by outflow.','Review transaction purpose and retention pattern.');
@@ -185,25 +476,55 @@ function analyze(txs){
   if(origins.length>=10)add('Multiple third-party originators','medium',10,origins.length+' distinct originators funded the subject.','Top five originators account for '+(totalIn?(sum(origins.slice(0,5),x=>x.total)/totalIn*100).toFixed(1):'0')+'% of inflow.');
   if(both.length)add('Counterparties on both sides of flow','medium',8,both.length+' counterparty name(s) appeared as both originator and beneficiary.','Examples: '+both.slice(0,3).map(x=>x.name).join(', ')+'.');
   if(cryptoExposure)add('Crypto / VASP-related exposure detected','medium',10,cryptoTx.length+' transaction(s) contained crypto/VASP textual indicators.','Observed value '+fmt(cryptoExposure,currency)+'. Text-based screening only.');
-  if(unknown.length)add('Unresolved transaction direction','low',3,unknown.length+' transaction(s) could not be classified as inflow or outflow.','Review column mapping and subject identifier.');
+  if(unknown.length)add('Unresolved transaction direction','low',3,unknown.length+' transaction(s) could not be classified as inflow or outflow.','Review mapping and subject identifier.');
   const riskScore=Math.min(100,sum(alerts,x=>x.score)),risk=riskScore>=60?'critical':riskScore>=40?'high':riskScore>=18?'medium':'low';
-  return{currency,txs,ins,outs,unknown,totalIn,totalOut,net:totalIn-totalOut,origins,benefits,rapid,structured,passRatio,concentration,both,cryptoTx,cryptoExposure,alerts,riskScore,risk,first:dated[0]?.date||null,last:dated[dated.length-1]?.date||null};
+  return{kind:'transaction',currency,records,txs:records,ins,outs,unknown,totalIn,totalOut,net:totalIn-totalOut,origins,benefits,rapid,structured,passRatio,concentration,both,cryptoTx,cryptoExposure,alerts,riskScore,risk,first:dated[0]?.date||null,last:dated[dated.length-1]?.date||null,profiles:buildFieldProfiles(records)};
+}
+
+function universalAnalysis(records){
+  const profiles=buildFieldProfiles(records);
+  const identifierTypes=new Set(['identifier','account','phone','email','wallet','ip','device','entity']);
+  const repeatedSignals=profiles.filter(p=>identifierTypes.has(p.field.type)&&p.repeatedValues>0);
+  const totalCells=records.length*profiles.length;
+  const filled=sum(profiles,p=>p.nonEmpty);
+  const completeness=totalCells?filled/totalCells*100:0;
+  return{
+    kind:'universal',records,profiles,
+    mappedCount:profiles.length,
+    completeness,
+    repeatedSignals,
+    risk:'low',riskScore:0,
+    alerts:repeatedSignals.map(p=>({
+      title:'Repeated '+p.field.label,
+      severity:'low',
+      detail:p.repeatedValues+' repeated value(s) were observed across records.',
+      evidence:p.field.sensitivity==='highly-sensitive'?'Sensitive value hidden in profile view.':(p.topRepeated?'Most repeated value appeared '+p.topRepeated.count+' times.':'')
+    }))
+  };
 }
 
 function renderMetrics(a){
-  const m=[['Transactions',a.txs.length.toLocaleString()],['Total Inflow',fmt(a.totalIn,a.currency)],['Total Outflow',fmt(a.totalOut,a.currency)],['Net Flow',fmt(a.net,a.currency)],['Originators',a.origins.length.toLocaleString()],['Beneficiaries',a.benefits.length.toLocaleString()],['Rapid-Movement Matches',a.rapid.length.toLocaleString()],['Crypto/VASP Exposure',fmt(a.cryptoExposure,a.currency)]];
+  let m;
+  if(a.kind==='transaction'){
+    m=[['Transactions',a.records.length.toLocaleString()],['Total Inflow',fmt(a.totalIn,a.currency)],['Total Outflow',fmt(a.totalOut,a.currency)],['Net Flow',fmt(a.net,a.currency)],['Originators',a.origins.length.toLocaleString()],['Beneficiaries',a.benefits.length.toLocaleString()],['Rapid-Movement Matches',a.rapid.length.toLocaleString()],['Crypto/VASP Exposure',fmt(a.cryptoExposure,a.currency)]];
+  }else{
+    m=[['Records',a.records.length.toLocaleString()],['Mapped Fields',a.mappedCount.toLocaleString()],['Completeness',a.completeness.toFixed(1)+'%'],['Repeated Identifier Signals',a.repeatedSignals.length.toLocaleString()]];
+  }
   $('metricCards').innerHTML=m.map(x=>'<article class="card metric"><div class="value">'+esc(x[1])+'</div><div class="label">'+esc(x[0])+'</div></article>').join('');
 }
+
 function renderCounterparty(id,rows,total,currency){
   const max=rows[0]?.total||1;
-  $(''+id).innerHTML='<table><thead><tr><th>#</th><th>Counterparty</th><th class="num">Count</th><th class="num">Total</th><th class="num">Share</th></tr></thead><tbody>'
+  $(id).innerHTML='<table><thead><tr><th>#</th><th>Counterparty</th><th class="num">Count</th><th class="num">Total</th><th class="num">Share</th></tr></thead><tbody>'
     +(rows.slice(0,15).map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(r.name)+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+(total?(r.total/total*100).toFixed(1):'0.0')+'%</td></tr>').join('')||'<tr><td colspan="5">No classified counterparties.</td></tr>')
     +'</tbody></table>';
 }
+
 function renderAlerts(a){
-  $('alertsList').innerHTML=a.alerts.length?a.alerts.map(x=>'<div class="alert '+esc(x.severity)+'"><div class="alert-head"><strong>'+esc(x.title)+'</strong><small>'+esc(x.severity.toUpperCase())+'</small></div><p>'+esc(x.detail)+'</p><small>'+esc(x.evidence)+'</small></div>').join('')
+  $('alertsList').innerHTML=a.alerts.length?a.alerts.map(x=>'<div class="alert '+esc(x.severity)+'"><div class="alert-head"><strong>'+esc(x.title)+'</strong><small>'+esc(x.severity.toUpperCase())+'</small></div><p>'+esc(x.detail)+'</p><small>'+esc(x.evidence||'')+'</small></div>').join('')
     :'<div class="alert low"><div class="alert-head"><strong>No material rule-based indicators detected</strong><small>LOW</small></div><p>Continue case-specific review and verification.</p></div>';
 }
+
 function shortName(s,n){s=String(s||'Unknown');return s.length>n?s.slice(0,n-1)+'…':s;}
 function shortMoney(n,c){const v=Number(n)||0;if(v>=1e9)return c+' '+(v/1e9).toFixed(2)+'bn';if(v>=1e6)return c+' '+(v/1e6).toFixed(2)+'m';if(v>=1e3)return c+' '+(v/1e3).toFixed(1)+'k';return c+' '+v.toFixed(0);}
 function renderNetwork(a){
@@ -214,15 +535,48 @@ function renderNetwork(a){
   s+='<circle class="subject" cx="340" cy="195" r="44"/><text x="340" y="192" text-anchor="middle" font-weight="800">'+esc(shortName(subject,16))+'</text><text x="340" y="209" text-anchor="middle">SUBJECT</text></svg>';
   $('networkView').innerHTML=s;
 }
-function renderTransactions(){
-  const a=state.analysis;if(!a)return;const q=norm($('txSearch').value),f=$('directionFilter').value;
-  const rows=a.txs.filter(t=>(f==='all'||t.direction===f)&&(!q||norm(t.originator+' '+t.beneficiary+' '+t.narration+' '+t.txid+' '+t.account).includes(q))).slice(0,300);
-  $('transactionTable').innerHTML='<table><thead><tr><th>Date</th><th>Direction</th><th class="num">Amount</th><th>Originator</th><th>Beneficiary</th><th>Narration</th><th>Account/Wallet</th></tr></thead><tbody>'
-    +(rows.map(t=>'<tr><td>'+esc(t.date?t.date.toLocaleString('en-GB'):t.dateRaw)+'</td><td>'+esc(t.direction)+'</td><td class="num">'+esc(fmt(t.amount,a.currency))+'</td><td>'+esc(t.originator)+'</td><td>'+esc(t.beneficiary)+'</td><td>'+esc(t.narration)+'</td><td>'+esc(t.account)+'</td></tr>').join('')||'<tr><td colspan="7">No matching transactions.</td></tr>')+'</tbody></table>';
+
+function maskedTop(profile){
+  if(!profile.topRepeated)return'—';
+  if(profile.field.sensitivity==='highly-sensitive'||profile.field.sensitivity==='confidential')return'Masked ('+profile.topRepeated.count+' occurrences)';
+  return shortName(profile.topRepeated.value,28)+' ('+profile.topRepeated.count+')';
 }
+
+function renderProfiles(a){
+  $('fieldProfileTable').innerHTML='<table><thead><tr><th>FinIntel Field</th><th>Source Column</th><th>Type</th><th class="num">Complete</th><th class="num">Unique</th><th class="num">Repeated Values</th><th>Top Repeated</th></tr></thead><tbody>'
+  +a.profiles.map(p=>'<tr><td>'+esc(p.field.label)+(p.field.custom?' <span class="source-badge custom">CUSTOM</span>':'')+'</td><td>'+esc(p.source)+'</td><td>'+esc(TYPE_LABELS[p.field.type]||p.field.type)+'</td><td class="num">'+p.completeness.toFixed(1)+'%</td><td class="num">'+p.unique+'</td><td class="num">'+p.repeatedValues+'</td><td>'+esc(maskedTop(p))+'</td></tr>').join('')
+  +'</tbody></table>';
+}
+
+function mappedColumnsForExport(){
+  return mappedFields().map(x=>({source:x.source,id:x.field.id,label:x.field.label,field:x.field}));
+}
+
+function renderRecords(){
+  const a=state.analysis;if(!a)return;
+  const q=norm($('txSearch').value),f=$('directionFilter').value;
+  const cols=mappedColumnsForExport();
+  let rows=a.records.filter(r=>{
+    if(a.kind==='transaction'&&f!=='all'&&r.direction!==f)return false;
+    if(!q)return true;
+    return norm(Object.values(r.values).join(' ')).includes(q);
+  }).slice(0,300);
+  const directionHead=a.kind==='transaction'?'<th>Direction</th>':'';
+  $('transactionTable').innerHTML='<table><thead><tr><th>#</th>'+directionHead+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'
+    +(rows.map(r=>'<tr><td>'+r.row+'</td>'+(a.kind==='transaction'?'<td>'+esc(r.direction)+'</td>':'')+cols.map(c=>'<td>'+esc(r.values[c.id]??'')+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="'+(cols.length+(a.kind==='transaction'?2:1))+'">No matching records.</td></tr>')+'</tbody></table>';
+}
+
 function makeDraft(a){
-  const name=$('caseName').value.trim()||'Financial Intelligence Analysis',subject=$('subjectName').value.trim()||'the subject',lines=['ABSTRACT'];
-  lines.push(name+' reviewed '+a.txs.length.toLocaleString()+' transaction records associated with '+subject+(a.first&&a.last?' for the period '+fmtDate(a.first)+' to '+fmtDate(a.last):'')+'. Total classified inflow was '+fmt(a.totalIn,a.currency)+', while total classified outflow was '+fmt(a.totalOut,a.currency)+', resulting in a net flow of '+fmt(a.net,a.currency)+'.');
+  const name=$('caseName').value.trim()||'Financial Intelligence Analysis',subject=$('subjectName').value.trim()||'the subject';
+  if(a.kind!=='transaction'){
+    const lines=['DATASET PROFILE',name+' reviewed '+a.records.length.toLocaleString()+' record(s) from '+state.sourceName+' classified as '+datasetLabel()+'. '+a.mappedCount+' FinIntel field(s) were mapped. Overall mapped-field completeness was '+a.completeness.toFixed(1)+'%.','','MAPPED FIELD FINDINGS'];
+    a.profiles.forEach(p=>lines.push('• '+p.field.label+' ('+p.source+'): '+p.completeness.toFixed(1)+'% complete, '+p.unique+' unique value(s), '+p.repeatedValues+' repeated value group(s).'));
+    if(a.repeatedSignals.length){lines.push('','ENTITY / IDENTIFIER REVIEW');a.repeatedSignals.forEach(p=>lines.push('• Repeated '+p.field.label+' values were identified across records and may warrant entity-resolution review.'));}
+    lines.push('','INFERENCE','This is a structural data profile, not a determination of suspicious activity. Any repeated identifiers or relationships should be validated against the source data and case context before investigative or compliance conclusions are drawn.');
+    return lines.join('\n');
+  }
+  const lines=['ABSTRACT'];
+  lines.push(name+' reviewed '+a.records.length.toLocaleString()+' transaction records associated with '+subject+(a.first&&a.last?' for the period '+fmtDate(a.first)+' to '+fmtDate(a.last):'')+'. Total classified inflow was '+fmt(a.totalIn,a.currency)+', while total classified outflow was '+fmt(a.totalOut,a.currency)+', resulting in a net flow of '+fmt(a.net,a.currency)+'.');
   lines.push('','FINDINGS','• '+a.origins.length.toLocaleString()+' distinct originator(s) and '+a.benefits.length.toLocaleString()+' distinct beneficiary/beneficiaries were identified.');
   if(a.benefits[0])lines.push('• The largest beneficiary by value was '+a.benefits[0].name+', receiving '+fmt(a.benefits[0].total,a.currency)+' across '+a.benefits[0].count+' transaction(s).');
   if(a.origins[0])lines.push('• The largest originator by value was '+a.origins[0].name+', contributing '+fmt(a.origins[0].total,a.currency)+' across '+a.origins[0].count+' transaction(s).');
@@ -235,35 +589,114 @@ function makeDraft(a){
   lines.push('','INFERENCE','The foregoing indicators are screening outputs and should be assessed alongside KYC/CDD information, source of funds/wealth, transaction purpose, counterparty information, intelligence holdings and corroborative material. The system does not determine that money laundering, terrorist financing or another predicate offence occurred.');
   return lines.join('\n');
 }
+
 function renderAnalysis(a){
-  state.analysis=a;$('resultCaseName').textContent=$('caseName').value.trim()||'Financial Intelligence Analysis';
-  $('resultMeta').textContent=state.sourceName+' • '+a.txs.length.toLocaleString()+' standardised records • '+(a.first&&a.last?fmtDate(a.first)+' – '+fmtDate(a.last):'Date range incomplete');
-  const badge=$('overallRisk');badge.className='risk-badge '+a.risk;badge.textContent=a.risk.toUpperCase()+' • '+a.riskScore+'/100';
-  renderMetrics(a);renderCounterparty('originatorTable',a.origins,a.totalIn,a.currency);renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);renderAlerts(a);renderNetwork(a);renderTransactions();$('draftSummary').value=makeDraft(a);
+  state.analysis=a;
+  $('resultCaseName').textContent=$('caseName').value.trim()||'Financial Intelligence Analysis';
+  $('resultMeta').textContent=state.sourceName+' • '+datasetLabel()+' • '+a.records.length.toLocaleString()+' record(s)';
+  const badge=$('overallRisk');
+  if(a.kind==='transaction'){badge.className='risk-badge '+a.risk;badge.textContent=a.risk.toUpperCase()+' • '+a.riskScore+'/100';}
+  else{badge.className='risk-badge low';badge.textContent='DATA PROFILE';}
+  renderMetrics(a);
+  $('transactionResults').hidden=a.kind!=='transaction';
+  $('directionFilter').hidden=a.kind!=='transaction';
+  if(a.kind==='transaction'){
+    renderCounterparty('originatorTable',a.origins,a.totalIn,a.currency);
+    renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
+    renderAlerts(a);renderNetwork(a);
+  }
+  renderProfiles(a);renderRecords();
+  $('draftSummary').value=makeDraft(a);
 }
+
 function download(filename,text,type){
-  const blob=new Blob([text],{type:type||'text/plain'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);
+  const blob=new Blob([text],{type:type||'text/plain'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);
 }
 function csvEscape(v){const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
 function exportCSV(){
-  const a=state.analysis;if(!a)return;const h=['Date','Amount','Direction','Originator','Beneficiary','Narration','Account','Transaction ID'];
-  const rows=a.txs.map(t=>[t.date?t.date.toISOString():t.dateRaw,t.amount,t.direction,t.originator,t.beneficiary,t.narration,t.account,t.txid].map(csvEscape).join(','));
-  download('finintel_standardised_transactions.csv',[h.join(','),...rows].join('\n'),'text/csv');
+  const a=state.analysis;if(!a)return;const cols=mappedColumnsForExport();
+  const h=['Source Row',...(a.kind==='transaction'?['Direction']:[]),...cols.map(c=>c.label)];
+  const rows=a.records.map(r=>[r.row,...(a.kind==='transaction'?[r.direction]:[]),...cols.map(c=>r.values[c.id]??'')].map(csvEscape).join(','));
+  download('finintel_standardised_'+state.datasetType+'.csv',[h.map(csvEscape).join(','),...rows].join('\n'),'text/csv');
 }
 function reportHtml(){
-  const a=state.analysis,summary=$('draftSummary').value,cp=(rows,total)=>rows.slice(0,15).map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(r.name)+'</td><td>'+r.count+'</td><td>'+esc(fmt(r.total,a.currency))+'</td><td>'+(total?(r.total/total*100).toFixed(1):'0')+'%</td></tr>').join('');
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.c{border:1px solid #ccd5da;padding:12px}.v{font-size:20px;font-weight:bold}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Subject: '+esc($('subjectName').value||'Not specified')+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains rule-based screening indicators, not a finding of criminality.</div><h2>Key Metrics</h2><div class="cards"><div class="c"><div class="v">'+a.txs.length+'</div>Transactions</div><div class="c"><div class="v">'+esc(fmt(a.totalIn,a.currency))+'</div>Inflow</div><div class="c"><div class="v">'+esc(fmt(a.totalOut,a.currency))+'</div>Outflow</div><div class="c"><div class="v">'+a.risk.toUpperCase()+' '+a.riskScore+'/100</div>Screening Risk</div></div><h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence)+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>')+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  const a=state.analysis,summary=$('draftSummary').value;
+  const profileRows=a.profiles.map(p=>'<tr><td>'+esc(p.field.label)+'</td><td>'+esc(p.source)+'</td><td>'+esc(TYPE_LABELS[p.field.type]||p.field.type)+'</td><td>'+p.completeness.toFixed(1)+'%</td><td>'+p.unique+'</td><td>'+p.repeatedValues+'</td></tr>').join('');
+  let tx='';
+  if(a.kind==='transaction'){
+    const cp=(rows,total)=>rows.slice(0,15).map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(r.name)+'</td><td>'+r.count+'</td><td>'+esc(fmt(r.total,a.currency))+'</td><td>'+(total?(r.total/total*100).toFixed(1):'0')+'%</td></tr>').join('');
+    tx='<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
+  }
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
-$('fileInput').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;status('importStatus','Reading file locally…');try{const x=await importFile(f);loadRows(x.rows,f.name,x.type);}catch(err){status('importStatus',err.message,true);}});
-$('loadSampleBtn').onclick=()=>{try{loadRows(parseCSV(SAMPLE_CSV),'sample_transactions.csv','Sample CSV');}catch(err){status('importStatus',err.message,true);}};
-$('confirmMappingBtn').onclick=()=>{const m=readMapping(),err=validateMapping(m);if(err){status('mappingStatus',err,true);return;}state.mapping=m;status('mappingStatus');setStep(3);};
-$('backToImport').onclick=()=>setStep(1);$('backToMapping').onclick=()=>setStep(2);
-$('runAnalysisBtn').onclick=()=>{state.mapping=readMapping();const err=validateMapping(state.mapping);if(err){status('configStatus',err,true);setStep(2);return;}status('configStatus');setStep(4);$('analysisProgress').textContent='Standardising dates, amounts, directions and counterparties…';setTimeout(()=>{try{state.standardized=standardize();if(!state.standardized.length)throw new Error('No usable transactions remained after standardisation.');$('analysisProgress').textContent='Running transaction summaries and AML/CFT scenarios…';setTimeout(()=>{const a=analyze(state.standardized);renderAnalysis(a);setStep(5);},200);}catch(e){status('configStatus',e.message,true);setStep(3);}},200);};
-$('txSearch').addEventListener('input',renderTransactions);$('directionFilter').addEventListener('change',renderTransactions);$('exportCsvBtn').onclick=exportCSV;
-$('copySummaryBtn').onclick=async()=>{try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}catch{status('reportStatus','Copy failed. Select the text manually.',true);}};
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_analysis_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+function renderSchemaDialog(){
+  const content=$('schemaDialogContent');
+  const cards=(title,items,custom)=>'<h4>'+esc(title)+'</h4><div class="schema-dialog-grid">'+items.map(f=>'<div class="schema-card"><strong>'+esc(f.label)+'</strong><small>'+esc(TYPE_LABELS[f.type]||f.type)+' • '+esc(f.category)+' • '+esc(f.sensitivity||'internal')+'</small>'+(f.description?'<small>'+esc(f.description)+'</small>':'')+'<span class="source-badge '+(custom?'custom':'')+'">'+(custom?'CUSTOM':'CORE')+'</span></div>').join('')+'</div>';
+  content.innerHTML=cards('Core fields',CORE_FIELDS,false)+cards('Custom fields',state.customFields,true);
+}
+
+$('fileInput').addEventListener('change',async e=>{
+  const f=e.target.files?.[0];if(!f)return;
+  status('importStatus','Reading file locally…');
+  try{const x=await importFile(f);loadRows(x.rows,f.name,x.type);}catch(err){status('importStatus',err.message,true);}
+});
+$('datasetType').addEventListener('change',()=>{
+  state.datasetType=$('datasetType').value;
+  if(state.rawRows.length){state.sourceMapping=defaultMapping();refreshMappingUI();}
+});
+$('loadSampleBtn').onclick=()=>{
+  $('datasetType').value='transaction';state.datasetType='transaction';
+  try{loadRows(parseCSV(SAMPLE_CSV),'sample_transactions.csv','Sample CSV');}catch(err){status('importStatus',err.message,true);}
+};
+$('addCustomFieldBtn').onclick=addCustomField;
+$('saveTemplateBtn').onclick=saveTemplate;
+$('applyTemplateBtn').onclick=applyTemplate;
+$('confirmMappingBtn').onclick=()=>{
+  const err=validateMapping();if(err){status('mappingStatus',err,true);return;}
+  status('mappingStatus');renderMappedSummary();setStep(3);
+};
+$('backToImport').onclick=()=>setStep(1);
+$('backToMapping').onclick=()=>setStep(2);
+$('runAnalysisBtn').onclick=()=>{
+  const err=validateMapping();if(err){status('configStatus',err,true);setStep(2);return;}
+  status('configStatus');setStep(4);$('analysisProgress').textContent='Standardising mapped core and custom fields…';
+  setTimeout(()=>{
+    try{
+      state.standardized=standardize();
+      if(!state.standardized.length)throw new Error('No records remained after standardisation.');
+      $('analysisProgress').textContent=state.datasetType==='transaction'?'Running transaction summaries and AML/CFT scenarios…':'Profiling mapped fields and repeated identifiers…';
+      setTimeout(()=>{
+        const a=state.datasetType==='transaction'?transactionAnalysis(state.standardized):universalAnalysis(state.standardized);
+        renderAnalysis(a);setStep(5);
+      },180);
+    }catch(e){status('configStatus',e.message,true);setStep(3);}
+  },180);
+};
+$('txSearch').addEventListener('input',renderRecords);
+$('directionFilter').addEventListener('change',renderRecords);
+$('exportCsvBtn').onclick=exportCSV;
+$('copySummaryBtn').onclick=async()=>{
+  try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
+  catch{status('reportStatus','Copy failed. Select the text manually.',true);}
+};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
-$('clearAllBtn').onclick=()=>{state.rawRows=[];state.columns=[];state.mapping={};state.standardized=[];state.analysis=null;$('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');setStep(1);};
-$$('.step').forEach(b=>b.onclick=()=>{const n=Number(b.dataset.step);if(n===1)setStep(1);else if(n===2&&state.rawRows.length)setStep(2);else if(n===3&&state.rawRows.length)setStep(3);else if(n===5&&state.analysis)setStep(5);});
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=1').catch(()=>{}));
+$('clearAllBtn').onclick=()=>{
+  state.rawRows=[];state.columns=[];state.sourceMapping={};state.standardized=[];state.analysis=null;
+  $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');setStep(1);
+};
+$('schemaLibraryBtn').onclick=()=>{renderSchemaDialog();$('schemaDialog').showModal();};
+$('closeSchemaDialog').onclick=()=>$('schemaDialog').close();
+$$('.step').forEach(b=>b.onclick=()=>{
+  const n=Number(b.dataset.step);
+  if(n===1)setStep(1);
+  else if(n===2&&state.rawRows.length)setStep(2);
+  else if(n===3&&state.rawRows.length){renderMappedSummary();setStep(3);}
+  else if(n===5&&state.analysis)setStep(5);
+});
+
+renderCustomFieldList();
+renderTemplateSelect();
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2').then(r=>r.update()).catch(()=>{}));
