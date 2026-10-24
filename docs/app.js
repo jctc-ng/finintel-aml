@@ -226,12 +226,14 @@ async function importFile(file){
     if(!window.XLSX)throw new Error('Excel parser unavailable. Check internet access or convert the file to CSV.');
     const buffer=await readLocalFile(file,'arrayBuffer',p=>setLoaderProgress(5+p*38,'Reading Excel workbook',Math.round(p*100)+'% of file read'));
     setLoaderProgress(46,'Opening workbook','Detecting worksheets…');
+    await new Promise(resolve=>setTimeout(resolve,0));
     const wb=XLSX.read(buffer,{type:'array'});
     const sheets=[],rows=[];
     const names=wb.SheetNames||[];
     for(let i=0;i<names.length;i++){
       const name=names[i],hint=sheetDirectionHint(name);
       setLoaderProgress(48+((i+1)/Math.max(1,names.length))*35,'Reading worksheet',name+' ('+(i+1)+' of '+names.length+')');
+      await new Promise(resolve=>setTimeout(resolve,0));
       const parsed=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:'',raw:false});
       if(!parsed.length)continue;
       parsed.forEach(r=>rows.push({...r,__finintel_sheet:name,__finintel_sheet_direction:hint}));
@@ -531,7 +533,12 @@ function standardize(){
   const subject=$('subjectName').value.trim();
   return state.rawRows.map((raw,i)=>{
     const values={};
-    Object.entries(state.sourceMapping).forEach(([source,fid])=>{if(fid)values[fid]=raw[source]??'';});
+    Object.entries(state.sourceMapping).forEach(([source,fid])=>{
+      if(!fid)return;
+      const incoming=raw[source]??'';
+      const current=values[fid];
+      if(current===undefined||String(current).trim()===''||String(incoming).trim()!=='')values[fid]=incoming;
+    });
     const debit=parseAmount(values.debit),credit=parseAmount(values.credit),amountInfo=parseAmountInfo(values.amount);
     const amount=values.amount!==undefined&&String(values.amount).trim()!==''?amountInfo.amount:Math.max(debit,credit);
     const explicitOriginator=String(values.originator??'').trim(),explicitBeneficiary=String(values.beneficiary??'').trim();
