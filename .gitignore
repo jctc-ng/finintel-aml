@@ -1,0 +1,16 @@
+# Never commit operational financial intelligence data
+*.env
+.env*
+private-data/
+real-data/
+case-data/
+uploads/
+*.db
+*.sqlite
+*.sqlite3
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
