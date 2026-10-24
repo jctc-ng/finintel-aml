@@ -883,6 +883,21 @@ $('loadSampleBtn').onclick=()=>{
     loadRows(rows,'sample_transactions.csv','Sample CSV',[{name:'Sample',rows:rows.length,directionHint:''}]);
   }catch(err){status('importStatus',err.message,true);}
 };
+$('loadDescriptionSampleBtn').onclick=async()=>{
+  $('datasetType').value='transaction';state.datasetType='transaction';
+  try{
+    setLoaderProgress(10,'Loading description sample','Reading minimal Transaction Date + Description + Amount dataset…');
+    const response=await fetch('sample-data/sample_description_transactions.csv',{cache:'no-store'});
+    if(!response.ok)throw new Error('Could not load the description sample.');
+    const text=await response.text();
+    setLoaderProgress(55,'Parsing descriptions','Preparing synthetic messy narration records…');
+    const rows=parseCSV(text).map(r=>({...r,__finintel_sheet:'Description Sample',__finintel_sheet_direction:''}));
+    loadRows(rows,'sample_description_transactions.csv','Sample CSV',[{name:'Description Sample',rows:rows.length,directionHint:''}]);
+  }catch(err){
+    setLoaderProgress(100,'Sample load failed',err.message||'Unable to load sample.');
+    status('importStatus',err.message,true);
+  }
+};
 $('addCustomFieldBtn').onclick=addCustomField;
 $('saveTemplateBtn').onclick=saveTemplate;
 $('applyTemplateBtn').onclick=applyTemplate;
