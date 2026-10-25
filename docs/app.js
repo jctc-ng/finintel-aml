@@ -150,10 +150,14 @@ const counterpartyPage={originator:1,beneficiary:1};
 const counterpartySelection=new Map();
 const unknownSelection=new Map();
 let unknownPage=1;
+let aliasLibraryPage=1;
+let dataQualityPage=1;
 let dataQualityActiveIssue='';
 const COUNTERPARTY_PAGE_SIZE=10;
 const PROFILE_PAGE_SIZE=10;
 const UNKNOWN_PAGE_SIZE=10;
+const ALIAS_LIBRARY_PAGE_SIZE=10;
+const DATA_QUALITY_PAGE_SIZE=10;
 
 const state={
   rawRows:[],columns:[],sourceName:'',sourceType:'',sheets:[],
@@ -249,6 +253,20 @@ function clearAliasSelection(){
   if(state.analysis?.kind==='transaction')rerenderCounterpartyTables();
 }
 
+function renderAliasLibraryPagination(total){
+  const el=$('aliasLibraryPagination');if(!el)return;
+  const pages=Math.max(1,Math.ceil(total/ALIAS_LIBRARY_PAGE_SIZE));
+  aliasLibraryPage=Math.max(1,Math.min(aliasLibraryPage,pages));
+  if(!total){el.innerHTML='';return;}
+  const start=Math.max(1,aliasLibraryPage-2),end=Math.min(pages,aliasLibraryPage+2),buttons=[];
+  buttons.push('<button class="btn ghost alias-page-btn" type="button" data-page="'+Math.max(1,aliasLibraryPage-1)+'" '+(aliasLibraryPage===1?'disabled':'')+'>Previous</button>');
+  if(start>1){buttons.push('<button class="btn ghost alias-page-btn" type="button" data-page="1">1</button>');if(start>2)buttons.push('<span class="page-ellipsis">…</span>');}
+  for(let p=start;p<=end;p++)buttons.push('<button class="btn '+(p===aliasLibraryPage?'primary':'ghost')+' alias-page-btn" type="button" data-page="'+p+'">'+p+'</button>');
+  if(end<pages){if(end<pages-1)buttons.push('<span class="page-ellipsis">…</span>');buttons.push('<button class="btn ghost alias-page-btn" type="button" data-page="'+pages+'">'+pages+'</button>');}
+  buttons.push('<button class="btn ghost alias-page-btn" type="button" data-page="'+Math.min(pages,aliasLibraryPage+1)+'" '+(aliasLibraryPage===pages?'disabled':'')+'>Next</button>');
+  el.innerHTML='<span class="page-summary">Page '+aliasLibraryPage+' of '+pages+' • '+total.toLocaleString()+' saved mapping'+(total===1?'':'s')+'</span><div class="page-buttons">'+buttons.join('')+'</div>';
+  $$('.alias-page-btn').forEach(btn=>btn.onclick=()=>{aliasLibraryPage=Number(btn.dataset.page)||1;renderAliasLibrary();});
+}
 function renderAliasLibrary(){
   const table=$('aliasLibraryTable'),pill=$('aliasLibraryCount');
   if(!table||!pill)return;
@@ -257,19 +275,26 @@ function renderAliasLibrary(){
     .filter(x=>x.entry?.canonical)
     .sort((a,b)=>a.entry.canonical.localeCompare(b.entry.canonical)||a.alias.localeCompare(b.alias));
   pill.textContent=entries.length+' saved mapping'+(entries.length===1?'':'s');
+  const pages=Math.max(1,Math.ceil(entries.length/ALIAS_LIBRARY_PAGE_SIZE));
+  aliasLibraryPage=Math.max(1,Math.min(aliasLibraryPage,pages));
   if(!entries.length){
     table.innerHTML='<div class="alias-library-empty">No persistent alias mappings have been saved in this browser.</div>';
+    renderAliasLibraryPagination(0);
     return;
   }
-  table.innerHTML='<table><thead><tr><th>Alias / Variant</th><th>Canonical Entity</th><th>Updated</th><th></th></tr></thead><tbody>'
-    +entries.map(x=>'<tr><td>'+esc(x.alias)+'</td><td><strong>'+esc(x.entry.canonical)+'</strong></td><td>'+esc(x.entry.updatedAt?new Date(x.entry.updatedAt).toLocaleString():'—')+'</td><td><button class="btn ghost alias-delete-btn" type="button" data-alias="'+encodeURIComponent(x.alias)+'">Delete</button></td></tr>').join('')
+  const start=(aliasLibraryPage-1)*ALIAS_LIBRARY_PAGE_SIZE;
+  const pageEntries=entries.slice(start,start+ALIAS_LIBRARY_PAGE_SIZE);
+  table.innerHTML='<table><thead><tr><th>#</th><th>Alias / Variant</th><th>Canonical Entity</th><th>Updated</th><th></th></tr></thead><tbody>'
+    +pageEntries.map((x,i)=>'<tr><td>'+(start+i+1)+'</td><td>'+esc(x.alias)+'</td><td><strong>'+esc(x.entry.canonical)+'</strong></td><td>'+esc(x.entry.updatedAt?new Date(x.entry.updatedAt).toLocaleString():'—')+'</td><td><button class="btn ghost alias-delete-btn" type="button" data-alias="'+encodeURIComponent(x.alias)+'">Delete</button></td></tr>').join('')
     +'</tbody></table>';
+  renderAliasLibraryPagination(entries.length);
   $$('.alias-delete-btn').forEach(btn=>btn.onclick=()=>{
     delete state.aliasMap[decodeURIComponent(btn.dataset.alias)];
     persistAliases();
     status('aliasStatus','Saved alias mapping deleted.');
   });
 }
+
 function saveSelectedAliases(){
   const selected=selectedCounterpartyNames();
   const canonical=$('aliasCanonicalName')?.value.trim()||'';
@@ -1671,7 +1696,7 @@ function renderUnknownResolution(a){
   }
   $$('.unknown-select').forEach(box=>box.onchange=()=>{setUnknownSelected(box.dataset.key,box.checked);renderUnknownResolution(a);});
   $$('.use-candidate-btn').forEach(btn=>btn.onclick=()=>{
-    const select=$('.resolution-candidate').find(x=>x.dataset.key===btn.dataset.key);
+    const select=$$('.resolution-candidate').find(x=>x.dataset.key===btn.dataset.key);
     const name=select?.value||'';
     if(!name)return;
     applyResolutionToKeys([btn.dataset.key],name);
@@ -1679,23 +1704,41 @@ function renderUnknownResolution(a){
   });
   renderUnknownPagination(filtered.length);
 }
+function renderDataQualityIssuePagination(total,a){
+  const el=$('dataQualityIssuePagination');if(!el)return;
+  const pages=Math.max(1,Math.ceil(total/DATA_QUALITY_PAGE_SIZE));
+  dataQualityPage=Math.max(1,Math.min(dataQualityPage,pages));
+  if(!total){el.innerHTML='';return;}
+  const start=Math.max(1,dataQualityPage-2),end=Math.min(pages,dataQualityPage+2),buttons=[];
+  buttons.push('<button class="btn ghost quality-page-btn" type="button" data-page="'+Math.max(1,dataQualityPage-1)+'" '+(dataQualityPage===1?'disabled':'')+'>Previous</button>');
+  if(start>1){buttons.push('<button class="btn ghost quality-page-btn" type="button" data-page="1">1</button>');if(start>2)buttons.push('<span class="page-ellipsis">…</span>');}
+  for(let p=start;p<=end;p++)buttons.push('<button class="btn '+(p===dataQualityPage?'primary':'ghost')+' quality-page-btn" type="button" data-page="'+p+'">'+p+'</button>');
+  if(end<pages){if(end<pages-1)buttons.push('<span class="page-ellipsis">…</span>');buttons.push('<button class="btn ghost quality-page-btn" type="button" data-page="'+pages+'">'+pages+'</button>');}
+  buttons.push('<button class="btn ghost quality-page-btn" type="button" data-page="'+Math.min(pages,dataQualityPage+1)+'" '+(dataQualityPage===pages?'disabled':'')+'>Next</button>');
+  el.innerHTML='<span class="page-summary">Page '+dataQualityPage+' of '+pages+' • '+total.toLocaleString()+' affected record'+(total===1?'':'s')+'</span><div class="page-buttons">'+buttons.join('')+'</div>';
+  $$('.quality-page-btn').forEach(btn=>btn.onclick=()=>{dataQualityPage=Number(btn.dataset.page)||1;renderDataQualityIssueDetail(a);});
+}
 function renderDataQualityIssueDetail(a){
   const dq=a?.dataQuality;if(!dq)return;
   const issue=dq.issues.find(x=>x.id===dataQualityActiveIssue)||dq.issues[0];
   if(!issue)return;
   dataQualityActiveIssue=issue.id;
+  const pages=Math.max(1,Math.ceil(issue.rows.length/DATA_QUALITY_PAGE_SIZE));
+  dataQualityPage=Math.max(1,Math.min(dataQualityPage,pages));
+  const start=(dataQualityPage-1)*DATA_QUALITY_PAGE_SIZE;
+  const rows=issue.rows.slice(start,start+DATA_QUALITY_PAGE_SIZE);
   $('dataQualityIssueTitle').textContent=issue.title;
   $('dataQualityIssueDescription').textContent=issue.description;
   $('dataQualityIssueCount').textContent=issue.rows.length.toLocaleString()+' record'+(issue.rows.length===1?'':'s');
-  const rows=issue.rows.slice(0,300);
-  $('dataQualityIssueTable').innerHTML='<table><thead><tr><th>Source row</th><th>Date</th><th>Direction</th><th class="num">Amount</th><th>Counterparty</th><th>Narration</th><th>Source sheet</th></tr></thead><tbody>'
-    +(rows.map(r=>{
+  $('dataQualityIssueTable').innerHTML='<table><thead><tr><th>#</th><th>Source row</th><th>Date</th><th>Direction</th><th class="num">Amount</th><th>Counterparty</th><th>Narration</th><th>Source sheet</th></tr></thead><tbody>'
+    +(rows.map((r,i)=>{
       const cp=r.direction==='inflow'?(r.originator||'Unknown counterparty'):r.direction==='outflow'?(r.beneficiary||'Unknown counterparty'):'—';
-      return'<tr><td>'+r.row+'</td><td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td><td><span class="direction-badge '+esc(r.direction)+'">'+esc(r.direction)+'</span></td><td class="num">'+esc(fmt(r.amount,a.currency))+'</td><td>'+esc(cp)+'</td><td>'+esc(r.narration||'—')+'</td><td>'+esc(r.sheet||'—')+'</td></tr>';
-    }).join('')||'<tr><td colspan="7">No records are affected by this check.</td></tr>')
-    +'</tbody></table>'
-    +(issue.rows.length>300?'<div class="quality-limit-note">Showing the first 300 affected records. Export the standardised dataset for complete record-level review.</div>':'');
+      return'<tr><td>'+(start+i+1)+'</td><td>'+r.row+'</td><td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td><td><span class="direction-badge '+esc(r.direction)+'">'+esc(r.direction)+'</span></td><td class="num">'+esc(fmt(r.amount,a.currency))+'</td><td>'+esc(cp)+'</td><td>'+esc(r.narration||'—')+'</td><td>'+esc(r.sheet||'—')+'</td></tr>';
+    }).join('')||'<tr><td colspan="8">No records are affected by this check.</td></tr>')
+    +'</tbody></table>';
+  renderDataQualityIssuePagination(issue.rows.length,a);
 }
+
 function renderDataQuality(a){
   const dq=a?.dataQuality;if(!dq)return;
   $('dataQualityScore').textContent=dq.cleanRate.toFixed(1)+'% without material flags';
@@ -1717,7 +1760,7 @@ function renderDataQuality(a){
       +'<span>'+esc(issue.title)+'</span><strong>'+issue.rows.length.toLocaleString()+'</strong><small>'+esc(issue.description)+'</small>'
     +'</button>'
   ).join('');
-  $$('.quality-issue').forEach(btn=>btn.onclick=()=>{dataQualityActiveIssue=btn.dataset.issue;renderDataQuality(a);});
+  $$('.quality-issue').forEach(btn=>btn.onclick=()=>{dataQualityActiveIssue=btn.dataset.issue;dataQualityPage=1;renderDataQuality(a);});
   renderDataQualityIssueDetail(a);
 }
 
@@ -2158,7 +2201,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.0 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.0.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2218,7 +2261,7 @@ $('confirmMappingBtn').onclick=()=>{
 $('backToImport').onclick=()=>setStep(1);
 $('backToMapping').onclick=()=>setStep(2);
 $('runAnalysisBtn').onclick=()=>{
-  counterpartySelection.clear();unknownSelection.clear();unknownPage=1;dataQualityActiveIssue='';
+  counterpartySelection.clear();unknownSelection.clear();unknownPage=1;aliasLibraryPage=1;dataQualityPage=1;dataQualityActiveIssue='';
   const err=validateMapping();if(err){status('configStatus',err,true);setStep(2);return;}
   status('configStatus');setStep(4);$('analysisProgress').textContent='Standardising mapped core and custom fields…';
   setTimeout(()=>{
@@ -2289,7 +2332,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v3_0_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v3_0_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -2299,7 +2342,7 @@ $('clearAliasLibraryBtn').onclick=()=>{
   if(!window.confirm('Clear all saved entity alias mappings from this browser?'))return;
   state.aliasMap={};persistAliases();status('aliasStatus','Persistent alias library cleared. Rerun analysis to restore the unmerged names.');
 };
-$('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];counterpartySelection.clear();unknownSelection.clear();unknownPage=1;dataQualityActiveIssue='';setStep(1);};
+$('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];counterpartySelection.clear();unknownSelection.clear();unknownPage=1;aliasLibraryPage=1;dataQualityPage=1;dataQualityActiveIssue='';setStep(1);};
 $('clearAllBtn').onclick=()=>{
   state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=NETWORK_DEFAULT_ZOOM;networkFocus='center';networkSelectedNode=null;counterpartySelection.clear();unknownSelection.clear();unknownPage=1;dataQualityActiveIssue='';
   counterpartyPage.originator=1;counterpartyPage.beneficiary=1;
@@ -2321,4 +2364,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.0.0').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.0.1').then(r=>r.update()).catch(()=>{}));
