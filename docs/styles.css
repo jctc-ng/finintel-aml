@@ -346,3 +346,158 @@ footer strong{color:#17384c;font-weight:850}
   html{font-size:16px}
   .table-wrap th,.table-wrap td,.mapping-table th,.mapping-table td{font-size:.9rem}
 }
+
+/* FinIntel AML v2.5 — readable relationship graph + searchable/sortable counterparty tables */
+.counterparty-toolbar{
+  display:grid;
+  grid-template-columns:minmax(180px,1.2fr) minmax(185px,.9fr) minmax(160px,.8fr) auto;
+  gap:8px;
+  margin:10px 0 12px;
+  align-items:center;
+}
+.counterparty-toolbar input,.counterparty-toolbar select{
+  width:100%;
+  min-width:0;
+  background:#fff;
+  color:#102f42;
+  border:1px solid #aebfcd;
+  border-radius:10px;
+  padding:9px 10px;
+  font-size:.91rem;
+  font-weight:650;
+}
+.table-count-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  white-space:nowrap;
+  min-height:38px;
+  padding:7px 10px;
+  border-radius:999px;
+  border:1px solid #cbd9e4;
+  background:#f6f9fb;
+  color:#314f62;
+  font-size:.82rem;
+  font-weight:800;
+}
+.originator-card .table-count-pill{background:var(--nfiu-green-soft);color:var(--nfiu-green);border-color:#afd5c1}
+.beneficiary-card .table-count-pill{background:var(--nfiu-blue-soft);color:var(--nfiu-blue);border-color:#b2cfe2}
+
+.network-help{
+  margin:-4px 0 12px;
+  color:#29485b!important;
+  font-size:.91rem;
+  font-weight:650;
+}
+.network-toolbar{
+  display:grid;
+  grid-template-columns:minmax(135px,.8fr) minmax(135px,.8fr) minmax(150px,.8fr) auto;
+  gap:9px;
+  align-items:end;
+  margin-bottom:10px;
+  padding:12px;
+  background:#f7fafc;
+  border:1px solid #d7e2eb;
+  border-radius:12px;
+}
+.network-toolbar label{
+  color:#17384c;
+  font-size:.82rem;
+  font-weight:800;
+}
+.network-toolbar input{
+  display:block;
+  width:100%;
+  margin-top:5px;
+  background:#fff;
+  color:#102f42;
+  border:1px solid #aebfcd;
+  border-radius:9px;
+  padding:8px 9px;
+  font-weight:650;
+}
+.network-zoom-controls{
+  display:flex;
+  gap:6px;
+  align-items:center;
+}
+.network-zoom-controls .btn{
+  min-width:42px;
+  padding:8px 10px;
+  color:#15394d;
+  background:#fff;
+  border-color:#b9c8d4;
+  font-size:.95rem;
+}
+#networkZoomReset{min-width:68px}
+.network-range-status{
+  min-height:1.2em;
+  margin:2px 0 8px;
+  color:#3b586b;
+  font-size:.84rem;
+  font-weight:700;
+}
+.network-view{
+  display:block;
+  min-height:420px;
+  overflow:auto;
+  background:linear-gradient(180deg,#fff,#fbfdff);
+  border:1px solid #d9e4ec;
+  border-radius:12px;
+  padding:10px;
+}
+.network-svg{
+  display:block;
+  margin:0 auto;
+  height:auto;
+  min-width:760px;
+  transition:width .16s ease;
+}
+.network-svg text{
+  font-family:"Segoe UI",Arial,Helvetica,sans-serif!important;
+  fill:#102f42!important;
+  font-size:15px!important;
+  font-weight:750!important;
+  paint-order:stroke;
+  stroke:#fff;
+  stroke-width:3px;
+  stroke-linejoin:round;
+}
+.network-svg text.money{
+  fill:#36566a!important;
+  font-size:13px!important;
+  font-weight:700!important;
+}
+.network-svg text.subject-label{
+  fill:#0f344a!important;
+  font-size:15px!important;
+  font-weight:900!important;
+}
+.network-svg text.subject-sub{
+  fill:#67571d!important;
+  font-size:12px!important;
+  font-weight:850!important;
+}
+.network-svg .origin{fill:#e9f6ef!important;stroke:#0b6b45!important;stroke-width:4!important}
+.network-svg .benefit{fill:#eaf4fb!important;stroke:#176aa5!important;stroke-width:4!important}
+.network-svg .subject{fill:#fbf6e8!important;stroke:#b8952f!important;stroke-width:5!important}
+.network-svg line.origin-link{stroke:#4c9b76!important;stroke-width:2.4!important}
+.network-svg line.benefit-link{stroke:#5d97be!important;stroke-width:2.4!important}
+.network-empty{
+  display:grid;
+  place-items:center;
+  min-height:360px;
+  color:#40586a;
+  font-weight:700;
+  text-align:center;
+  padding:24px;
+}
+.counterparty-highlight{background:#fff9e7!important}
+@media(max-width:980px){
+  .counterparty-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .network-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+}
+@media(max-width:620px){
+  .counterparty-toolbar,.network-toolbar{grid-template-columns:minmax(0,1fr)}
+  .network-zoom-controls{justify-content:flex-start}
+}
