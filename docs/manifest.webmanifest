@@ -1,10 +1,10 @@
 {
-  "name":"FinIntel AML v2.7.1",
+  "name":"FinIntel AML v2.7.2",
   "short_name":"FinIntel",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",
   "background_color":"#f4f7fb",
   "theme_color":"#0d5c8f",
-  "description":"Financial intelligence and AML/CFT workbench with unclipped scrollable relationship cards, single-node focus, native PDF printing and Word graph export."
+  "description":"Financial intelligence and AML/CFT workbench with a clean two-sided relationship map, child-node focus, native PDF printing and Word graph export."
 }
