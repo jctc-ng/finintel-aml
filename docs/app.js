@@ -1602,7 +1602,7 @@ function renderUnknownPagination(total){
   for(let p=start;p<=end;p++)buttons.push('<button class="btn '+(p===unknownPage?'primary':'ghost')+' unknown-page-btn" type="button" data-page="'+p+'">'+p+'</button>');
   buttons.push('<button class="btn ghost unknown-page-btn" type="button" data-page="'+Math.min(pages,unknownPage+1)+'" '+(unknownPage===pages?'disabled':'')+'>Next</button>');
   el.innerHTML='<span class="page-summary">Page '+unknownPage+' of '+pages+' • '+total.toLocaleString()+' unresolved record'+(total===1?'':'s')+'</span><div class="page-buttons">'+buttons.join('')+'</div>';
-  $('.unknown-page-btn').forEach(btn=>btn.onclick=()=>{unknownPage=Number(btn.dataset.page)||1;renderUnknownResolution(state.analysis);});
+  $$('.unknown-page-btn').forEach(btn=>btn.onclick=()=>{unknownPage=Number(btn.dataset.page)||1;renderUnknownResolution(state.analysis);});
 }
 function rerunAfterCounterpartyResolution(message){
   try{
@@ -1668,8 +1668,8 @@ function renderUnknownResolution(a){
       renderUnknownResolution(a);
     };
   }
-  $('.unknown-select').forEach(box=>box.onchange=()=>{setUnknownSelected(box.dataset.key,box.checked);renderUnknownResolution(a);});
-  $('.use-candidate-btn').forEach(btn=>btn.onclick=()=>{
+  $$('.unknown-select').forEach(box=>box.onchange=()=>{setUnknownSelected(box.dataset.key,box.checked);renderUnknownResolution(a);});
+  $$('.use-candidate-btn').forEach(btn=>btn.onclick=()=>{
     const select=$('.resolution-candidate').find(x=>x.dataset.key===btn.dataset.key);
     const name=select?.value||'';
     if(!name)return;
@@ -1716,7 +1716,7 @@ function renderDataQuality(a){
       +'<span>'+esc(issue.title)+'</span><strong>'+issue.rows.length.toLocaleString()+'</strong><small>'+esc(issue.description)+'</small>'
     +'</button>'
   ).join('');
-  $('.quality-issue').forEach(btn=>btn.onclick=()=>{dataQualityActiveIssue=btn.dataset.issue;renderDataQuality(a);});
+  $$('.quality-issue').forEach(btn=>btn.onclick=()=>{dataQualityActiveIssue=btn.dataset.issue;renderDataQuality(a);});
   renderDataQualityIssueDetail(a);
 }
 
