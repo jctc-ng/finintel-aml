@@ -2280,7 +2280,7 @@ function irCounterpartySentence(a,role,item){
   }else if(first&&last){
     sentence='Between '+irDate(first)+' and '+irDate(last)+', '+subject+(role==='originator'?' received ':' transferred ')+'the total sum of '+amount+(role==='originator'?' from ':' to ')+item.name+' in '+count+'.';
   }else{
-    sentence='The '+subject+(role==='originator'?' received ':' transferred ')+'the total sum of '+amount+(role==='originator'?' from ':' to ')+item.name+' in '+count+'.';
+    sentence=subject.charAt(0).toUpperCase()+subject.slice(1)+(role==='originator'?' received ':' transferred ')+'the total sum of '+amount+(role==='originator'?' from ':' to ')+item.name+' in '+count+'.';
   }
   if(mode)sentence+=' The related transactions were predominantly identified through '+mode+'.';
   return sentence;
