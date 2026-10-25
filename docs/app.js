@@ -1017,7 +1017,16 @@ function renderMetrics(a){
   }else{
     m=[['Records',a.records.length.toLocaleString()],['Mapped Fields',a.mappedCount.toLocaleString()],['Completeness',a.completeness.toFixed(1)+'%'],['Repeated Identifier Signals',a.repeatedSignals.length.toLocaleString()]];
   }
-  $('metricCards').innerHTML=m.map(x=>'<article class="card metric"><div class="value">'+esc(x[1])+'</div><div class="label">'+esc(x[0])+'</div></article>').join('');
+  const metricClass=(label,value)=>{
+    if(label==='Total Inflow'||label==='Originators')return'metric-inflow';
+    if(label==='Total Outflow'||label==='Beneficiaries')return'metric-outflow';
+    if(label==='Net Flow')return String(value).includes('-')?'metric-net-negative':'metric-net-positive';
+    if(label==='Rapid-Movement Matches'||label==='Repeated Identifier Signals')return'metric-alert';
+    if(label==='Crypto/VASP Exposure'||label==='Mapped Fields')return'metric-gold';
+    if(label==='Completeness')return'metric-purple';
+    return'metric-gold';
+  };
+  $('metricCards').innerHTML=m.map(x=>'<article class="card metric '+metricClass(x[0],x[1])+'"><div class="value">'+esc(x[1])+'</div><div class="label">'+esc(x[0])+'</div></article>').join('');
 }
 
 function renderDescriptionIntelligence(a){
@@ -1029,7 +1038,8 @@ function renderDescriptionIntelligence(a){
     ['Counterparties Extracted',d.withCounterparty.toLocaleString()],
     ['Used as Fallback Party',d.fallbackUsed.toLocaleString()]
   ];
-  $('descriptionMetrics').innerHTML=metrics.map(x=>'<article class="card metric"><div class="value">'+esc(x[1])+'</div><div class="label">'+esc(x[0])+'</div></article>').join('');
+  const descClasses=['metric-purple','metric-gold','metric-inflow','metric-outflow'];
+  $('descriptionMetrics').innerHTML=metrics.map((x,i)=>'<article class="card metric '+descClasses[i%descClasses.length]+'"><div class="value">'+esc(x[1])+'</div><div class="label">'+esc(x[0])+'</div></article>').join('');
   const rows=[
     ...(d.entities||[]).slice(0,12).map(x=>({kind:'Entity',name:x.name,entityType:x.type,confidence:x.maxConfidence,count:x.count,total:x.total})),
     ...d.categories.slice(0,5).map(x=>({kind:'Meaning',name:x.name,entityType:'transaction meaning',confidence:'',count:x.count,total:x.total})),
@@ -1093,8 +1103,8 @@ function renderRecords(){
   }).slice(0,300);
   const derivedHead=a.kind==='transaction'?'<th>Direction</th><th>Source Sheet</th><th>Extracted Meaning</th><th>Derived Counterparty</th>':'';
   $('transactionTable').innerHTML='<table><thead><tr><th>#</th>'+derivedHead+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'
-    +(rows.map(r=>'<tr><td>'+r.row+'</td>'
-      +(a.kind==='transaction'?'<td>'+esc(r.direction)+'</td><td>'+esc(r.sheet||'')+'</td><td><span class="description-meaning">'+esc(r.extracted?.category||'')+'</span><br><small>'+esc(r.extracted?.meaning||'')+'</small></td><td>'+esc(r.extracted?.counterparty||'')+(r.extracted?.counterpartyType?'<br><small>'+esc(r.extracted.counterpartyType)+' • '+esc((r.extracted.counterpartyConfidence||0)+'% confidence')+'</small>':'')+(r.counterpartyFromDescription?' <span class="source-badge">USED</span>':'')+'</td>':'')
+    +(rows.map(r=>'<tr'+(a.kind==='transaction'?' data-direction="'+esc(r.direction)+'"':'')+'><td>'+r.row+'</td>'
+      +(a.kind==='transaction'?'<td><span class="direction-badge '+esc(r.direction)+'">'+esc(r.direction)+'</span></td><td>'+esc(r.sheet||'')+'</td><td><span class="description-meaning">'+esc(r.extracted?.category||'')+'</span><br><small>'+esc(r.extracted?.meaning||'')+'</small></td><td>'+esc(r.extracted?.counterparty||'')+(r.extracted?.counterpartyType?'<br><small>'+esc(r.extracted.counterpartyType)+' • '+esc((r.extracted.counterpartyConfidence||0)+'% confidence')+'</small>':'')+(r.counterpartyFromDescription?' <span class="source-badge">USED</span>':'')+'</td>':'')
       +cols.map(c=>'<td>'+esc(r.values[c.id]??'')+'</td>').join('')+'</tr>').join('')
       ||'<tr><td colspan="'+(cols.length+(a.kind==='transaction'?5:1))+'">No matching records.</td></tr>')
     +'</tbody></table>';
