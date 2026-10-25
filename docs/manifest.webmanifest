@@ -1,10 +1,10 @@
 {
-  "name":"FinIntel AML v2.6.2",
+  "name":"FinIntel AML v2.6.3",
   "short_name":"FinIntel",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",
   "background_color":"#f4f7fb",
   "theme_color":"#0d5c8f",
-  "description":"Financial intelligence and AML/CFT workbench with universal schema, description intelligence, persistent analyst entity resolution, supplementary analytical indicators and a zoomable relationship map with protected scroll margins."
+  "description":"Financial intelligence and AML/CFT workbench with universal schema, description intelligence, supplementary analytical indicators and an interactive relationship map with node-focused navigation."
 }
