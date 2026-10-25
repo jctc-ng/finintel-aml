@@ -141,6 +141,7 @@ const SAMPLE_CSV='Date,Amount,Direction,Originator,Beneficiary,Narration,Account
 
 let networkZoom=1;
 let networkFocus='center';
+let networkSelectedNode=null;
 const counterpartyPage={originator:1,beneficiary:1};
 const COUNTERPARTY_PAGE_SIZE=10;
 
@@ -1222,16 +1223,55 @@ function nodeDateRange(x){
   }
   return 'Date unavailable';
 }
+function networkItem(role,name){
+  const a=state.analysis;if(!a||a.kind!=='transaction')return null;
+  const rows=role==='originator'?a.origins:a.benefits;
+  return rows.find(x=>norm(x.name)===norm(name))||null;
+}
+function renderNodeFocusPanel(role,item){
+  const panel=$('nodeFocusPanel');if(!panel)return;
+  if(!item){panel.hidden=true;return;}
+  const a=state.analysis;
+  const total=role==='originator'?a.totalIn:a.totalOut;
+  panel.hidden=false;
+  $('nodeFocusRole').textContent=role==='originator'?'ORIGINATOR / INFLOW':'BENEFICIARY / OUTFLOW';
+  $('nodeFocusName').textContent=item.name;
+  $('nodeFocusAmount').textContent=fmt(item.total,a.currency);
+  $('nodeFocusCount').textContent=item.count.toLocaleString();
+  $('nodeFocusShare').textContent=(total?item.total/total*100:0).toFixed(1)+'%';
+  $('nodeFocusDates').textContent=nodeDateRange(item);
+}
+function focusNetworkChild(role,name){
+  const item=networkItem(role,name);if(!item)return;
+  networkSelectedNode={role,name:item.name};
+  networkFocus='selected';
+  networkZoom=Math.max(networkZoom,1.5);
+  if($('networkZoomReset'))$('networkZoomReset').textContent=Math.round(networkZoom*100)+'%';
+  renderNodeFocusPanel(role,item);
+  renderNetwork(state.analysis,'selected');
+}
+function clearNetworkNodeFocus(){
+  networkSelectedNode=null;
+  networkFocus='center';
+  if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;
+  if(state.analysis?.kind==='transaction')renderNetwork(state.analysis,'center');
+}
+
 function scrollNetworkTo(position){
   const view=$('networkView');if(!view)return;
   networkFocus=position==='left'?'left':position==='right'?'right':'center';
   requestAnimationFrame(()=>{
     const canvas=view.querySelector('.network-canvas');
     const maxX=Math.max(0,view.scrollWidth-view.clientWidth);
-    const key=networkFocus==='left'?'focusLeft':networkFocus==='right'?'focusRight':'focusCenter';
+    const key=networkFocus==='left'?'focusLeft':networkFocus==='right'?'focusRight':networkFocus==='selected'?'focusSelected':'focusCenter';
     const target=canvas?Number(canvas.dataset[key]||0):0;
     view.scrollLeft=Math.max(0,Math.min(maxX,target-(view.clientWidth/2)));
-    view.scrollTop=Math.max(0,(view.scrollHeight-view.clientHeight)/2);
+    if(networkFocus==='selected'&&canvas){
+      const y=Number(canvas.dataset.focusSelectedY||0);
+      view.scrollTop=Math.max(0,Math.min(Math.max(0,view.scrollHeight-view.clientHeight),y-(view.clientHeight/2)));
+    }else{
+      view.scrollTop=Math.max(0,(view.scrollHeight-view.clientHeight)/2);
+    }
   });
 }
 function centerNetworkView(){scrollNetworkTo('center');}
@@ -1298,30 +1338,109 @@ function renderNetwork(a,focus='center'){
   const focusLeft=sideBuffer+Math.round((originLabelFocusX/width)*scaledWidth);
   const focusCenter=sideBuffer+Math.round((subjectX/width)*scaledWidth);
   const focusRight=sideBuffer+Math.round((benefitLabelFocusX/width)*scaledWidth);
-  let s='<div class="network-canvas" data-focus-left="'+focusLeft+'" data-focus-center="'+focusCenter+'" data-focus-right="'+focusRight+'" style="width:'+canvasWidth+'px;min-width:'+canvasWidth+'px;padding-left:'+sideBuffer+'px;padding-right:'+sideBuffer+'px">'
+  let selectedX=subjectX,selectedY=subjectY;
+  if(networkSelectedNode?.role==='originator'){
+    const ix=o.findIndex(x=>norm(x.name)===norm(networkSelectedNode.name));
+    if(ix>=0){selectedX=Math.max(120,originTextX-170);selectedY=oy[ix];}
+  }else if(networkSelectedNode?.role==='beneficiary'){
+    const ix=b.findIndex(x=>norm(x.name)===norm(networkSelectedNode.name));
+    if(ix>=0){selectedX=Math.min(width-120,benefitTextX+170);selectedY=by[ix];}
+  }
+  const focusSelected=sideBuffer+Math.round((selectedX/width)*scaledWidth);
+  const focusSelectedY=Math.round(selectedY*networkZoom);
+  let s='<div class="network-canvas" data-focus-left="'+focusLeft+'" data-focus-center="'+focusCenter+'" data-focus-right="'+focusRight+'" data-focus-selected="'+focusSelected+'" data-focus-selected-y="'+focusSelectedY+'" style="width:'+canvasWidth+'px;min-width:'+canvasWidth+'px;padding-left:'+sideBuffer+'px;padding-right:'+sideBuffer+'px">'
     +'<svg class="network-svg" width="'+scaledWidth+'" height="'+scaledHeight+'" viewBox="0 0 '+width+' '+height+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Originator and beneficiary relationship view">';
   o.forEach((x,i)=>{
     const y=oy[i],label=shortName(x.name,36),dates=nodeDateRange(x);
-    s+='<line class="origin-link" x1="'+originLineStart+'" y1="'+y+'" x2="'+originLineEnd+'" y2="'+subjectY+'"/>'
-      +'<circle class="origin" cx="'+originNodeX+'" cy="'+y+'" r="29"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
+    const selected=networkSelectedNode?.role==='originator'&&norm(networkSelectedNode.name)===norm(x.name);
+    s+='<line class="origin-link'+(selected?' selected-link':'')+'" x1="'+originLineStart+'" y1="'+y+'" x2="'+originLineEnd+'" y2="'+subjectY+'"/>'
+      +'<g class="network-child-node originator-node'+(selected?' selected-node':'')+'" data-node-role="originator" data-node-name="'+esc(x.name)+'">'
+      +'<circle class="origin" cx="'+originNodeX+'" cy="'+y+'" r="'+(selected?34:29)+'"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
       +'<text class="node-name origin-label" text-anchor="end" x="'+originTextX+'" y="'+(y-14)+'">'+esc(label)+'</text>'
       +'<text class="money origin-label" text-anchor="end" x="'+originTextX+'" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
-      +'<text class="node-date origin-label" text-anchor="end" x="'+originTextX+'" y="'+(y+29)+'">'+esc(dates)+'</text>';
+      +'<text class="node-date origin-label" text-anchor="end" x="'+originTextX+'" y="'+(y+29)+'">'+esc(dates)+'</text></g>';
   });
   b.forEach((x,i)=>{
     const y=by[i],label=shortName(x.name,36),dates=nodeDateRange(x);
-    s+='<line class="benefit-link" x1="'+benefitLineStart+'" y1="'+subjectY+'" x2="'+benefitLineEnd+'" y2="'+y+'"/>'
-      +'<circle class="benefit" cx="'+benefitNodeX+'" cy="'+y+'" r="29"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
+    const selected=networkSelectedNode?.role==='beneficiary'&&norm(networkSelectedNode.name)===norm(x.name);
+    s+='<line class="benefit-link'+(selected?' selected-link':'')+'" x1="'+benefitLineStart+'" y1="'+subjectY+'" x2="'+benefitLineEnd+'" y2="'+y+'"/>'
+      +'<g class="network-child-node beneficiary-node'+(selected?' selected-node':'')+'" data-node-role="beneficiary" data-node-name="'+esc(x.name)+'">'
+      +'<circle class="benefit" cx="'+benefitNodeX+'" cy="'+y+'" r="'+(selected?34:29)+'"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
       +'<text class="node-name benefit-label" x="'+benefitTextX+'" y="'+(y-14)+'">'+esc(label)+'</text>'
-      +'<text class="money" x="'+benefitTextX+'" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
-      +'<text class="node-date" x="'+benefitTextX+'" y="'+(y+29)+'">'+esc(dates)+'</text>';
+      +'<text class="money benefit-label" x="'+benefitTextX+'" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
+      +'<text class="node-date benefit-label" x="'+benefitTextX+'" y="'+(y+29)+'">'+esc(dates)+'</text></g>';
   });
   s+='<circle class="subject" cx="'+subjectX+'" cy="'+subjectY+'" r="56"/>'
     +'<text class="subject-label" x="'+subjectX+'" y="'+(subjectY-3)+'" text-anchor="middle">'+esc(shortName(subject,22))+'</text>'
     +'<text class="subject-sub" x="'+subjectX+'" y="'+(subjectY+20)+'" text-anchor="middle">SUBJECT</text></svg></div>';
   $('networkView').innerHTML=s;
   initNetworkPan();
+  $('#networkView .network-child-node').forEach(g=>{
+    g.onpointerdown=e=>e.stopPropagation();
+    g.onclick=e=>{e.stopPropagation();focusNetworkChild(g.dataset.nodeRole,g.dataset.nodeName);};
+  });
   scrollNetworkTo(focus);
+}
+
+function graphExportSvg(){
+  const svg=$('networkView')?.querySelector('.network-svg');
+  if(!svg)throw new Error('No relationship graph is available to export.');
+  const clone=svg.cloneNode(true);
+  clone.removeAttribute('width');clone.removeAttribute('height');
+  const vb=clone.viewBox?.baseVal;
+  const width=vb?.width||1800,height=vb?.height||600;
+  clone.setAttribute('width',String(width));clone.setAttribute('height',String(height));
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  const style=document.createElementNS('http://www.w3.org/2000/svg','style');
+  style.textContent='text{font-family:Arial,sans-serif;fill:#102f42;font-weight:700}.node-name{font-size:16px;font-weight:900}.money{font-size:14px;fill:#27465a}.node-date{font-size:12.5px;fill:#5a4b17}.subject-label{font-size:15px;font-weight:900}.subject-sub{font-size:12px;font-weight:800;fill:#67571d}.origin{fill:#e9f6ef;stroke:#0b6b45;stroke-width:4}.benefit{fill:#eaf4fb;stroke:#176aa5;stroke-width:4}.subject{fill:#fbf6e8;stroke:#b8952f;stroke-width:5}.origin-link{stroke:#4c9b76;stroke-width:2.4}.benefit-link{stroke:#5d97be;stroke-width:2.4}.selected-node circle{stroke-width:8}.selected-link{stroke-width:5}';
+  clone.insertBefore(style,clone.firstChild);
+  return{svg:clone,width,height};
+}
+async function graphPngData(){
+  const g=graphExportSvg();
+  const xml=new XMLSerializer().serializeToString(g.svg);
+  const blob=new Blob([xml],{type:'image/svg+xml;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  try{
+    const img=await new Promise((resolve,reject)=>{
+      const i=new Image();i.onload=()=>resolve(i);i.onerror=()=>reject(new Error('Could not render the graph for export.'));i.src=url;
+    });
+    const scale=Math.min(2,3600/Math.max(g.width,g.height));
+    const w=Math.max(1,Math.round(g.width*scale)),h=Math.max(1,Math.round(g.height*scale));
+    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+    const ctx=canvas.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+    return{data:canvas.toDataURL('image/png',1),width:w,height:h};
+  }finally{URL.revokeObjectURL(url);}
+}
+function graphFileBase(){
+  return (($('caseName').value.trim()||'finintel_relationship_graph').replace(/[^a-z0-9._-]+/gi,'_').replace(/^_+|_+$/g,'')||'finintel_relationship_graph');
+}
+async function saveGraphPdf(){
+  status('graphExportStatus','Preparing PDF…');
+  try{
+    const png=await graphPngData();
+    const jsPDF=window.jspdf?.jsPDF;if(!jsPDF)throw new Error('PDF export library is unavailable. Refresh the page and try again.');
+    const orientation=png.width>=png.height?'landscape':'portrait';
+    const pdf=new jsPDF({orientation,unit:'mm',format:'a3'});
+    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight(),margin=10,titleH=10;
+    const scale=Math.min((pw-margin*2)/png.width,(ph-margin*2-titleH)/png.height);
+    const w=png.width*scale,h=png.height*scale,x=(pw-w)/2,y=margin+titleH;
+    pdf.setFontSize(12);pdf.text(($('caseName').value.trim()||'FinIntel AML')+' — Counterparty Relationship View',margin,margin+4);
+    pdf.addImage(png.data,'PNG',x,y,w,h,undefined,'FAST');
+    pdf.save(graphFileBase()+'.pdf');
+    status('graphExportStatus','PDF saved.');
+  }catch(e){status('graphExportStatus',e.message,true);}
+}
+async function saveGraphWord(){
+  status('graphExportStatus','Preparing Word document…');
+  try{
+    const png=await graphPngData();
+    const title=esc(($('caseName').value.trim()||'FinIntel AML')+' — Counterparty Relationship View');
+    const selected=networkSelectedNode?'<p><b>Focused node:</b> '+esc(networkSelectedNode.name)+' ('+esc(networkSelectedNode.role)+')</p>':'';
+    const html='<!doctype html><html><head><meta charset="utf-8"><style>@page{size:landscape;margin:18mm}body{font-family:Arial;color:#173447}h1{font-size:18pt;color:#123b4c}p{font-size:10pt}.graph{width:100%;height:auto;border:1px solid #ccd5da}</style></head><body><h1>'+title+'</h1>'+selected+'<p>Generated '+esc(new Date().toLocaleString())+'</p><img class="graph" src="'+png.data+'"></body></html>';
+    download(graphFileBase()+'.doc',html,'application/msword');
+    status('graphExportStatus','Word document saved.');
+  }catch(e){status('graphExportStatus',e.message,true);}
 }
 
 function maskedTop(profile){
@@ -1433,7 +1552,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6.4 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.7 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1518,15 +1637,18 @@ $('networkPartyCount').addEventListener('change',()=>{if(state.analysis?.kind===
 $('networkZoomOut').onclick=()=>setNetworkZoom(networkZoom-.15);
 $('networkZoomIn').onclick=()=>setNetworkZoom(networkZoom+.15);
 $('networkZoomReset').onclick=()=>setNetworkZoom(1);
-$('networkLeft').onclick=()=>scrollNetworkTo('left');
-$('networkCenter').onclick=centerNetworkView;
-$('networkRight').onclick=()=>scrollNetworkTo('right');
+$('networkLeft').onclick=()=>{networkSelectedNode=null;if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;scrollNetworkTo('left');};
+$('networkCenter').onclick=()=>{networkSelectedNode=null;if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;centerNetworkView();};
+$('networkRight').onclick=()=>{networkSelectedNode=null;if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;scrollNetworkTo('right');};
+$('clearNodeFocus').onclick=clearNetworkNodeFocus;
+$('saveGraphPdf').onclick=saveGraphPdf;
+$('saveGraphWord').onclick=saveGraphWord;
 $('exportCsvBtn').onclick=exportCSV;
 $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_4_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_7_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1538,7 +1660,7 @@ $('clearAliasLibraryBtn').onclick=()=>{
 };
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
 $('clearAllBtn').onclick=()=>{
-  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=1;networkFocus='center';
+  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=1;networkFocus='center';networkSelectedNode=null;
   counterpartyPage.originator=1;counterpartyPage.beneficiary=1;
   $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();
   if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='100%';
@@ -1558,4 +1680,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.4').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.7.0').then(r=>r.update()).catch(()=>{}));
