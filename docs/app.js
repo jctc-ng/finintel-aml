@@ -139,7 +139,8 @@ const SAMPLE_CSV='Date,Amount,Direction,Originator,Beneficiary,Narration,Account
 +'2026-01-25 13:00,9700000,Credit,Greenway Stores,Subject Account,Transfer,0011223344\n'
 +'2026-01-25 15:30,19000000,Debit,Subject Account,Prime Logistics Ltd,Transfer,0011223344';
 
-let networkZoom=1;
+const NETWORK_DEFAULT_ZOOM=.65;
+let networkZoom=NETWORK_DEFAULT_ZOOM;
 let networkFocus='center';
 let networkSelectedNode=null;
 const counterpartyPage={originator:1,beneficiary:1};
@@ -1244,17 +1245,16 @@ function renderNodeFocusPanel(role,item){
 function focusNetworkChild(role,name){
   const item=networkItem(role,name);if(!item)return;
   networkSelectedNode={role,name:item.name};
-  networkFocus='selected';
-  networkZoom=Math.max(networkZoom,1.5);
-  if($('networkZoomReset'))$('networkZoomReset').textContent=Math.round(networkZoom*100)+'%';
   renderNodeFocusPanel(role,item);
-  renderNetwork(state.analysis,'selected');
+  $('#networkView .network-child-node').forEach(el=>{
+    const match=el.dataset.nodeRole===role&&norm(el.dataset.nodeName)===norm(item.name);
+    el.classList.toggle('selected-node',match);
+  });
 }
 function clearNetworkNodeFocus(){
   networkSelectedNode=null;
-  networkFocus='center';
   if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;
-  if(state.analysis?.kind==='transaction')renderNetwork(state.analysis,'center');
+  $('#networkView .network-child-node').forEach(el=>el.classList.remove('selected-node'));
 }
 
 function scrollNetworkTo(position){
@@ -1297,10 +1297,29 @@ function initNetworkPan(){
   };
   view.onpointerup=stop;view.onpointercancel=stop;view.onpointerleave=e=>{if(dragging&&e.buttons===0)stop(e);};
 }
+function captureNetworkViewport(){
+  const view=$('networkView');
+  if(!view||!view.scrollWidth||!view.scrollHeight)return{x:.5,y:.5};
+  return{
+    x:(view.scrollLeft+(view.clientWidth/2))/view.scrollWidth,
+    y:(view.scrollTop+(view.clientHeight/2))/view.scrollHeight
+  };
+}
+function restoreNetworkViewport(pos){
+  const view=$('networkView');if(!view)return;
+  requestAnimationFrame(()=>{
+    view.scrollLeft=Math.max(0,Math.min(Math.max(0,view.scrollWidth-view.clientWidth),(pos.x*view.scrollWidth)-(view.clientWidth/2)));
+    view.scrollTop=Math.max(0,Math.min(Math.max(0,view.scrollHeight-view.clientHeight),(pos.y*view.scrollHeight)-(view.clientHeight/2)));
+  });
+}
 function setNetworkZoom(value){
-  networkZoom=Math.max(.65,Math.min(2.25,value));
+  const viewport=captureNetworkViewport();
+  networkZoom=Math.max(NETWORK_DEFAULT_ZOOM,Math.min(2.25,value));
   if($('networkZoomReset'))$('networkZoomReset').textContent=Math.round(networkZoom*100)+'%';
-  if(state.analysis?.kind==='transaction')renderNetwork(state.analysis,networkFocus);
+  if(state.analysis?.kind==='transaction'){
+    renderNetwork(state.analysis,'preserve');
+    restoreNetworkViewport(viewport);
+  }
 }
 function networkYPositions(count,height){
   if(count<=1)return[height/2];
@@ -1316,12 +1335,12 @@ function renderNetwork(a,focus='center'){
   const o=origins.slice(0,count),b=benefits.slice(0,count);
   const n=Math.max(4,o.length,b.length);
 
-  const width=2000;
+  const width=1400;
   const height=Math.max(520,140+n*100);
-  const subjectX=1000,subjectY=height/2;
+  const subjectX=700,subjectY=height/2;
 
-  const originTextX=430,originNodeX=650;
-  const benefitNodeX=1350,benefitTextX=1410;
+  const originTextX=420,originNodeX=470;
+  const benefitNodeX=930,benefitTextX=980;
 
   const originLineStart=originNodeX+34,originLineEnd=subjectX-78;
   const benefitLineStart=subjectX+78,benefitLineEnd=benefitNodeX-34;
@@ -1342,12 +1361,12 @@ function renderNetwork(a,focus='center'){
   const scale=networkZoom;
   const scaledWidth=Math.round(width*scale);
   const scaledHeight=Math.round(height*scale);
-  const sideBuffer=Math.max(260,Math.round(320*scale));
+  const sideBuffer=Math.max(30,Math.round(40*scale));
   const canvasWidth=scaledWidth+(sideBuffer*2);
 
   const focusLeft=sideBuffer+Math.round(((originTextX+originNodeX)/2)*scale);
   const focusCenter=sideBuffer+Math.round(subjectX*scale);
-  const focusRight=sideBuffer+Math.round(((benefitNodeX+benefitTextX+260)/2)*scale);
+  const focusRight=sideBuffer+Math.round(((benefitNodeX+benefitTextX+220)/2)*scale);
 
   let selectedX=subjectX,selectedY=subjectY;
   if(networkSelectedNode?.role==='originator'){
@@ -1355,7 +1374,7 @@ function renderNetwork(a,focus='center'){
     if(ix>=0){selectedX=(originTextX+originNodeX)/2;selectedY=oy[ix];}
   }else if(networkSelectedNode?.role==='beneficiary'){
     const ix=b.findIndex(x=>norm(x.name)===norm(networkSelectedNode.name));
-    if(ix>=0){selectedX=(benefitNodeX+benefitTextX+260)/2;selectedY=by[ix];}
+    if(ix>=0){selectedX=(benefitNodeX+benefitTextX+220)/2;selectedY=by[ix];}
   }
 
   const focusSelected=sideBuffer+Math.round(selectedX*scale);
@@ -1399,7 +1418,7 @@ function renderNetwork(a,focus='center'){
     el.onclick=e=>{e.stopPropagation();focusNetworkChild(el.dataset.nodeRole,el.dataset.nodeName);};
   });
 
-  scrollNetworkTo(focus);
+  if(focus!=='preserve')scrollNetworkTo(focus);
 }
 
 function graphFileBase(){
@@ -1409,8 +1428,8 @@ function exportGraphSvgMarkup(){
   const a=state.analysis;if(!a||a.kind!=='transaction')throw new Error('No relationship graph is available to export.');
   const count=Math.max(4,Math.min(20,Number($('networkPartyCount')?.value)||4));
   const o=a.origins.slice(0,count),b=a.benefits.slice(0,count);
-  const n=Math.max(4,o.length,b.length),height=Math.max(520,140+n*100),width=2000;
-  const subjectX=1000,originNodeX=650,benefitNodeX=1350,subjectY=height/2;
+  const n=Math.max(4,o.length,b.length),height=Math.max(520,140+n*100),width=1400;
+  const subjectX=700,originNodeX=470,benefitNodeX=930,subjectY=height/2;
   const oy=networkYPositions(Math.max(1,o.length),height),by=networkYPositions(Math.max(1,b.length),height);
   const originLineStart=originNodeX+34,originLineEnd=subjectX-78,benefitLineStart=subjectX+78,benefitLineEnd=benefitNodeX-34;
   const wrap=(name,max=34)=>{
@@ -1421,16 +1440,16 @@ function exportGraphSvgMarkup(){
   o.forEach((x,i)=>{
     const y=oy[i],lines=wrap(x.name);
     s+='<line class="ol" x1="'+originLineStart+'" y1="'+y+'" x2="'+originLineEnd+'" y2="'+subjectY+'"/><circle class="origin" cx="'+originNodeX+'" cy="'+y+'" r="29"/>';
-    lines.forEach((line,j)=>s+='<text class="nm" text-anchor="end" x="430" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
+    lines.forEach((line,j)=>s+='<text class="nm" text-anchor="end" x="420" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
     const base=y-24+(lines.length*22);
-    s+='<text class="am" text-anchor="end" x="430" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" text-anchor="end" x="430" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
+    s+='<text class="am" text-anchor="end" x="420" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" text-anchor="end" x="420" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
   });
   b.forEach((x,i)=>{
     const y=by[i],lines=wrap(x.name);
     s+='<line class="bl" x1="'+benefitLineStart+'" y1="'+subjectY+'" x2="'+benefitLineEnd+'" y2="'+y+'"/><circle class="benefit" cx="'+benefitNodeX+'" cy="'+y+'" r="29"/>';
-    lines.forEach((line,j)=>s+='<text class="nm" x="1410" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
+    lines.forEach((line,j)=>s+='<text class="nm" x="980" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
     const base=y-24+(lines.length*22);
-    s+='<text class="am" x="1410" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" x="1410" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
+    s+='<text class="am" x="980" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" x="980" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
   });
   s+='<circle class="subject" cx="'+subjectX+'" cy="'+subjectY+'" r="56"/><text x="'+subjectX+'" y="'+(subjectY-3)+'" text-anchor="middle" style="font-size:18px;font-weight:800">'+esc($('subjectName').value.trim()||'Subject')+'</text><text x="'+subjectX+'" y="'+(subjectY+20)+'" text-anchor="middle" style="font-size:13px;font-weight:800;fill:#67571d">SUBJECT</text></svg>';
   return s;
@@ -1612,7 +1631,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.7.2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.8 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1696,7 +1715,7 @@ $('directionFilter').addEventListener('change',renderRecords);
 $('networkPartyCount').addEventListener('change',()=>{if(state.analysis?.kind==='transaction')renderNetwork(state.analysis);});
 $('networkZoomOut').onclick=()=>setNetworkZoom(networkZoom-.15);
 $('networkZoomIn').onclick=()=>setNetworkZoom(networkZoom+.15);
-$('networkZoomReset').onclick=()=>setNetworkZoom(1);
+$('networkZoomReset').onclick=()=>setNetworkZoom(NETWORK_DEFAULT_ZOOM);
 $('networkLeft').onclick=()=>{networkSelectedNode=null;if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;scrollNetworkTo('left');};
 $('networkCenter').onclick=()=>{networkSelectedNode=null;if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;centerNetworkView();};
 $('networkRight').onclick=()=>{networkSelectedNode=null;if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;scrollNetworkTo('right');};
@@ -1708,7 +1727,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_7_2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_8_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1720,10 +1739,10 @@ $('clearAliasLibraryBtn').onclick=()=>{
 };
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
 $('clearAllBtn').onclick=()=>{
-  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=1;networkFocus='center';networkSelectedNode=null;
+  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=NETWORK_DEFAULT_ZOOM;networkFocus='center';networkSelectedNode=null;
   counterpartyPage.originator=1;counterpartyPage.beneficiary=1;
   $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();
-  if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='100%';
+  if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='65%';
   setStep(1);
 };
 $('schemaLibraryBtn').onclick=()=>{renderSchemaDialog();$('schemaDialog').showModal();};
@@ -1740,4 +1759,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.7.2').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.8.0').then(r=>r.update()).catch(()=>{}));
