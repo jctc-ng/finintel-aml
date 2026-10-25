@@ -139,6 +139,8 @@ const SAMPLE_CSV='Date,Amount,Direction,Originator,Beneficiary,Narration,Account
 +'2026-01-25 13:00,9700000,Credit,Greenway Stores,Subject Account,Transfer,0011223344\n'
 +'2026-01-25 15:30,19000000,Debit,Subject Account,Prime Logistics Ltd,Transfer,0011223344';
 
+let networkZoom=1;
+
 const state={
   rawRows:[],columns:[],sourceName:'',sourceType:'',sheets:[],
   datasetType:'transaction',
@@ -1050,14 +1052,40 @@ function renderDescriptionIntelligence(a){
     +'</tbody></table>';
 }
 
+function counterpartyControlPrefix(id){return id==='originatorTable'?'originator':'beneficiary';}
+function filteredCounterpartyRows(id,rows,total){
+  const p=counterpartyControlPrefix(id);
+  const q=norm($(p+'Search')?.value||'');
+  const minCount=Math.max(1,Number($(p+'MinCount')?.value)||1);
+  const sort=$(p+'Sort')?.value||'total-desc';
+  const filtered=rows.filter(r=>(!q||norm(r.name).includes(q))&&r.count>=minCount).map(r=>({...r,share:total?r.total/total*100:0}));
+  const [field,order]=sort.split('-');
+  filtered.sort((a,b)=>{
+    let cmp=0;
+    if(field==='name')cmp=String(a.name).localeCompare(String(b.name),undefined,{sensitivity:'base'});
+    else cmp=(Number(a[field])||0)-(Number(b[field])||0);
+    return order==='asc'?cmp:-cmp;
+  });
+  return filtered;
+}
 function renderCounterparty(id,rows,total,currency){
-  const max=rows[0]?.total||1;
+  const filtered=filteredCounterpartyRows(id,rows,total);
+  const max=Math.max(1,...filtered.map(r=>r.total));
+  const p=counterpartyControlPrefix(id);
+  if($(p+'TableCount'))$(p+'TableCount').textContent=filtered.length.toLocaleString()+' shown / '+rows.length.toLocaleString();
   $(id).innerHTML='<table><thead><tr><th></th><th>#</th><th>Counterparty</th><th class="num">Count</th><th class="num">Total</th><th class="num">Share</th></tr></thead><tbody>'
-    +(rows.slice(0,25).map((r,i)=>{
+    +(filtered.slice(0,250).map((r,i)=>{
       const saved=aliasEntry(r.name);
-      return '<tr><td><input class="counterparty-select" type="checkbox" data-name="'+esc(r.name)+'" aria-label="Select '+esc(r.name)+' for alias mapping"></td><td>'+(i+1)+'</td><td class="counterparty-name-cell"><label><span><span class="alias-original">'+esc(r.name)+'</span>'+(saved?'<span class="alias-mapped-note">Saved mapping → '+esc(saved.canonical)+'</span>':'')+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></span></label></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+(total?(r.total/total*100).toFixed(1):'0.0')+'%</td></tr>';
-    }).join('')||'<tr><td colspan="6">No classified counterparties.</td></tr>')
+      const hit=(norm($(p+'Search')?.value||'')&&norm(r.name).includes(norm($(p+'Search')?.value||'')))?' counterparty-highlight':'';
+      return '<tr class="'+hit.trim()+'"><td><input class="counterparty-select" type="checkbox" data-name="'+esc(r.name)+'" aria-label="Select '+esc(r.name)+' for alias mapping"></td><td>'+(i+1)+'</td><td class="counterparty-name-cell"><label><span><span class="alias-original">'+esc(r.name)+'</span>'+(saved?'<span class="alias-mapped-note">Saved mapping → '+esc(saved.canonical)+'</span>':'')+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></span></label></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+r.share.toFixed(1)+'%</td></tr>';
+    }).join('')||'<tr><td colspan="6">No counterparties match the current filter.</td></tr>')
     +'</tbody></table>';
+}
+function rerenderCounterpartyTables(){
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction')return;
+  renderCounterparty('originatorTable',a.origins,a.totalIn,a.currency);
+  renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
 }
 
 function renderAlerts(a){
@@ -1067,12 +1095,75 @@ function renderAlerts(a){
 
 function shortName(s,n){s=String(s||'Unknown');return s.length>n?s.slice(0,n-1)+'…':s;}
 function shortMoney(n,c){const v=Number(n)||0;if(v>=1e9)return c+' '+(v/1e9).toFixed(2)+'bn';if(v>=1e6)return c+' '+(v/1e6).toFixed(2)+'m';if(v>=1e3)return c+' '+(v/1e3).toFixed(1)+'k';return c+' '+v.toFixed(0);}
+function dateInputValue(d){
+  if(!d)return'';
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+}
+function parseNetworkDate(value,endOfDay=false){
+  if(!value)return null;
+  const p=value.split('-').map(Number);
+  if(p.length!==3)return null;
+  return new Date(p[0],p[1]-1,p[2],endOfDay?23:0,endOfDay?59:0,endOfDay?59:0,endOfDay?999:0);
+}
+function initialiseNetworkRange(a){
+  if(!$('networkDateFrom').value&&a.first)$('networkDateFrom').value=dateInputValue(a.first);
+  if(!$('networkDateTo').value&&a.last)$('networkDateTo').value=dateInputValue(a.last);
+}
+function networkTransactions(a){
+  const from=parseNetworkDate($('networkDateFrom')?.value||'',false);
+  const to=parseNetworkDate($('networkDateTo')?.value||'',true);
+  return a.records.filter(r=>{
+    if((from||to)&&!r.date)return false;
+    if(from&&r.date<from)return false;
+    if(to&&r.date>to)return false;
+    return true;
+  });
+}
+function setNetworkZoom(value){
+  networkZoom=Math.max(.65,Math.min(2.25,value));
+  if($('networkZoomReset'))$('networkZoomReset').textContent=Math.round(networkZoom*100)+'%';
+  if(state.analysis?.kind==='transaction')renderNetwork(state.analysis);
+}
+function networkYPositions(count,height){
+  if(count<=1)return[height/2];
+  const top=62,bottom=height-62,step=(bottom-top)/(count-1);
+  return Array.from({length:count},(_,i)=>top+i*step);
+}
 function renderNetwork(a){
-  const o=a.origins.slice(0,4),b=a.benefits.slice(0,4),subject=$('subjectName').value.trim()||'Subject',ys=[70,145,245,320];
-  let s='<svg class="network-svg" viewBox="0 0 680 390" role="img" aria-label="Top originator and beneficiary relationship view">';
-  o.forEach((x,i)=>{s+='<line x1="170" y1="'+ys[i]+'" x2="300" y2="195"/><circle class="origin" cx="145" cy="'+ys[i]+'" r="26"/><text x="18" y="'+(ys[i]-5)+'">'+esc(shortName(x.name,18))+'</text><text x="18" y="'+(ys[i]+12)+'">'+esc(shortMoney(x.total,a.currency))+'</text>';});
-  b.forEach((x,i)=>{s+='<line x1="380" y1="195" x2="510" y2="'+ys[i]+'"/><circle class="benefit" cx="535" cy="'+ys[i]+'" r="26"/><text x="565" y="'+(ys[i]-5)+'">'+esc(shortName(x.name,16))+'</text><text x="565" y="'+(ys[i]+12)+'">'+esc(shortMoney(x.total,a.currency))+'</text>';});
-  s+='<circle class="subject" cx="340" cy="195" r="44"/><text x="340" y="192" text-anchor="middle" font-weight="800">'+esc(shortName(subject,16))+'</text><text x="340" y="209" text-anchor="middle">SUBJECT</text></svg>';
+  const txs=networkTransactions(a);
+  const count=Math.max(4,Math.min(20,Number($('networkPartyCount')?.value)||4));
+  if($('networkPartyCount'))$('networkPartyCount').value=count;
+  const origins=group(txs,'inflow'),benefits=group(txs,'outflow');
+  const o=origins.slice(0,count),b=benefits.slice(0,count);
+  const n=Math.max(4,o.length,b.length),height=Math.max(440,100+n*76),width=960,subject=$('subjectName').value.trim()||'Subject',subjectY=height/2;
+  const oy=networkYPositions(Math.max(1,o.length),height),by=networkYPositions(Math.max(1,b.length),height);
+  const from=$('networkDateFrom')?.value||'',to=$('networkDateTo')?.value||'';
+  if($('networkRangeStatus'))$('networkRangeStatus').textContent=txs.length.toLocaleString()+' transaction(s) in relationship view'+(from||to?' • '+(from||'earliest')+' to '+(to||'latest'):'')+' • '+o.length+' originator(s) • '+b.length+' beneficiary/beneficiaries';
+
+  if(!txs.length||(!o.length&&!b.length)){
+    $('networkView').innerHTML='<div class="network-empty">No classified inflow/outflow relationships are available for the selected date range.</div>';
+    return;
+  }
+
+  let s='<svg class="network-svg" style="width:'+Math.round(networkZoom*100)+'%" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Originator and beneficiary relationship view">';
+  o.forEach((x,i)=>{
+    const y=oy[i],label=shortName(x.name,28);
+    s+='<line class="origin-link" x1="265" y1="'+y+'" x2="420" y2="'+subjectY+'"/>'
+      +'<circle class="origin" cx="240" cy="'+y+'" r="25"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+'</title></circle>'
+      +'<text x="24" y="'+(y-5)+'">'+esc(label)+'</text>'
+      +'<text class="money" x="24" y="'+(y+15)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>';
+  });
+  b.forEach((x,i)=>{
+    const y=by[i],label=shortName(x.name,26);
+    s+='<line class="benefit-link" x1="540" y1="'+subjectY+'" x2="695" y2="'+y+'"/>'
+      +'<circle class="benefit" cx="720" cy="'+y+'" r="25"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+'</title></circle>'
+      +'<text x="755" y="'+(y-5)+'">'+esc(label)+'</text>'
+      +'<text class="money" x="755" y="'+(y+15)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>';
+  });
+  s+='<circle class="subject" cx="480" cy="'+subjectY+'" r="50"/>'
+    +'<text class="subject-label" x="480" y="'+(subjectY-3)+'" text-anchor="middle">'+esc(shortName(subject,20))+'</text>'
+    +'<text class="subject-sub" x="480" y="'+(subjectY+18)+'" text-anchor="middle">SUBJECT</text></svg>';
   $('networkView').innerHTML=s;
 }
 
@@ -1151,7 +1242,7 @@ function renderAnalysis(a){
     renderCounterparty('originatorTable',a.origins,a.totalIn,a.currency);
     renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
     renderDescriptionIntelligence(a);
-    renderAlerts(a);renderNetwork(a);
+    renderAlerts(a);initialiseNetworkRange(a);renderNetwork(a);
   }
   renderProfiles(a);renderRecords();renderAliasLibrary();
   $('draftSummary').value=makeDraft(a);
@@ -1185,7 +1276,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.4 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.5 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1261,6 +1352,15 @@ $('runAnalysisBtn').onclick=()=>{
 };
 $('txSearch').addEventListener('input',renderRecords);
 $('directionFilter').addEventListener('change',renderRecords);
+['originatorSearch','originatorSort','originatorMinCount','beneficiarySearch','beneficiarySort','beneficiaryMinCount'].forEach(id=>{
+  const el=$(id);if(el)el.addEventListener(id.includes('Search')?'input':'change',rerenderCounterpartyTables);
+});
+['networkDateFrom','networkDateTo','networkPartyCount'].forEach(id=>{
+  const el=$(id);if(el)el.addEventListener('change',()=>{if(state.analysis?.kind==='transaction')renderNetwork(state.analysis);});
+});
+$('networkZoomOut').onclick=()=>setNetworkZoom(networkZoom-.15);
+$('networkZoomIn').onclick=()=>setNetworkZoom(networkZoom+.15);
+$('networkZoomReset').onclick=()=>setNetworkZoom(1);
 $('exportCsvBtn').onclick=exportCSV;
 $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
@@ -1278,8 +1378,10 @@ $('clearAliasLibraryBtn').onclick=()=>{
 };
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
 $('clearAllBtn').onclick=()=>{
-  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;
-  $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();setStep(1);
+  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=1;
+  $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();
+  if($('networkDateFrom'))$('networkDateFrom').value='';if($('networkDateTo'))$('networkDateTo').value='';if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='100%';
+  setStep(1);
 };
 $('schemaLibraryBtn').onclick=()=>{renderSchemaDialog();$('schemaDialog').showModal();};
 $('closeSchemaDialog').onclick=()=>$('schemaDialog').close();
@@ -1295,4 +1397,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.4').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.5').then(r=>r.update()).catch(()=>{}));
