@@ -301,3 +301,59 @@ NIP TRF TO PRIME LOGISTICS LTD 0123456789 REF ABC998
 can yield `PRIME LOGISTICS LTD` as a probable company/organisation and beneficiary candidate.
 
 These are analyst-reviewable extraction hypotheses, not identity determinations.
+
+
+---
+
+## FinIntel AML v2.3 — Persistent Analyst Entity Resolution
+
+FinIntel now supports analyst-controlled name/entity consolidation across browser sessions.
+
+### Workflow
+
+1. Run the transaction analysis.
+2. Tick one or more names in **Top Originators** and/or **Top Beneficiaries**.
+3. Enter the preferred canonical entity name.
+4. Click **Save Selected Mapping**.
+5. Continue selecting additional variants if required.
+6. Click **Rerun Analysis** when ready.
+
+Example:
+
+```text
+PRIME LOGISTICS LTD
+PRIME LOGISTIC LIMITED
+PRIME LOGISTICS
+PRIME LOGISTICS LTD.
+        ↓
+Prime Logistics Limited
+```
+
+The rerun applies the canonical entity before counterparty aggregation, so counts, values, shares, concentration metrics, network views and analytical summaries are recalculated using the consolidated entity.
+
+### Persistence
+
+Alias mappings are saved in browser localStorage under the FinIntel application. They survive:
+- page refreshes;
+- browser restarts;
+- new FinIntel sessions on the same browser/profile.
+
+The ordinary **Clear Session** action does not delete saved entity aliases. The Alias Manager contains a separate **Clear Library** control.
+
+### Alias library controls
+
+The analyst can:
+- review every stored alias and its canonical entity;
+- delete an individual alias;
+- clear the whole library;
+- export the alias library as JSON for backup/audit.
+
+### Shared counterparty column
+
+Version 2.3 also introduces the core field **Counterparty / Other Party** for transaction datasets in which originator and beneficiary are stored in the same source column. After transaction direction is resolved:
+- inflow → the shared counterparty is treated as the originator;
+- outflow → the shared counterparty is treated as the beneficiary.
+
+### Governance note
+
+Persistent alias mappings represent analyst judgments, not automated identity determinations. Analysts should validate that name variants actually refer to the same person or entity before consolidation, particularly where names are common or ambiguous.
