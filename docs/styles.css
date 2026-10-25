@@ -137,3 +137,87 @@ dialog::backdrop{background:rgba(32,50,67,.45)}
 .sheet-direction-name small{display:block;font-weight:400;color:var(--muted)}
 .structure-ok{color:#0a7d54}.structure-warn{color:#a86500}
 @media(max-width:760px){.structure-grid,.sheet-direction-row{grid-template-columns:minmax(0,1fr)}}
+
+/* FinIntel AML v2.4.2 — NFIU semantic colour system */
+:root{
+  --nfiu-green:#0b6b45;
+  --nfiu-green-soft:#e9f6ef;
+  --nfiu-blue:#176aa5;
+  --nfiu-blue-soft:#eaf4fb;
+  --nfiu-gold:#b8952f;
+  --nfiu-gold-soft:#fbf6e8;
+  --nfiu-red:#b93b4d;
+  --nfiu-red-soft:#fff0f2;
+  --nfiu-amber:#b87519;
+  --nfiu-amber-soft:#fff5e7;
+}
+.brand img{width:86px!important;height:86px!important;border-radius:14px!important;padding:3px!important;object-fit:contain!important;background:#fff!important}
+footer img{width:58px!important;height:58px!important;object-fit:contain!important;padding:2px!important}
+.topbar{border-bottom:4px solid transparent;border-image:linear-gradient(90deg,var(--nfiu-green) 0 38%,var(--nfiu-gold) 38% 58%,var(--nfiu-blue) 58% 100%) 1}
+.brand h1{color:#123d56}
+.brand .version{color:var(--nfiu-green)}
+.privacy-chip{background:var(--nfiu-green-soft);color:var(--nfiu-green);border-color:#a9d2be}
+.hero{border-top:5px solid var(--nfiu-blue)}
+.hero .kicker{color:var(--nfiu-green)}
+.hero-note{border-left:4px solid var(--nfiu-gold)}
+.step.active:nth-child(1),.step.active:nth-child(2){border-color:#8bc4ab;background:var(--nfiu-green-soft);color:var(--nfiu-green)}
+.step.active:nth-child(3),.step.active:nth-child(4){border-color:#9cc5e0;background:var(--nfiu-blue-soft);color:var(--nfiu-blue)}
+.step.active:nth-child(5){border-color:#d7c27b;background:var(--nfiu-gold-soft);color:#795e12}
+.transaction-structure{border-left:5px solid var(--nfiu-green)}
+.transaction-structure .dataset-pill{background:var(--nfiu-blue-soft);color:var(--nfiu-blue)}
+.sheet-chip.inflow{background:var(--nfiu-green-soft);color:var(--nfiu-green);border-color:#9dceb7}
+.sheet-chip.outflow{background:var(--nfiu-blue-soft);color:var(--nfiu-blue);border-color:#a4c8df}
+.result-accent{position:relative;overflow:hidden}
+.result-accent:before{content:"";position:absolute;inset:0 auto 0 0;width:5px}
+.originator-card:before{background:var(--nfiu-green)}
+.beneficiary-card:before{background:var(--nfiu-blue)}
+.alias-card:before{background:var(--nfiu-gold)}
+.description-card:before{background:#6557a5}
+.alert-card:before{background:var(--nfiu-red)}
+.flow-card:before{background:linear-gradient(180deg,var(--nfiu-green),var(--nfiu-blue))}
+.originator-card{background:linear-gradient(180deg,#fff 0%,#fbfffd 100%)}
+.beneficiary-card{background:linear-gradient(180deg,#fff 0%,#fbfdff 100%)}
+.inflow-kicker{color:var(--nfiu-green)!important}
+.outflow-kicker{color:var(--nfiu-blue)!important}
+.description-kicker{color:#6557a5!important}
+.alert-kicker{color:var(--nfiu-red)!important}
+.flow-kicker{color:var(--nfiu-blue)!important}
+.metric{border-top:4px solid #cbd8e2}
+.metric.metric-inflow{border-top-color:var(--nfiu-green);background:linear-gradient(180deg,#fff,var(--nfiu-green-soft))}
+.metric.metric-outflow{border-top-color:var(--nfiu-blue);background:linear-gradient(180deg,#fff,var(--nfiu-blue-soft))}
+.metric.metric-net-positive{border-top-color:var(--nfiu-green);background:linear-gradient(180deg,#fff,#f0f8f4)}
+.metric.metric-net-negative{border-top-color:var(--nfiu-red);background:linear-gradient(180deg,#fff,var(--nfiu-red-soft))}
+.metric.metric-gold{border-top-color:var(--nfiu-gold);background:linear-gradient(180deg,#fff,var(--nfiu-gold-soft))}
+.metric.metric-alert{border-top-color:var(--nfiu-amber);background:linear-gradient(180deg,#fff,var(--nfiu-amber-soft))}
+.metric.metric-purple{border-top-color:#6557a5;background:linear-gradient(180deg,#fff,#f4f1fb)}
+.metric-inflow .value{color:var(--nfiu-green)}
+.metric-outflow .value{color:var(--nfiu-blue)}
+.metric-net-positive .value{color:var(--nfiu-green)}
+.metric-net-negative .value{color:var(--nfiu-red)}
+.metric-gold .value{color:#806719}
+.metric-alert .value{color:#9b5e0f}
+.direction-badge{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:5px 9px;border-radius:999px;font-size:.76rem;font-weight:900;text-transform:uppercase;letter-spacing:.03em;border:1px solid transparent}
+.direction-badge.inflow{background:var(--nfiu-green-soft);color:var(--nfiu-green);border-color:#acd4c0}
+.direction-badge.outflow{background:var(--nfiu-blue-soft);color:var(--nfiu-blue);border-color:#aacbe0}
+.direction-badge.unknown{background:var(--nfiu-amber-soft);color:#925d12;border-color:#e2c48f}
+.alert.low{background:#f5f8fa;border-left:5px solid #7d919f}
+.alert.medium{background:var(--nfiu-amber-soft);border-left:5px solid var(--nfiu-amber)}
+.alert.high,.alert.critical{background:var(--nfiu-red-soft);border-left:5px solid var(--nfiu-red)}
+.alert.medium .alert-head small{color:#9a6112}
+.alert.high .alert-head small,.alert.critical .alert-head small{color:var(--nfiu-red)}
+.originator-card .bar>span{background:linear-gradient(90deg,#168658,var(--nfiu-green))}
+.beneficiary-card .bar>span{background:linear-gradient(90deg,#2c89c6,var(--nfiu-blue))}
+.network-svg .origin{fill:var(--nfiu-green-soft);stroke:var(--nfiu-green);stroke-width:4}
+.network-svg .benefit{fill:var(--nfiu-blue-soft);stroke:var(--nfiu-blue);stroke-width:4}
+.network-svg .subject{fill:var(--nfiu-gold-soft);stroke:var(--nfiu-gold);stroke-width:5}
+.network-svg line{stroke:#b5c2cc;stroke-width:2}
+.counterparty-select{accent-color:var(--nfiu-green)}
+#beneficiaryTable .counterparty-select{accent-color:var(--nfiu-blue)}
+.alias-card .btn.primary{background:linear-gradient(90deg,#9d7b1f,#c5a648)}
+.description-card .confidence{background:#f2effb;color:#5c4b9a;border-color:#cfc7ea}
+#transactionTable tbody tr[data-direction="inflow"]{background:#fbfffd}
+#transactionTable tbody tr[data-direction="outflow"]{background:#fbfdff}
+#transactionTable tbody tr[data-direction="unknown"]{background:#fffaf1}
+.status:not(.error){color:var(--nfiu-green)}
+footer{border-top:4px solid transparent;border-image:linear-gradient(90deg,var(--nfiu-green),var(--nfiu-gold),var(--nfiu-blue)) 1}
+@media(max-width:600px){.brand img{width:72px!important;height:72px!important}}
