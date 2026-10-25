@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0d5c8f" />
-  <meta name="description" content="FinIntel AML v2.8.1 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
-  <title>FinIntel AML v2.8.1</title>
-  <link rel="manifest" href="manifest.webmanifest?v=2.8.1" />
-  <link rel="stylesheet" href="styles.css?v=2.8.1" />
+  <meta name="description" content="FinIntel AML v2.9 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <title>FinIntel AML v2.9</title>
+  <link rel="manifest" href="manifest.webmanifest?v=2.9.0" />
+  <link rel="stylesheet" href="styles.css?v=2.9.0" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -421,7 +421,10 @@
                   <span id="nodeFocusRole" class="node-focus-role">Selected node</span>
                   <h4 id="nodeFocusName">Counterparty</h4>
                 </div>
-                <button id="clearNodeFocus" class="btn ghost" type="button">Clear Node Focus</button>
+                <div class="button-row">
+                  <button id="openNodeProfile" class="btn secondary" type="button">Open Full Profile</button>
+                  <button id="clearNodeFocus" class="btn ghost" type="button">Clear Node Focus</button>
+                </div>
               </div>
               <div class="node-focus-metrics">
                 <div><small>Total value</small><strong id="nodeFocusAmount">—</strong></div>
@@ -481,6 +484,86 @@
     </section>
   </main>
 
+  <dialog id="counterpartyProfileDialog" class="counterparty-profile-dialog">
+    <div class="profile-dialog-shell">
+      <div class="profile-dialog-head">
+        <div>
+          <p class="kicker">COUNTERPARTY INVESTIGATION PROFILE</p>
+          <div class="profile-name-row">
+            <h2 id="profileCounterpartyName">Counterparty</h2>
+            <span id="profileRoleBadge" class="profile-role-badge">Counterparty</span>
+          </div>
+          <p id="profileSubtitle" class="muted">Consolidated activity with the subject.</p>
+        </div>
+        <button id="closeCounterpartyProfile" class="btn ghost" type="button">Close</button>
+      </div>
+
+      <div id="profileMetricGrid" class="profile-metric-grid"></div>
+
+      <section class="profile-section">
+        <div class="section-title">
+          <div><p class="kicker">IDENTITY & LINKAGE</p><h3>Observed identifiers and name variants</h3></div>
+        </div>
+        <div class="profile-linkage-grid">
+          <div>
+            <h4>Name variants</h4>
+            <div id="profileAliasVariants" class="profile-chip-list"></div>
+          </div>
+          <div>
+            <h4>Accounts / IDs</h4>
+            <div id="profileAccounts" class="profile-chip-list"></div>
+          </div>
+          <div>
+            <h4>Phones & emails</h4>
+            <div id="profileContacts" class="profile-chip-list"></div>
+          </div>
+          <div>
+            <h4>Wallets / blockchain identifiers</h4>
+            <div id="profileWallets" class="profile-chip-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="profile-section grid two">
+        <article>
+          <p class="kicker">TRANSACTION BEHAVIOUR</p>
+          <h3>Observed categories and channels</h3>
+          <div id="profileBehaviourTable" class="table-wrap"></div>
+        </article>
+        <article>
+          <p class="kicker">LINKED ENTITIES</p>
+          <h3>Other entities observed in related records</h3>
+          <div id="profileLinkedEntities" class="table-wrap"></div>
+        </article>
+      </section>
+
+      <section class="profile-section">
+        <div class="section-title">
+          <div>
+            <p class="kicker">TRANSACTION DRILL-DOWN</p>
+            <h3>Underlying transactions</h3>
+          </div>
+          <span id="profileTransactionCount" class="dataset-pill">0 records</span>
+        </div>
+        <div class="profile-toolbar">
+          <input id="profileTransactionSearch" type="search" placeholder="Search narration, amount, identifier, sheet…" />
+          <select id="profileDirectionFilter">
+            <option value="all">All activity</option>
+            <option value="inflow">Originator / inflow</option>
+            <option value="outflow">Beneficiary / outflow</option>
+          </select>
+          <button id="exportProfileCsv" class="btn secondary" type="button">Export Profile CSV</button>
+        </div>
+        <div id="profileTransactionTable" class="table-wrap profile-transaction-table"></div>
+        <div id="profilePagination" class="counterparty-pagination"></div>
+      </section>
+
+      <div class="profile-footer-note">
+        <strong>Analyst control:</strong> This profile consolidates observed transactional and extracted data. Entity matches and inferred identifiers remain subject to analyst verification.
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="schemaDialog">
     <div class="dialog-head">
       <div><p class="kicker">SCHEMA LIBRARY</p><h3>FinIntel fields</h3></div>
@@ -492,10 +575,10 @@
 
   <footer>
     <img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo" />
-    <div><strong>FinIntel AML v2.8.1</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v2.9</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.8.1" defer></script>
+  <script src="app.js?v=2.9.0" defer></script>
 </body>
 </html>
