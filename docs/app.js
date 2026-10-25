@@ -517,6 +517,7 @@ function findMatchingTemplate(){
 
 function loadRows(rows,name,type,sheets=[]){
   if(!rows.length)throw new Error('No data rows were found.');
+  resetIntelligenceReportBuilder();
   setLoaderProgress(92,'Preparing mapping','Standardising headers and detecting likely fields…');
   state.rawRows=rows;
   state.columns=Array.from(new Set(rows.flatMap(r=>Object.keys(r)))).filter(c=>!c.startsWith('__finintel_'));
@@ -2205,6 +2206,25 @@ function uniqueObservedAccounts(a){
   });
   return[...seen.values()].sort((x,y)=>y.count-x.count||x.value.localeCompare(y.value));
 }
+function resetIntelligenceReportBuilder(){
+  irSubjectPhotoData='';
+  const ids=[
+    'irCaseNumber','irReportDate','irSubject','irFullName','irDob','irNationality','irMobile','irBvn','irNin','irAddress','irOccupation','irEmail','irSocial',
+    'irBackground','irBankName','irAccountNumber','irAccountOpenDate','irCurrentBalance','irStrCount','irCtrCount','irLinkedAccountsCount',
+    'irLawText','irRegText','irCommercialText','irOsintText','irAbstract','irFindings','irInference','irAttachments'
+  ];
+  ids.forEach(id=>{const el=$(id);if(el)el.value='';});
+  ['irLawStatus','irRegStatus','irCommercialStatus','irOsintStatus'].forEach(id=>{const el=$(id);if(el)el.value='not-queried';});
+  if($('irTopPartyCount'))$('irTopPartyCount').value='10';
+  if($('irRecommendation'))$('irRecommendation').value='This intelligence report is forwarded to you for further detailed investigation.';
+  if($('irSubjectPhoto'))$('irSubjectPhoto').value='';
+  if($('irSubjectPhotoPreview')){$('irSubjectPhotoPreview').hidden=true;$('irSubjectPhotoPreview').removeAttribute('src');}
+  if($('irPhotoPlaceholder'))$('irPhotoPlaceholder').hidden=false;
+  if($('irReportPreview'))$('irReportPreview').innerHTML='<div class="ir-preview-empty">Generate the draft to preview the intelligence report.</div>';
+  if($('irEvidenceSummary'))$('irEvidenceSummary').innerHTML='';
+  if($('irBuilderStatusPill'))$('irBuilderStatusPill').textContent='Draft not generated';
+  status('irExportStatus');
+}
 function populateIntelligenceReportBuilder(a){
   if(!a||a.kind!=='transaction')return;
   irSetIfBlank('irReportDate',irTodayInput());
@@ -2415,7 +2435,7 @@ function renderIrEvidenceSummary(a){
   const top=[...a.origins.slice(0,5).map(x=>({...x,role:'originator'})),...a.benefits.slice(0,5).map(x=>({...x,role:'beneficiary'}))].filter(x=>norm(x.name)!=='unknown counterparty');
   el.innerHTML='<div class="ir-evidence-head"><strong>Evidence-backed counterparty facts</strong><span>'+top.length+' key relationship(s)</span></div>'
     +(top.length?'<div class="ir-evidence-grid">'+top.map(x=>'<button class="ir-evidence-item" type="button" data-role="'+x.role+'" data-name="'+esc(x.name)+'"><small>'+(x.role==='originator'?'ORIGINATOR':'BENEFICIARY')+'</small><strong>'+esc(x.name)+'</strong><span>'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</span><em>'+esc(nodeDateRange(x))+' • View evidence</em></button>').join('')+'</div>':'<p class="muted">No classified counterparty evidence is available.</p>');
-  $('.ir-evidence-item').forEach(btn=>btn.onclick=()=>openCounterpartyProfile(btn.dataset.name));
+  $$('.ir-evidence-item').forEach(btn=>btn.onclick=()=>openCounterpartyProfile(btn.dataset.name));
 }
 function renderIntelligenceReportPreview(){
   const a=state.analysis;
@@ -2704,12 +2724,13 @@ $('clearAliasLibraryBtn').onclick=()=>{
   if(!window.confirm('Clear all saved entity alias mappings from this browser?'))return;
   state.aliasMap={};persistAliases();status('aliasStatus','Persistent alias library cleared. Rerun analysis to restore the unmerged names.');
 };
-$('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];counterpartySelection.clear();unknownSelection.clear();unknownPage=1;aliasLibraryPage=1;dataQualityPage=1;dataQualityActiveIssue='';setStep(1);};
+$('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];counterpartySelection.clear();unknownSelection.clear();unknownPage=1;aliasLibraryPage=1;dataQualityPage=1;dataQualityActiveIssue='';resetIntelligenceReportBuilder();setStep(1);};
 $('clearAllBtn').onclick=()=>{
   state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=NETWORK_DEFAULT_ZOOM;networkFocus='center';networkSelectedNode=null;counterpartySelection.clear();unknownSelection.clear();unknownPage=1;dataQualityActiveIssue='';irSubjectPhotoData='';
   counterpartyPage.originator=1;counterpartyPage.beneficiary=1;
   $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();
   if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='65%';
+  resetIntelligenceReportBuilder();
   setStep(1);
 };
 $('schemaLibraryBtn').onclick=()=>{renderSchemaDialog();$('schemaDialog').showModal();};
