@@ -450,7 +450,8 @@ footer strong{color:#17384c;font-weight:850}
   display:block;
   margin:0 auto;
   height:auto;
-  min-width:760px;
+  min-width:0!important;
+  max-width:none;
   transition:width .16s ease;
 }
 .network-svg text{
