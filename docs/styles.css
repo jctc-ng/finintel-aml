@@ -772,3 +772,23 @@ footer strong{color:#17384c;font-weight:850}
   border:3px solid #e7eef4!important;
 }
 .network-view::-webkit-scrollbar-thumb:hover{background:#4f748b!important}
+
+/* FinIntel AML v2.6.2 — protected scroll margins for zoomed relationship map */
+.network-canvas{
+  display:block;
+  box-sizing:border-box;
+  position:relative;
+  min-height:100%;
+}
+.network-canvas .network-svg{
+  display:block;
+  margin:0!important;
+  max-width:none!important;
+  flex:none!important;
+}
+#networkLeft,#networkCenter,#networkRight{
+  min-width:64px;
+}
+.network-view{
+  scroll-behavior:auto!important;
+}
