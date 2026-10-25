@@ -3,22 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#071722" />
-  <meta name="description" content="FinIntel AML v2.3 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
-  <title>FinIntel AML v2.1</title>
-  <link rel="manifest" href="manifest.webmanifest?v=2.3" />
-  <link rel="stylesheet" href="styles.css?v=2.3.0" />
+  <meta name="theme-color" content="#0d5c8f" />
+  <meta name="description" content="FinIntel AML v2.4 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <title>FinIntel AML v2.4</title>
+  <link rel="manifest" href="manifest.webmanifest?v=2.4" />
+  <link rel="stylesheet" href="styles.css?v=2.4.0" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
 
   <header class="topbar">
     <div class="brand">
-      <img src="https://raw.githubusercontent.com/jctc-ng/jctc-cyberguard/main/docs/assets/jctc-logo.jpeg" alt="JCTC logo" />
+      <img src="assets/nfiu-logo.jpg" alt="NFIU logo" />
       <div>
         <p class="kicker">FINANCIAL INTELLIGENCE & AML/CFT ANALYSIS</p>
-        <h1>FinIntel AML <span class="version">v2.2</span></h1>
-        <p class="sub">Universal Schema • Description Intelligence • Analyst Workbench</p>
+        <h1>FinIntel AML <span class="version">v2.4</span></h1>
+        <p class="sub">NFIU Edition • Universal Transaction Mapping • Description Intelligence</p>
       </div>
     </div>
     <div class="header-actions">
@@ -32,7 +32,7 @@
     <section class="hero card">
       <div>
         <p class="kicker">UNIVERSAL DATA INGESTION</p>
-        <h2>FinIntel now adapts to the dataset instead of forcing the dataset into fixed columns.</h2>
+        <h2>FinIntel adapts to how the institution actually presents inflow, outflow and counterparties.</h2>
         <p>Upload transaction, KYC, entity, crypto or custom datasets. Map each source column to a standard FinIntel field, a reusable custom field, or leave it unmapped.</p>
       </div>
       <div class="hero-note">
@@ -117,7 +117,40 @@
             </div>
             <span id="mappingDatasetType" class="dataset-pill">Transaction Data</span>
           </div>
-          <p class="muted">Each source column can map to a core field, a custom FinIntel field, or be ignored. For ordinary bank statements, the practical minimum is <strong>Transaction Date + Description + Amount</strong>. FinIntel can infer flow direction from separate Inflow/Outflow columns, signed amounts, Inflow/Outflow sheet names, and description clues.</p>
+          <p class="muted">First choose the transaction structure below, then map the source columns. <strong>Counterparty mapping is independent of amount mapping.</strong> A shared counterparty column can be used with one Amount column, separate Inflow/Outflow columns, or separate Inflow/Outflow sheets.</p>
+
+          <section id="transactionStructurePanel" class="transaction-structure">
+            <div class="section-title">
+              <div>
+                <p class="kicker">TRANSACTION STRUCTURE</p>
+                <h4>Tell FinIntel how money and counterparties are arranged</h4>
+              </div>
+              <span id="structureStatusPill" class="dataset-pill">Auto-detect</span>
+            </div>
+            <div class="structure-grid">
+              <label>Amount / inflow / outflow arrangement
+                <select id="amountLayout">
+                  <option value="auto">Auto-detect from mapped fields and sheets</option>
+                  <option value="single">One Amount column</option>
+                  <option value="split">Separate Inflow and Outflow columns</option>
+                  <option value="sheets">Separate Inflow and Outflow sheets</option>
+                </select>
+              </label>
+              <label>Originator / beneficiary arrangement
+                <select id="partyLayout">
+                  <option value="auto">Auto-detect</option>
+                  <option value="shared">One shared Counterparty / Other Party column</option>
+                  <option value="separate">Separate Originator and Beneficiary columns</option>
+                </select>
+              </label>
+            </div>
+            <div id="structureGuide" class="structure-guide"></div>
+            <div id="sheetDirectionPanel" class="sheet-direction-panel" hidden>
+              <strong>Assign each worksheet</strong>
+              <p class="muted">Use this when the workbook has separate sheets. FinIntel keeps the source sheet and applies your choice to every row on that sheet.</p>
+              <div id="sheetDirectionRows"></div>
+            </div>
+          </section>
 
           <div class="template-bar">
             <select id="templateSelect"><option value="">— Saved import templates —</option></select>
@@ -372,11 +405,11 @@
   </dialog>
 
   <footer>
-    <img src="https://raw.githubusercontent.com/jctc-ng/jctc-cyberguard/main/docs/assets/jctc-logo.jpeg" alt="JCTC logo" />
-    <div><strong>FinIntel AML v2.3</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
+    <img src="assets/nfiu-logo.jpg" alt="NFIU logo" />
+    <div><strong>FinIntel AML v2.4</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.3.0" defer></script>
+  <script src="app.js?v=2.4.0" defer></script>
 </body>
 </html>
