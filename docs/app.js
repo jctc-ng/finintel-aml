@@ -829,20 +829,25 @@ function direction(raw,o,b,subject,debit,credit,amountInfo,sheetHint,desc){
 
 function standardize(){
   const subject=$('subjectName').value.trim();
+  const mappingEntries=Object.entries(state.sourceMapping).filter(([,fid])=>!!fid);
+  const descriptionCache=new Map();
   return state.rawRows.map((raw,i)=>{
     const values={};
-    Object.entries(state.sourceMapping).forEach(([source,fid])=>{
-      if(!fid)return;
+    for(const [source,fid] of mappingEntries){
       const incoming=raw[source]??'';
       const current=values[fid];
       if(current===undefined||String(current).trim()===''||String(incoming).trim()!=='')values[fid]=incoming;
-    });
+    }
     const debit=parseAmount(values.debit),credit=parseAmount(values.credit),amountInfo=parseAmountInfo(values.amount);
     const amount=values.amount!==undefined&&String(values.amount).trim()!==''?amountInfo.amount:Math.max(debit,credit);
     const explicitOriginator=String(values.originator??'').trim(),explicitBeneficiary=String(values.beneficiary??'').trim();
     const sharedCounterparty=String(values.counterparty??'').trim();
     const narration=String(values.narration??'').trim();
-    const extracted=extractDescriptionMeaning(narration);
+    let extracted=descriptionCache.get(narration);
+    if(!extracted){
+      extracted=extractDescriptionMeaning(narration);
+      if(descriptionCache.size<10000)descriptionCache.set(narration,extracted);
+    }
     const sheet=String(raw.__finintel_sheet??'');
     const sheetChoice=state.sheetDirections[sheet]||'auto';
     if(sheetChoice==='ignore')return null;
@@ -887,12 +892,32 @@ function group(txs,dir){
   return Array.from(m.values()).sort((a,b)=>b.total-a.total);
 }
 function rapidMoves(txs,hours,ratio){
-  const ins=txs.filter(t=>t.direction==='inflow'&&t.date),outs=txs.filter(t=>t.direction==='outflow'&&t.date),hits=[],ms=hours*3600000;
-  outs.forEach(out=>{
-    const recent=ins.filter(i=>{const d=out.date-i.date;return d>=0&&d<=ms;});
-    const incoming=sum(recent,x=>x.amount);
-    if(incoming&&out.amount/incoming*100>=ratio)hits.push({out,recent,incoming,ratio:out.amount/incoming*100,minutes:(out.date-(recent[0]?.date||out.date))/60000});
-  });
+  const ins=txs.filter(t=>t.direction==='inflow'&&t.date);
+  const outs=txs.filter(t=>t.direction==='outflow'&&t.date);
+  const hits=[],ms=hours*3600000;
+  let left=0,right=0,running=0;
+  for(const out of outs){
+    while(right<ins.length&&ins[right].date<=out.date){
+      running+=ins[right].amount;
+      right++;
+    }
+    const cutoff=out.date-ms;
+    while(left<right&&ins[left].date<cutoff){
+      running-=ins[left].amount;
+      left++;
+    }
+    if(running<=0)continue;
+    const movedRatio=out.amount/running*100;
+    if(movedRatio>=ratio){
+      hits.push({
+        out,
+        recentCount:right-left,
+        incoming:running,
+        ratio:movedRatio,
+        minutes:(out.date-(ins[left]?.date||out.date))/60000
+      });
+    }
+  }
   return hits;
 }
 function structuring(txs,ref,band,min){
@@ -1288,7 +1313,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.5.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.5.2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1355,12 +1380,10 @@ $('runAnalysisBtn').onclick=()=>{
       state.standardized=standardize();
       if(!state.standardized.length)throw new Error('No records remained after standardisation.');
       $('analysisProgress').textContent=state.datasetType==='transaction'?'Running transaction summaries and AML/CFT scenarios…':'Profiling mapped fields and repeated identifiers…';
-      setTimeout(()=>{
-        const a=state.datasetType==='transaction'?transactionAnalysis(state.standardized):universalAnalysis(state.standardized);
-        renderAnalysis(a);setStep(5);
-      },180);
+      const a=state.datasetType==='transaction'?transactionAnalysis(state.standardized):universalAnalysis(state.standardized);
+      renderAnalysis(a);setStep(5);
     }catch(e){status('configStatus',e.message,true);setStep(3);}
-  },180);
+  },24);
 };
 $('txSearch').addEventListener('input',renderRecords);
 $('directionFilter').addEventListener('change',renderRecords);
@@ -1380,7 +1403,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_5_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_5_2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1412,4 +1435,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.5.1').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.5.2').then(r=>r.update()).catch(()=>{}));
