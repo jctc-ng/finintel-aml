@@ -2855,7 +2855,7 @@ function subjectRowsFromGrid(grid,layout){
   const profiles=[];let profile={};
   for(const row of rows){const start=row.findIndex(Boolean);if(start<0)continue;const label=row[start];if(!subjectFieldGuess(label))continue;
    const value=[...new Set(row.slice(start+1).filter(Boolean))].join(' / ');if(!value)continue;
-   if(subjectFieldGuess(label)==='irBvn'&&Object.keys(profile).some(k=>subjectFieldGuess(k)==='irBvn')&&profile[label]!==value){profiles.push(profile);profile={};}
+   if(['irBvn','irNin'].includes(subjectFieldGuess(label))&&Object.keys(profile).some(k=>subjectFieldGuess(k)===subjectFieldGuess(label)&&profile[k]!==value))throw Error('This file contains more than one subject. Upload a profile file for one person only.');
    profile[label]=profile[label]&&profile[label]!==value?profile[label]+' / '+value:value;
   }
   if(Object.keys(profile).length)profiles.push(profile);return profiles;
@@ -2868,7 +2868,7 @@ function subjectRowsFromGrid(grid,layout){
 function subjectImportDate(value,order){
  const raw=String(value||'').trim();if(!raw)return '';
  let y,m,d;let match=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T].*)?$/);
- if(match){[,y,m,d]=match;}else{match=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s.*)?$/);if(!match)return null;[,d,m,y]=match;if(order==='mdy')[d,m]=[m,d];}
+ if(match){[,y,m,d]=match;}else{match=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2}|\d{4})(?:\s.*)?$/);if(!match)return null;[,d,m,y]=match;if(order==='mdy')[d,m]=[m,d];if(y.length===2)y=String(Number(y)<=Math.min(99,new Date().getFullYear()%100)?2000+Number(y):1900+Number(y));}
  const date=new Date(Date.UTC(Number(y),Number(m)-1,Number(d)));if(date.getUTCFullYear()!==Number(y)||date.getUTCMonth()!==Number(m)-1||date.getUTCDate()!==Number(d))return null;
  return String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
 }
@@ -2881,23 +2881,25 @@ function subjectImportMappedValues(row,mappings,order){
 }
 function subjectCurrentMappings(){return Array.from($('subjectImportMapping').querySelectorAll('[data-subject-map]')).map(el=>({source:el.dataset.source,target:el.value}));}
 function renderSubjectImportReview(){
- const row=subjectImportRows[Number($('subjectImportPerson').value)||0];if(!row)return;
+ const row=subjectImportRows[0];if(!row)return;
  try{const values=subjectImportMappedValues(row,subjectCurrentMappings(),$('subjectImportDateOrder').value);
  $('subjectImportReview').innerHTML='<h4>Values to populate</h4><div class="subject-import-review">'+Object.entries(values).filter(([key,value])=>value).map(([key,value])=>'<div><strong>'+esc(subjectImportFields.find(f=>f[0]===key)?.[1]||key)+'</strong><span>'+esc(value)+'</span></div>').join('')+'</div>';status('subjectImportStatus','');
  }catch(err){$('subjectImportReview').innerHTML='';status('subjectImportStatus',err.message,true);}
 }
 function renderSubjectImportMapping(){
  const sheet=subjectImportSheets[Number($('subjectImportSheet').value)||0];if(!sheet)return;
- subjectImportRows=subjectRowsFromGrid(sheet.grid,$('subjectImportLayout').value);
- if(!subjectImportRows.length){$('subjectImportMapping').innerHTML='';$('subjectImportReview').innerHTML='';$('subjectImportPerson').innerHTML='';status('subjectImportStatus','No profiles recognized. Try the other layout or worksheet.',true);return;}
- $('subjectImportPerson').innerHTML=subjectImportRows.map((row,i)=>{const name=Object.entries(row).filter(([k])=>['irFullName','first','middle','surname'].includes(subjectFieldGuess(k))).map(([,v])=>v).filter(Boolean).join(' ');return '<option value="'+i+'">'+esc(name||'Person '+(i+1))+'</option>';}).join('');
+ try{subjectImportRows=subjectRowsFromGrid(sheet.grid,$('subjectImportLayout').value);
+ if(subjectImportRows.length>1)throw Error('Upload one subject only: keep one data row beneath the column headings.');
+ }catch(err){subjectImportRows=[];$('subjectImportMapping').innerHTML='';$('subjectImportReview').innerHTML='';status('subjectImportStatus',err.message,true);return;}
+ if(!subjectImportRows.length){$('subjectImportMapping').innerHTML='';$('subjectImportReview').innerHTML='';status('subjectImportStatus','No profiles recognized. Try the other layout or worksheet.',true);return;}
+
  const cols=[...new Set(subjectImportRows.flatMap(row=>Object.keys(row)))];
  $('subjectImportMapping').innerHTML='<h4>Match profile fields</h4>'+cols.map(source=>'<label>'+esc(source)+'<select data-subject-map data-source="'+esc(source)+'"><option value="">Ignore</option>'+subjectImportFields.map(f=>'<option value="'+f[0]+'" '+(subjectFieldGuess(source)===f[0]?'selected':'')+'>'+esc(f[1])+'</option>').join('')+'</select></label>').join('');
  $('subjectImportMapping').querySelectorAll('select').forEach(el=>el.onchange=renderSubjectImportReview);renderSubjectImportReview();
 }
 function setupSubjectProfileImport(){
  const panel=$('irFullName').closest('.ir-builder-panel'),section=document.createElement('div');section.className='subject-import';
- section.innerHTML='<details><summary>Import subject profile from Excel / CSV</summary><p>Choose the profile worksheet and person, review the fields, then apply. The photograph is uploaded separately.</p><div class="ir-form-grid"><label>Profile file<input id="subjectProfileFile" type="file" accept=".csv,.xlsx,.xls"></label><button type="button" class="btn ghost" id="subjectProfileTemplate">Download CSV template</button></div><div id="subjectImportOptions" hidden><div class="ir-form-grid"><label>Worksheet<select id="subjectImportSheet"></select></label><label>Data layout<select id="subjectImportLayout"><option value="records">One person per row</option><option value="pairs">Labels and values in rows</option></select></label><label>Person to import<select id="subjectImportPerson"></select></label><label>Date format<select id="subjectImportDateOrder"><option value="dmy">Day / Month / Year</option><option value="mdy">Month / Day / Year</option></select></label></div><div id="subjectImportMapping"></div><div id="subjectImportReview"></div><label class="subject-overwrite"><input type="checkbox" id="subjectImportOverwrite"> Replace existing values in mapped fields</label><div><button type="button" class="btn primary" id="subjectImportApply">Apply selected profile</button></div></div><p id="subjectImportStatus" role="status"></p></details>';
+ section.innerHTML='<details><summary>Import subject profile from Excel / CSV</summary><p>Upload a file containing one subject, review the field mapping, then apply. The photograph is uploaded separately.</p><div class="ir-form-grid"><label>Profile file<input id="subjectProfileFile" type="file" accept=".csv,.xlsx,.xls"></label><button type="button" class="btn ghost" id="subjectProfileTemplate">Download CSV template</button></div><div id="subjectImportOptions" hidden><div class="ir-form-grid"><label>Worksheet<select id="subjectImportSheet"></select></label><label>Data layout<select id="subjectImportLayout"><option value="records">Single profile with column headings</option><option value="pairs">Labels and values in rows</option></select></label><label>Date format<select id="subjectImportDateOrder"><option value="dmy">Day / Month / Year</option><option value="mdy">Month / Day / Year</option></select></label></div><div id="subjectImportMapping"></div><div id="subjectImportReview"></div><label class="subject-overwrite"><input type="checkbox" id="subjectImportOverwrite"> Replace existing values in mapped fields</label><div><button type="button" class="btn primary" id="subjectImportApply">Populate subject profile</button></div></div><p id="subjectImportStatus" role="status"></p></details>';
  panel.querySelector('h4').after(section);
  const grid=$('irFullName').parentElement.parentElement;
  for(const id of ['irGender','irOrigin','irResidence','irPassport']){const field=subjectImportFields.find(f=>f[0]===id),label=document.createElement('label');label.textContent=field[1];const input=document.createElement('input');input.id=id;input.type='text';label.append(input);grid.append(label);}
@@ -2906,19 +2908,20 @@ function setupSubjectProfileImport(){
  const file=e.target.files[0];if(!file)return;
  if(/\.csv$/i.test(file.name)){
  subjectImportSheets=[{name:'CSV',grid:parseCSV(await file.text(),true)}];
- }else{if(typeof XLSX==='undefined')throw Error('Excel reader unavailable. Please use CSV.');const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellText:true});subjectImportSheets=wb.SheetNames.map(name=>({name,grid:XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:false,defval:''})}));}
+ }else{if(typeof XLSX==='undefined')throw Error('Excel reader unavailable. Please use CSV.');const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellText:true,dateNF:'dd/mm/yyyy'});subjectImportSheets=wb.SheetNames.map(name=>({name,grid:XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:false,dateNF:'dd/mm/yyyy',defval:''})}));}
  $('subjectImportSheet').innerHTML=subjectImportSheets.map((s,i)=>'<option value="'+i+'">'+esc(s.name)+'</option>').join('');
  const rows=subjectImportSheets[0].grid;const first=rows.find(row=>row.some(v=>String(v).trim()))||[];
  $('subjectImportLayout').value=first.filter(c=>subjectFieldGuess(c)).length>=2?'records':'pairs';
  $('subjectImportOptions').hidden=false;$('subjectImportOverwrite').checked=false;renderSubjectImportMapping();
  }catch(err){status('subjectImportStatus',err.message,true);}};
  $('subjectImportSheet').onchange=renderSubjectImportMapping;$('subjectImportLayout').onchange=renderSubjectImportMapping;
- $('subjectImportPerson').onchange=renderSubjectImportReview;$('subjectImportDateOrder').onchange=renderSubjectImportReview;
+ $('subjectImportDateOrder').onchange=renderSubjectImportReview;
  $('subjectImportApply').onclick=()=>{try{
- const row=subjectImportRows[Number($('subjectImportPerson').value)||0];if(!row)throw Error('Choose a recognized profile first.');const values=subjectImportMappedValues(row,subjectCurrentMappings(),$('subjectImportDateOrder').value);let count=0,skipped=0;
+ const row=subjectImportRows[0];if(!row)throw Error('Upload a single subject profile and review its mapping first.');const values=subjectImportMappedValues(row,subjectCurrentMappings(),$('subjectImportDateOrder').value);let count=0,skipped=0;
  for(const [id,value] of Object.entries(values)){const input=$(id);if(!input||!value)continue;if(input.value&&!$('subjectImportOverwrite').checked){skipped++;continue;}input.value=value;count++;}
  if(values.irFullName&&(!irField('irSubject')||$('subjectImportOverwrite').checked))$('irSubject').value=values.irFullName;
  renderIntelligenceReportPreview();status('subjectImportStatus',count+' fields populated. '+skipped+' existing values kept. Review the subject profile before exporting.');
  }catch(err){status('subjectImportStatus',err.message,true);}};
 }
 setupSubjectProfileImport();
+
