@@ -1089,7 +1089,8 @@ function buildDataQuality(records){
   const missingAmount=records.filter(r=>
     !String(r.values?.amount??'').trim()&&!String(r.values?.debit??'').trim()&&!String(r.values?.credit??'').trim()
   );
-  const zeroAmount=records.filter(r=>!missingAmount.includes(r)&&!(Number(r.amount)>0));
+  const missingAmountSet=new Set(missingAmount);
+  const zeroAmount=records.filter(r=>!missingAmountSet.has(r)&&!(Number(r.amount)>0));
   const bothDebitCredit=records.filter(r=>parseAmount(r.values?.debit)>0&&parseAmount(r.values?.credit)>0);
   const unknownDirection=records.filter(r=>r.direction==='unknown');
   const missingParty=records.filter(r=>isUnknownCounterpartyRecord(r,false));
