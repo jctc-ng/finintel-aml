@@ -502,3 +502,123 @@ footer strong{color:#17384c;font-weight:850}
   .counterparty-toolbar,.network-toolbar{grid-template-columns:minmax(0,1fr)}
   .network-zoom-controls{justify-content:flex-start}
 }
+
+/* FinIntel AML v2.5.1 — full-width relationship view, node dates, pagination, dark-schema contrast */
+.flow-card{
+  grid-column:1 / -1;
+  width:100%;
+}
+.network-view{
+  width:100%;
+  overflow-x:scroll!important;
+  overflow-y:auto!important;
+  scrollbar-gutter:stable both-edges;
+  overscroll-behavior-x:contain;
+}
+.network-view::-webkit-scrollbar{height:14px}
+.network-view::-webkit-scrollbar-track{background:#e7eef4;border-radius:999px}
+.network-view::-webkit-scrollbar-thumb{background:#7d9caf;border-radius:999px;border:3px solid #e7eef4}
+.network-svg{
+  flex:0 0 auto;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+.network-svg text{
+  font-size:16px!important;
+  font-weight:850!important;
+}
+.network-svg text.money{
+  font-size:14px!important;
+  font-weight:800!important;
+  fill:#27465a!important;
+}
+.network-svg text.node-date{
+  font-size:12.5px!important;
+  font-weight:800!important;
+  fill:#5a4b17!important;
+}
+.network-zoom-controls .btn{
+  font-size:1.05rem!important;
+  font-weight:900!important;
+}
+.network-toolbar{
+  grid-template-columns:minmax(180px,260px) auto!important;
+  justify-content:start;
+}
+.network-range-status{
+  color:#25485c!important;
+  font-size:.9rem!important;
+  font-weight:800!important;
+}
+
+.counterparty-pagination{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-top:12px;
+  padding-top:10px;
+  border-top:1px solid #dbe5ed;
+}
+.page-summary{
+  color:#345266;
+  font-size:.84rem;
+  font-weight:800;
+}
+.page-buttons{
+  display:flex;
+  gap:6px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.page-buttons .btn{
+  min-width:38px;
+  padding:7px 10px;
+  font-size:.82rem;
+}
+.page-buttons .btn:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+}
+.page-ellipsis{
+  color:#607487;
+  font-weight:900;
+  padding:0 2px;
+}
+
+/* The mapped-schema summary intentionally has a dark panel; all text must remain white and bold. */
+.schema-summary-row{
+  background:#102f42!important;
+  border-color:#315a70!important;
+}
+.schema-summary-row span,
+.schema-summary-row strong,
+.schema-summary-row small{
+  color:#ffffff!important;
+  font-weight:800!important;
+}
+.schema-summary-row small{
+  opacity:1!important;
+}
+.schema-summary-row > small{
+  background:#1a455c;
+  border:1px solid #3d6980;
+  border-radius:999px;
+  padding:5px 8px;
+  text-align:center;
+}
+.schema-summary-row span small{
+  display:block;
+  margin-top:3px;
+}
+
+/* Make the schema library cards readable when a dark card style is encountered. */
+.schema-card[style*="background"],
+.schema-item[style*="background"]{
+  color:#fff;
+}
+@media(max-width:760px){
+  .network-toolbar{grid-template-columns:minmax(0,1fr)!important}
+  .counterparty-pagination{align-items:flex-start;flex-direction:column}
+}
