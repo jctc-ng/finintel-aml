@@ -1209,7 +1209,7 @@ function renderProfilePagination(total){
   for(let p=start;p<=end;p++)buttons.push('<button class="btn '+(p===profilePage?'primary':'ghost')+' profile-page-btn" type="button" data-page="'+p+'">'+p+'</button>');
   buttons.push('<button class="btn ghost profile-page-btn" type="button" data-page="'+Math.min(pages,profilePage+1)+'" '+(profilePage===pages?'disabled':'')+'>Next</button>');
   el.innerHTML='<span class="page-summary">Page '+profilePage+' of '+pages+' • '+total.toLocaleString()+' record'+(total===1?'':'s')+'</span><div class="page-buttons">'+buttons.join('')+'</div>';
-  $('.profile-page-btn').forEach(btn=>btn.onclick=()=>{profilePage=Number(btn.dataset.page)||1;renderProfileTransactions();});
+  $$('.profile-page-btn').forEach(btn=>btn.onclick=()=>{profilePage=Number(btn.dataset.page)||1;renderProfileTransactions();});
 }
 function renderProfileTransactions(){
   const a=state.analysis;if(!a||a.kind!=='transaction')return;
@@ -1354,10 +1354,13 @@ function renderCounterparty(id,rows,total,currency){
     +(pageRows.map((r,i)=>{
       const saved=aliasEntry(r.name);
       const hit=(norm($(p+'Search')?.value||'')&&norm(r.name).includes(norm($(p+'Search')?.value||'')))?' counterparty-highlight':'';
-      return '<tr class="'+hit.trim()+'"><td><input class="counterparty-select" type="checkbox" data-name="'+esc(r.name)+'" aria-label="Select '+esc(r.name)+' for alias mapping"></td><td>'+(start+i+1)+'</td><td class="counterparty-name-cell"><label><span><span class="alias-original">'+esc(r.name)+'</span>'+(saved?'<span class="alias-mapped-note">Saved mapping → '+esc(saved.canonical)+'</span>':'')+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></span></label></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+r.share.toFixed(1)+'%</td></tr>';
+      return '<tr class="'+hit.trim()+'"><td><input class="counterparty-select" type="checkbox" data-name="'+esc(r.name)+'" aria-label="Select '+esc(r.name)+' for alias mapping"></td><td>'+(start+i+1)+'</td><td class="counterparty-name-cell"><label><span><button class="counterparty-profile-link" type="button" data-counterparty="'+esc(r.name)+'">'+esc(r.name)+'</button>'+(saved?'<span class="alias-mapped-note">Saved mapping → '+esc(saved.canonical)+'</span>':'')+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></span></label></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+r.share.toFixed(1)+'%</td></tr>';
     }).join('')||'<tr><td colspan="6">No counterparties match the current filter.</td></tr>')
     +'</tbody></table>';
   renderCounterpartyPagination(p,filtered.length);
+  $('#'+id+' .counterparty-profile-link').forEach(btn=>btn.onclick=e=>{
+    e.preventDefault();e.stopPropagation();openCounterpartyProfile(btn.dataset.counterparty);
+  });
 }
 function rerenderCounterpartyTables(){
   const a=state.analysis;
@@ -1409,7 +1412,7 @@ function focusNetworkChild(role,name){
   const item=networkItem(role,name);if(!item)return;
   networkSelectedNode={role,name:item.name};
   renderNodeFocusPanel(role,item);
-  $('#networkView .network-child-node').forEach(el=>{
+  $$('#networkView .network-child-node').forEach(el=>{
     const match=el.dataset.nodeRole===role&&norm(el.dataset.nodeName)===norm(item.name);
     el.classList.toggle('selected-node',match);
   });
@@ -1417,7 +1420,7 @@ function focusNetworkChild(role,name){
 function clearNetworkNodeFocus(){
   networkSelectedNode=null;
   if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;
-  $('#networkView .network-child-node').forEach(el=>el.classList.remove('selected-node'));
+  $$('#networkView .network-child-node').forEach(el=>el.classList.remove('selected-node'));
 }
 
 function scrollNetworkTo(position){
@@ -1579,6 +1582,7 @@ function renderNetwork(a,focus='center'){
   $$('#networkView .network-child-target').forEach(el=>{
     el.onpointerdown=e=>e.stopPropagation();
     el.onclick=e=>{e.stopPropagation();focusNetworkChild(el.dataset.nodeRole,el.dataset.nodeName);};
+    el.ondblclick=e=>{e.stopPropagation();openCounterpartyProfile(el.dataset.nodeName);};
   });
 
   if(focus!=='preserve')scrollNetworkTo(focus);
@@ -1794,7 +1798,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.8.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.9 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1883,6 +1887,11 @@ $('networkLeft').onclick=()=>{networkSelectedNode=null;if($('nodeFocusPanel'))$(
 $('networkCenter').onclick=()=>{networkSelectedNode=null;if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;centerNetworkView();};
 $('networkRight').onclick=()=>{networkSelectedNode=null;if($('nodeFocusPanel'))$('nodeFocusPanel').hidden=true;scrollNetworkTo('right');};
 $('clearNodeFocus').onclick=clearNetworkNodeFocus;
+$('openNodeProfile').onclick=()=>{if(networkSelectedNode)openCounterpartyProfile(networkSelectedNode.name);};
+$('closeCounterpartyProfile').onclick=()=>$('counterpartyProfileDialog').close();
+$('profileTransactionSearch').addEventListener('input',()=>{profilePage=1;renderProfileTransactions();});
+$('profileDirectionFilter').addEventListener('change',()=>{profilePage=1;renderProfileTransactions();});
+$('exportProfileCsv').onclick=exportCounterpartyProfileCsv;
 $('saveGraphPdf').onclick=saveGraphPdf;
 $('saveGraphWord').onclick=saveGraphWord;
 $('exportCsvBtn').onclick=exportCSV;
@@ -1890,7 +1899,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_8_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_9_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1922,4 +1931,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.8.1').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.9.0').then(r=>r.update()).catch(()=>{}));
