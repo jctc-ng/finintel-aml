@@ -1,5 +1,5 @@
 {
-  "name":"FinIntel AML v3.1.4",
+  "name":"FinIntel AML v3.1.5",
   "short_name":"FinIntel",
   "start_url":"./",
   "scope":"./",
@@ -8,5 +8,6 @@
   "theme_color":"#0d5c8f",
   "description":"Financial intelligence and AML/CFT workbench with a full-width NFIU-style Intelligence Report Builder, evidence-backed financial narratives, analyst-controlled external database results, counterparty resolution and data-quality review."
 }
+
 
 

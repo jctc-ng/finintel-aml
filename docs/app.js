@@ -438,7 +438,7 @@ function sheetDirectionHint(name){
   if(/\b(outflow|debit|debits|withdrawal|withdrawals|outgoing|payments?)\b/.test(n))return'outflow';
   return'';
 }
-function parseCSV(text){
+function parseCSV(text,asGrid=false){
   const rows=[];let row=[],field='',quoted=false;
   for(let i=0;i<text.length;i++){
     const ch=text[i],next=text[i+1];
@@ -455,6 +455,7 @@ function parseCSV(text){
   }
   row.push(field);if(row.some(v=>String(v).trim()!==''))rows.push(row);
   if(!rows.length)return[];
+  if(asGrid)return rows;
   const h=rows[0].map((x,i)=>String(x||'').trim()||('Column '+(i+1)));
   return rows.slice(1).map(r=>Object.fromEntries(h.map((x,i)=>[x,r[i]||''])));
 }
@@ -2208,9 +2209,16 @@ function uniqueObservedAccounts(a){
 }
 function resetIntelligenceReportBuilder(){
   resetAccountsRegister();
+  subjectImportSheets=[];subjectImportRows=[];
+  if($('subjectProfileFile'))$('subjectProfileFile').value='';
+  if($('subjectImportOptions'))$('subjectImportOptions').hidden=true;
+  if($('subjectImportMapping'))$('subjectImportMapping').innerHTML='';
+  if($('subjectImportReview'))$('subjectImportReview').innerHTML='';
+  status('subjectImportStatus','');
   irSubjectPhotoData='';
   const ids=[
     'irCaseNumber','irReportDate','irSubject','irFullName','irDob','irNationality','irMobile','irBvn','irNin','irAddress','irOccupation','irEmail','irSocial',
+    'irGender','irOrigin','irResidence','irPassport',
     'irBackground','irBankName','irAccountNumber','irAccountOpenDate','irCurrentBalance','irStrCount','irCtrCount','irLinkedAccountsCount',
     'irLawText','irRegText','irCommercialText','irOsintText','irAbstract','irFindings','irInference','irAttachments'
   ];
@@ -2373,6 +2381,10 @@ function irProfileHtml(){
     ['Full Name',irField('irFullName')||irField('irSubject')],
     ['Date of Birth',irField('irDob')?irDate(irField('irDob')):''],
     ['Nationality',irField('irNationality')],
+    ['Gender',irField('irGender')],
+    ['State of Origin',irField('irOrigin')],
+    ['State of Residence',irField('irResidence')],
+    ['Passport Number',irField('irPassport')],
     ['Mobile Number',irField('irMobile')],
     ['BVN',irField('irBvn')],
     ['NIN',irField('irNin')],
@@ -2574,7 +2586,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1.4 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1.5 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2757,7 +2769,7 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.4').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.5').then(r=>r.update()).catch(()=>{}));
 
 // Accounts are case inputs; importing a register never changes transaction evidence.
 const accountFields=[['holder','Account holder'],['number','Account number'],['bank','Bank / institution'],['type','Account type'],['currency','Currency'],['opened','Opening date'],['status','Account status'],['bvn','BVN / customer ID'],['balance','Balance'],['balanceDate','Balance date'],['relationship','Relationship to subject'],['source','Information source'],['received','Date received'],['coverage','Statement coverage'],['supplied','Statement supplied (yes/no)'],['analysed','Statement analysed (yes/no; analyst verified)'],['remarks','Analyst remarks']].map(([id,label])=>({id,label,visible:['holder','number','bank','status'].includes(id)}));
@@ -2822,3 +2834,91 @@ function throwImport(message){status('accountImportStatus',message,true);}
 setupAccountsRegister();
 
 
+
+
+const subjectImportFields=[
+ ['irFullName','Full Name',['fullname','name','subjectname','customername']],
+ ['first','First Name',['firstname','first','givenname']],['middle','Middle Name',['middle','middlename','othernames']],['surname','Surname',['surname','lastname','familyname']],
+ ['irDob','Date of Birth',['dob','dateofbirth','birthdate']],['irNationality','Nationality',['nationality','citizenship']],
+ ['irMobile','Mobile Number(s)',['phone','phone2','mobile','mobilenumber','phonenumber','telephone']],
+ ['irBvn','BVN',['bvn','bankverificationnumber']],['irNin','NIN',['nin','nationalidentitynumber','nationalidentificationnumber']],
+ ['irAddress','Address',['address','residentialaddress']],['irOccupation','Occupation',['occupation','profession']],
+ ['irEmail','Email Address(es)',['email','emailaddress']],['irSocial','Social Media Handle(s)',['socialmedia','socialmediahandles']],
+ ['irGender','Gender',['gender','sex']],['irOrigin','State of Origin',['origin','stateoforigin']],['irResidence','State of Residence',['residence','stateofresidence']],['irPassport','Passport Number',['passport','passportnumber']]
+];
+let subjectImportSheets=[],subjectImportRows=[];
+function subjectLabelKey(value){return String(value??'').toLowerCase().replace(/[^a-z0-9]/g,'');}
+function subjectFieldGuess(label){const key=subjectLabelKey(label);return subjectImportFields.find(f=>f[2].includes(key))?.[0]||'';}
+function subjectRowsFromGrid(grid,layout){
+ const rows=grid.map(row=>row.map(v=>String(v??'').trim())).filter(row=>row.some(Boolean));
+ if(layout==='pairs'){
+  const profiles=[];let profile={};
+  for(const row of rows){const start=row.findIndex(Boolean);if(start<0)continue;const label=row[start];if(!subjectFieldGuess(label))continue;
+   const value=[...new Set(row.slice(start+1).filter(Boolean))].join(' / ');if(!value)continue;
+   if(subjectFieldGuess(label)==='irBvn'&&Object.keys(profile).some(k=>subjectFieldGuess(k)==='irBvn')&&profile[label]!==value){profiles.push(profile);profile={};}
+   profile[label]=profile[label]&&profile[label]!==value?profile[label]+' / '+value:value;
+  }
+  if(Object.keys(profile).length)profiles.push(profile);return profiles;
+ }
+ const headerIndex=rows.findIndex(row=>row.filter(c=>subjectFieldGuess(c)).length>=2);
+ if(headerIndex<0)return [];
+ const headers=rows[headerIndex];
+ return rows.slice(headerIndex+1).map(row=>Object.fromEntries(headers.map((h,i)=>[h||'Column '+(i+1),row[i]||'']))).filter(row=>Object.values(row).some(Boolean));
+}
+function subjectImportDate(value,order){
+ const raw=String(value||'').trim();if(!raw)return '';
+ let y,m,d;let match=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T].*)?$/);
+ if(match){[,y,m,d]=match;}else{match=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s.*)?$/);if(!match)return null;[,d,m,y]=match;if(order==='mdy')[d,m]=[m,d];}
+ const date=new Date(Date.UTC(Number(y),Number(m)-1,Number(d)));if(date.getUTCFullYear()!==Number(y)||date.getUTCMonth()!==Number(m)-1||date.getUTCDate()!==Number(d))return null;
+ return String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function subjectImportMappedValues(row,mappings,order){
+ const out={};for(const {source,target} of mappings){if(!target)continue;const value=String(row[source]??'').trim();if(value)out[target]=out[target]?[...new Set([out[target],value])].join(' / '):value;}
+ if(!out.irFullName){out.irFullName=[out.first,out.middle,out.surname].filter(Boolean).join(' ');}
+ delete out.first;delete out.middle;delete out.surname;
+ if(out.irDob){const date=subjectImportDate(out.irDob,order);if(date===null)throw Error('Date of birth could not be read. Check the date format or correct it in the source file.');out.irDob=date;}
+ return out;
+}
+function subjectCurrentMappings(){return Array.from($('subjectImportMapping').querySelectorAll('[data-subject-map]')).map(el=>({source:el.dataset.source,target:el.value}));}
+function renderSubjectImportReview(){
+ const row=subjectImportRows[Number($('subjectImportPerson').value)||0];if(!row)return;
+ try{const values=subjectImportMappedValues(row,subjectCurrentMappings(),$('subjectImportDateOrder').value);
+ $('subjectImportReview').innerHTML='<h4>Values to populate</h4><div class="subject-import-review">'+Object.entries(values).filter(([key,value])=>value).map(([key,value])=>'<div><strong>'+esc(subjectImportFields.find(f=>f[0]===key)?.[1]||key)+'</strong><span>'+esc(value)+'</span></div>').join('')+'</div>';status('subjectImportStatus','');
+ }catch(err){$('subjectImportReview').innerHTML='';status('subjectImportStatus',err.message,true);}
+}
+function renderSubjectImportMapping(){
+ const sheet=subjectImportSheets[Number($('subjectImportSheet').value)||0];if(!sheet)return;
+ subjectImportRows=subjectRowsFromGrid(sheet.grid,$('subjectImportLayout').value);
+ if(!subjectImportRows.length){$('subjectImportMapping').innerHTML='';$('subjectImportReview').innerHTML='';$('subjectImportPerson').innerHTML='';status('subjectImportStatus','No profiles recognized. Try the other layout or worksheet.',true);return;}
+ $('subjectImportPerson').innerHTML=subjectImportRows.map((row,i)=>{const name=Object.entries(row).filter(([k])=>['irFullName','first','middle','surname'].includes(subjectFieldGuess(k))).map(([,v])=>v).filter(Boolean).join(' ');return '<option value="'+i+'">'+esc(name||'Person '+(i+1))+'</option>';}).join('');
+ const cols=[...new Set(subjectImportRows.flatMap(row=>Object.keys(row)))];
+ $('subjectImportMapping').innerHTML='<h4>Match profile fields</h4>'+cols.map(source=>'<label>'+esc(source)+'<select data-subject-map data-source="'+esc(source)+'"><option value="">Ignore</option>'+subjectImportFields.map(f=>'<option value="'+f[0]+'" '+(subjectFieldGuess(source)===f[0]?'selected':'')+'>'+esc(f[1])+'</option>').join('')+'</select></label>').join('');
+ $('subjectImportMapping').querySelectorAll('select').forEach(el=>el.onchange=renderSubjectImportReview);renderSubjectImportReview();
+}
+function setupSubjectProfileImport(){
+ const panel=$('irFullName').closest('.ir-builder-panel'),section=document.createElement('div');section.className='subject-import';
+ section.innerHTML='<details><summary>Import subject profile from Excel / CSV</summary><p>Choose the profile worksheet and person, review the fields, then apply. The photograph is uploaded separately.</p><div class="ir-form-grid"><label>Profile file<input id="subjectProfileFile" type="file" accept=".csv,.xlsx,.xls"></label><button type="button" class="btn ghost" id="subjectProfileTemplate">Download CSV template</button></div><div id="subjectImportOptions" hidden><div class="ir-form-grid"><label>Worksheet<select id="subjectImportSheet"></select></label><label>Data layout<select id="subjectImportLayout"><option value="records">One person per row</option><option value="pairs">Labels and values in rows</option></select></label><label>Person to import<select id="subjectImportPerson"></select></label><label>Date format<select id="subjectImportDateOrder"><option value="dmy">Day / Month / Year</option><option value="mdy">Month / Day / Year</option></select></label></div><div id="subjectImportMapping"></div><div id="subjectImportReview"></div><label class="subject-overwrite"><input type="checkbox" id="subjectImportOverwrite"> Replace existing values in mapped fields</label><div><button type="button" class="btn primary" id="subjectImportApply">Apply selected profile</button></div></div><p id="subjectImportStatus" role="status"></p></details>';
+ panel.querySelector('h4').after(section);
+ const grid=$('irFullName').parentElement.parentElement;
+ for(const id of ['irGender','irOrigin','irResidence','irPassport']){const field=subjectImportFields.find(f=>f[0]===id),label=document.createElement('label');label.textContent=field[1];const input=document.createElement('input');input.id=id;input.type='text';label.append(input);grid.append(label);}
+ $('subjectProfileTemplate').onclick=()=>download('finintel_subject_profile_template.csv',subjectImportFields.filter(f=>!['first','middle','surname'].includes(f[0])).map(f=>csvEscape(f[1])).join(',')+'\n','text/csv');
+ $('subjectProfileFile').onchange=async e=>{try{
+ const file=e.target.files[0];if(!file)return;
+ if(/\.csv$/i.test(file.name)){
+ subjectImportSheets=[{name:'CSV',grid:parseCSV(await file.text(),true)}];
+ }else{if(typeof XLSX==='undefined')throw Error('Excel reader unavailable. Please use CSV.');const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellText:true});subjectImportSheets=wb.SheetNames.map(name=>({name,grid:XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:false,defval:''})}));}
+ $('subjectImportSheet').innerHTML=subjectImportSheets.map((s,i)=>'<option value="'+i+'">'+esc(s.name)+'</option>').join('');
+ const rows=subjectImportSheets[0].grid;const first=rows.find(row=>row.some(v=>String(v).trim()))||[];
+ $('subjectImportLayout').value=first.filter(c=>subjectFieldGuess(c)).length>=2?'records':'pairs';
+ $('subjectImportOptions').hidden=false;$('subjectImportOverwrite').checked=false;renderSubjectImportMapping();
+ }catch(err){status('subjectImportStatus',err.message,true);}};
+ $('subjectImportSheet').onchange=renderSubjectImportMapping;$('subjectImportLayout').onchange=renderSubjectImportMapping;
+ $('subjectImportPerson').onchange=renderSubjectImportReview;$('subjectImportDateOrder').onchange=renderSubjectImportReview;
+ $('subjectImportApply').onclick=()=>{try{
+ const row=subjectImportRows[Number($('subjectImportPerson').value)||0];if(!row)throw Error('Choose a recognized profile first.');const values=subjectImportMappedValues(row,subjectCurrentMappings(),$('subjectImportDateOrder').value);let count=0,skipped=0;
+ for(const [id,value] of Object.entries(values)){const input=$(id);if(!input||!value)continue;if(input.value&&!$('subjectImportOverwrite').checked){skipped++;continue;}input.value=value;count++;}
+ if(values.irFullName&&(!irField('irSubject')||$('subjectImportOverwrite').checked))$('irSubject').value=values.irFullName;
+ renderIntelligenceReportPreview();status('subjectImportStatus',count+' fields populated. '+skipped+' existing values kept. Review the subject profile before exporting.');
+ }catch(err){status('subjectImportStatus',err.message,true);}};
+}
+setupSubjectProfileImport();
