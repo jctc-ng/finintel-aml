@@ -221,3 +221,128 @@ footer img{width:58px!important;height:58px!important;object-fit:contain!importa
 .status:not(.error){color:var(--nfiu-green)}
 footer{border-top:4px solid transparent;border-image:linear-gradient(90deg,var(--nfiu-green),var(--nfiu-gold),var(--nfiu-blue)) 1}
 @media(max-width:600px){.brand img{width:72px!important;height:72px!important}}
+
+/* FinIntel AML v2.4.3 — high-contrast typography/readability */
+:root{
+  --text:#102b3c;
+  --muted:#40586a;
+}
+html{
+  font-size:17px;
+  text-rendering:optimizeLegibility;
+}
+body{
+  color:var(--text);
+  font-family:"Segoe UI",Arial,Helvetica,sans-serif;
+  font-size:1rem;
+  font-weight:500;
+  line-height:1.58;
+  letter-spacing:.002em;
+  -webkit-font-smoothing:auto;
+  -moz-osx-font-smoothing:auto;
+}
+h1,h2,h3,h4,h5,h6{
+  color:#0d2f43;
+  font-weight:800;
+  letter-spacing:-.012em;
+  text-rendering:geometricPrecision;
+}
+.brand h1{font-weight:850;color:#0b3650}
+.brand .sub{font-size:.95rem;font-weight:600;color:#355266!important}
+.hero p,.hero-note p,.muted,
+.dropzone small,.mini-metrics small,.map-item small,.schema-item small,.schema-card small,
+.guardrails li,.sheet-direction-name small,.loader-progress p,.alias-mapped-note,.alias-library-empty{
+  color:#40586a!important;
+  font-weight:500;
+}
+p,li{color:#203b4d}
+.card h3{font-weight:800;color:#12394f}
+.kicker{
+  font-size:.76rem;
+  font-weight:900;
+  letter-spacing:.105em;
+}
+label,.map-item label,.form-grid label,.schema-panel label,.structure-grid label{
+  color:#17384c;
+  font-weight:750;
+}
+input,select,textarea,button{
+  font-family:"Segoe UI",Arial,Helvetica,sans-serif;
+  font-size:.96rem;
+  font-weight:600;
+}
+input::placeholder,textarea::placeholder{
+  color:#617789;
+  opacity:1;
+  font-weight:500;
+}
+.full-select,.template-bar select,.template-bar input,.schema-panel input,.schema-panel select,.schema-panel textarea,
+.map-item select,.form-grid input,.toolbar input,.toolbar select,textarea,.transaction-structure select{
+  color:#112f42;
+  border-color:#aebfcd;
+  background:#fff;
+}
+.btn{
+  font-size:.94rem;
+  font-weight:800;
+  letter-spacing:.003em;
+}
+.step{
+  font-size:.94rem;
+  font-weight:800;
+  color:#344f61;
+}
+.step.active{font-weight:900}
+.privacy-chip,.dataset-pill,.source-badge,.sheet-chip{
+  font-weight:800;
+}
+.mini-metrics span,.metric .value{
+  color:#0f3145;
+  font-weight:900;
+}
+.metric .label{
+  color:#314f62!important;
+  font-size:.9rem;
+  font-weight:700;
+}
+.table-wrap th,.table-wrap td,
+.mapping-table th,.mapping-table td{
+  font-size:.91rem;
+  line-height:1.45;
+}
+.table-wrap th,.mapping-table th{
+  color:#173f56!important;
+  font-weight:850;
+  letter-spacing:.005em;
+}
+.table-wrap td,.mapping-table td{
+  color:#173447!important;
+  font-weight:550;
+}
+.mapping-source{font-weight:850;color:#143b51}
+.mapping-sample{color:#40596a!important;font-weight:500}
+.mapping-type{color:#165f8f!important;font-weight:750}
+.description-meaning,.description-derived{
+  color:#233f55;
+  font-weight:800;
+}
+.confidence{font-weight:800}
+.alert strong{color:#17384c;font-weight:850}
+.alert p{color:#28485b!important;font-weight:550}
+.alert small{color:#526a7b!important;font-weight:600}
+.risk-badge{font-weight:900}
+.structure-guide{
+  color:#29485b;
+  font-weight:550;
+}
+.structure-guide strong{color:#12374c;font-weight:850}
+.schema-summary-row span,.schema-card strong,.schema-item strong{color:#17384c}
+footer,footer p{color:#3f586a!important;font-weight:600}
+footer strong{color:#17384c;font-weight:850}
+.status{font-size:.9rem;font-weight:700}
+.direction-badge{font-size:.78rem;font-weight:900}
+.counterparty-name-cell,.alias-original{color:#17384c;font-weight:800}
+@media(max-width:650px){
+  html{font-size:16px}
+  .table-wrap th,.table-wrap td,.mapping-table th,.mapping-table td{font-size:.9rem}
+}
