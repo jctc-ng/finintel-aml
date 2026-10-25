@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0d5c8f" />
-  <meta name="description" content="FinIntel AML v3.0.1 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
-  <title>FinIntel AML v3.0.1</title>
-  <link rel="manifest" href="manifest.webmanifest?v=3.0.1" />
-  <link rel="stylesheet" href="styles.css?v=3.0.1" />
+  <meta name="description" content="FinIntel AML v3.1 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <title>FinIntel AML v3.1</title>
+  <link rel="manifest" href="manifest.webmanifest?v=3.1.0" />
+  <link rel="stylesheet" href="styles.css?v=3.1.0" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -535,6 +535,132 @@
           </ul>
           <button id="newAnalysisBtn" class="btn ghost wide" type="button">Start New Analysis</button>
         </article>
+
+      <section class="card pad results-grid result-accent intelligence-report-card" id="intelligenceReportBuilder">
+        <div class="section-title">
+          <div>
+            <p class="kicker report-kicker">NFIU INTELLIGENCE PRODUCT</p>
+            <h3>Intelligence Report Builder</h3>
+          </div>
+          <span id="irBuilderStatusPill" class="dataset-pill">Draft not generated</span>
+        </div>
+        <p class="muted">Build an NFIU-style intelligence report from the analysed transaction data. FinIntel calculates financial facts; external database results and intelligence judgments remain analyst-controlled.</p>
+
+        <div class="ir-builder-grid">
+          <section class="ir-builder-panel">
+            <h4>Report details</h4>
+            <div class="ir-form-grid">
+              <label>Agency<input id="irAgency" type="text" placeholder="e.g. NRS / EFCC" /></label>
+              <label>Address<input id="irAgencyAddress" type="text" placeholder="e.g. Abuja" /></label>
+              <label>To<input id="irRecipient" type="text" placeholder="e.g. The Executive Chairman" /></label>
+              <label>NFIU Case #<input id="irCaseNumber" type="text" placeholder="Case reference" /></label>
+              <label>Report Date<input id="irReportDate" type="date" /></label>
+              <label>Subject<input id="irSubject" type="text" /></label>
+            </div>
+          </section>
+
+          <section class="ir-builder-panel">
+            <h4>Subject profile</h4>
+            <div class="ir-subject-profile-grid">
+              <div class="ir-photo-box">
+                <img id="irSubjectPhotoPreview" alt="Subject photograph preview" hidden />
+                <span id="irPhotoPlaceholder">Subject photograph</span>
+                <input id="irSubjectPhoto" type="file" accept="image/*" />
+              </div>
+              <div class="ir-form-grid compact">
+                <label>Full Name<input id="irFullName" type="text" /></label>
+                <label>Date of Birth<input id="irDob" type="date" /></label>
+                <label>Nationality<input id="irNationality" type="text" /></label>
+                <label>Mobile Number<input id="irMobile" type="text" /></label>
+                <label>BVN<input id="irBvn" type="text" /></label>
+                <label>NIN<input id="irNin" type="text" /></label>
+                <label>Address<input id="irAddress" type="text" /></label>
+                <label>Occupation<input id="irOccupation" type="text" /></label>
+                <label>Email<input id="irEmail" type="email" /></label>
+                <label>Social Media Handle(s)<input id="irSocial" type="text" /></label>
+              </div>
+            </div>
+          </section>
+
+          <section class="ir-builder-panel">
+            <h4>Background / reporting trigger</h4>
+            <textarea id="irBackground" rows="5" placeholder="State the trigger(s) that necessitated report filing. Do not name the reporting institution unless appropriate."></textarea>
+          </section>
+
+          <section class="ir-builder-panel">
+            <h4>Financial database context</h4>
+            <div class="ir-form-grid">
+              <label>Primary Bank / Institution<input id="irBankName" type="text" placeholder="Bank or financial institution" /></label>
+              <label>Primary Account Number<input id="irAccountNumber" type="text" placeholder="Account under review" /></label>
+              <label>Account Opening Date<input id="irAccountOpenDate" type="date" /></label>
+              <label>Current Balance<input id="irCurrentBalance" type="text" placeholder="Optional" /></label>
+              <label>Previous STRs<input id="irStrCount" type="number" min="0" step="1" placeholder="0" /></label>
+              <label>CTRs<input id="irCtrCount" type="number" min="0" step="1" placeholder="0" /></label>
+              <label>Linked Accounts Count<input id="irLinkedAccountsCount" type="number" min="0" step="1" placeholder="Optional" /></label>
+              <label>Significant counterparties to narrate
+                <select id="irTopPartyCount">
+                  <option value="5">Top 5 per side</option>
+                  <option value="10" selected>Top 10 per side</option>
+                  <option value="15">Top 15 per side</option>
+                  <option value="20">Top 20 per side</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="ir-builder-panel ir-external-panel">
+            <h4>External database results</h4>
+            <p class="muted">FinIntel will not invent these results. Select the status and enter only information actually obtained.</p>
+            <div class="ir-external-grid">
+              <div class="ir-database-entry">
+                <label>Law Enforcement Database<select id="irLawStatus"><option value="not-queried">Not Queried</option><option value="record-found">Record Found</option><option value="no-record">No Record Found</option><option value="exclude">Exclude Section</option></select></label>
+                <textarea id="irLawText" rows="4" placeholder="FRSC, NPF, NIS, NDLEA, NCS, NCoS, NSCDC etc."></textarea>
+              </div>
+              <div class="ir-database-entry">
+                <label>Regulatory Authority Database<select id="irRegStatus"><option value="not-queried">Not Queried</option><option value="record-found">Record Found</option><option value="no-record">No Record Found</option><option value="exclude">Exclude Section</option></select></label>
+                <textarea id="irRegText" rows="4" placeholder="NCC, SCUML, SEC, CBN, NAICOM etc."></textarea>
+              </div>
+              <div class="ir-database-entry">
+                <label>Commercial Database<select id="irCommercialStatus"><option value="not-queried">Not Queried</option><option value="record-found">Record Found</option><option value="no-record">No Record Found</option><option value="exclude">Exclude Section</option></select></label>
+                <textarea id="irCommercialText" rows="4" placeholder="CAC, BOI/PSC, land registry, AGIS, FIRS etc."></textarea>
+              </div>
+              <div class="ir-database-entry">
+                <label>Open Source<select id="irOsintStatus"><option value="not-queried">Not Queried</option><option value="record-found">Record Found</option><option value="no-record">No Record Found</option><option value="exclude">Exclude Section</option></select></label>
+                <textarea id="irOsintText" rows="4" placeholder="Internet and other open-source findings."></textarea>
+              </div>
+            </div>
+          </section>
+
+          <section class="ir-builder-panel">
+            <div class="section-title">
+              <div><h4>Findings, inference and recommendation</h4><p class="muted">Generate factual findings first, then review and edit the intelligence judgment.</p></div>
+              <button id="generateIrDraftBtn" class="btn primary" type="button">Generate Draft Intelligence Report</button>
+            </div>
+            <label class="ir-full-label">ABSTRACT<textarea id="irAbstract" rows="6"></textarea></label>
+            <label class="ir-full-label">FINDINGS<textarea id="irFindings" rows="8"></textarea></label>
+            <label class="ir-full-label">INFERENCE<textarea id="irInference" rows="5" placeholder="Analyst inference: who is doing what, why, how, when and where, based on the entire analysis."></textarea></label>
+            <label class="ir-full-label">RECOMMENDATION<textarea id="irRecommendation" rows="3">This intelligence report is forwarded to you for further detailed investigation.</textarea></label>
+            <label class="ir-full-label">ATTACHMENTS<textarea id="irAttachments" rows="4" placeholder="Appendix I – ...&#10;Appendix II – ..."></textarea></label>
+          </section>
+
+          <section class="ir-builder-panel">
+            <div class="section-title">
+              <div><h4>Report preview</h4><p class="muted">Review every generated statement before dissemination.</p></div>
+              <div class="button-row">
+                <button id="refreshIrPreviewBtn" class="btn secondary" type="button">Refresh Preview</button>
+                <button id="saveIrWordBtn" class="btn secondary" type="button">Save as Word</button>
+                <button id="saveIrPdfBtn" class="btn primary" type="button">Print / Save PDF</button>
+              </div>
+            </div>
+            <p id="irExportStatus" class="status" aria-live="polite"></p>
+            <div id="irEvidenceSummary" class="ir-evidence-summary"></div>
+            <div id="irReportPreview" class="ir-report-preview">
+              <div class="ir-preview-empty">Generate the draft to preview the intelligence report.</div>
+            </div>
+          </section>
+        </div>
+      </section>
+
       </section>
     </section>
   </main>
@@ -630,10 +756,10 @@
 
   <footer>
     <img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo" />
-    <div><strong>FinIntel AML v3.0.1</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v3.1</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=3.0.1" defer></script>
+  <script src="app.js?v=3.1.0" defer></script>
 </body>
 </html>
