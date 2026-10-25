@@ -1236,3 +1236,17 @@ footer strong{color:#17384c;font-weight:850}
   .profile-metric-grid{grid-template-columns:minmax(0,1fr)}
   .profile-dialog-head{flex-direction:column}
 }
+
+/* FinIntel AML v2.9.2 — clearer narration vs derived meaning */
+.profile-raw-narration{
+  color:#173447;
+  font-weight:850;
+  line-height:1.35;
+}
+.profile-derived-meaning{
+  margin-top:4px;
+  color:#176aa5;
+  font-size:.82rem;
+  font-weight:800;
+  line-height:1.3;
+}
