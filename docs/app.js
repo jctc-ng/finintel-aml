@@ -1259,7 +1259,7 @@ function clearNetworkNodeFocus(){
 
 function scrollNetworkTo(position){
   const view=$('networkView');if(!view)return;
-  networkFocus=position==='left'?'left':position==='right'?'right':'center';
+  networkFocus=position==='left'?'left':position==='right'?'right':position==='selected'?'selected':'center';
   requestAnimationFrame(()=>{
     const canvas=view.querySelector('.network-canvas');
     const maxX=Math.max(0,view.scrollWidth-view.clientWidth);
