@@ -140,6 +140,7 @@ const SAMPLE_CSV='Date,Amount,Direction,Originator,Beneficiary,Narration,Account
 +'2026-01-25 15:30,19000000,Debit,Subject Account,Prime Logistics Ltd,Transfer,0011223344';
 
 let networkZoom=1;
+let networkFocus='center';
 const counterpartyPage={originator:1,beneficiary:1};
 const COUNTERPARTY_PAGE_SIZE=10;
 
@@ -1223,10 +1224,11 @@ function nodeDateRange(x){
 }
 function scrollNetworkTo(position){
   const view=$('networkView');if(!view)return;
+  networkFocus=position==='left'?'left':position==='right'?'right':'center';
   requestAnimationFrame(()=>{
     const canvas=view.querySelector('.network-canvas');
     const maxX=Math.max(0,view.scrollWidth-view.clientWidth);
-    const key=position==='left'?'focusLeft':position==='right'?'focusRight':'focusCenter';
+    const key=networkFocus==='left'?'focusLeft':networkFocus==='right'?'focusRight':'focusCenter';
     const target=canvas?Number(canvas.dataset[key]||0):0;
     view.scrollLeft=Math.max(0,Math.min(maxX,target-(view.clientWidth/2)));
     view.scrollTop=Math.max(0,(view.scrollHeight-view.clientHeight)/2);
@@ -1256,13 +1258,9 @@ function initNetworkPan(){
   view.onpointerup=stop;view.onpointercancel=stop;view.onpointerleave=e=>{if(dragging&&e.buttons===0)stop(e);};
 }
 function setNetworkZoom(value){
-  const view=$('networkView');
-  const maxX=view?Math.max(0,view.scrollWidth-view.clientWidth):0;
-  const ratio=maxX?view.scrollLeft/maxX:.5;
-  const focus=ratio<.34?'left':ratio>.66?'right':'center';
   networkZoom=Math.max(.65,Math.min(2.25,value));
   if($('networkZoomReset'))$('networkZoomReset').textContent=Math.round(networkZoom*100)+'%';
-  if(state.analysis?.kind==='transaction')renderNetwork(state.analysis,focus);
+  if(state.analysis?.kind==='transaction')renderNetwork(state.analysis,networkFocus);
 }
 function networkYPositions(count,height){
   if(count<=1)return[height/2];
@@ -1293,11 +1291,13 @@ function renderNetwork(a,focus='center'){
 
   const scaledWidth=Math.round(width*networkZoom);
   const scaledHeight=Math.round(height*networkZoom);
-  const sideBuffer=Math.max(420,Math.round(440*networkZoom));
+  const sideBuffer=Math.max(520,Math.round(620*networkZoom));
   const canvasWidth=scaledWidth+(sideBuffer*2);
-  const focusLeft=sideBuffer+Math.round((originNodeX/width)*scaledWidth);
+  const originLabelFocusX=Math.max(80,originTextX-300);
+  const benefitLabelFocusX=Math.min(width-80,benefitTextX+300);
+  const focusLeft=sideBuffer+Math.round((originLabelFocusX/width)*scaledWidth);
   const focusCenter=sideBuffer+Math.round((subjectX/width)*scaledWidth);
-  const focusRight=sideBuffer+Math.round((benefitNodeX/width)*scaledWidth);
+  const focusRight=sideBuffer+Math.round((benefitLabelFocusX/width)*scaledWidth);
   let s='<div class="network-canvas" data-focus-left="'+focusLeft+'" data-focus-center="'+focusCenter+'" data-focus-right="'+focusRight+'" style="width:'+canvasWidth+'px;min-width:'+canvasWidth+'px;padding-left:'+sideBuffer+'px;padding-right:'+sideBuffer+'px">'
     +'<svg class="network-svg" width="'+scaledWidth+'" height="'+scaledHeight+'" viewBox="0 0 '+width+' '+height+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Originator and beneficiary relationship view">';
   o.forEach((x,i)=>{
@@ -1433,7 +1433,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6.3 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6.4 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1526,7 +1526,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_3_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_4_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1538,7 +1538,7 @@ $('clearAliasLibraryBtn').onclick=()=>{
 };
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
 $('clearAllBtn').onclick=()=>{
-  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=1;
+  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=1;networkFocus='center';
   counterpartyPage.originator=1;counterpartyPage.beneficiary=1;
   $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();
   if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='100%';
@@ -1558,4 +1558,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.3').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.4').then(r=>r.update()).catch(()=>{}));
