@@ -792,3 +792,24 @@ footer strong{color:#17384c;font-weight:850}
 .network-view{
   scroll-behavior:auto!important;
 }
+
+/* FinIntel AML v2.6.3 — keep counterparty labels attached to visible nodes */
+.network-svg text.node-name{
+  font-size:16px!important;
+  font-weight:900!important;
+}
+.network-svg text.origin-label{
+  paint-order:stroke;
+  stroke:#ffffff;
+  stroke-width:4px;
+  stroke-linejoin:round;
+}
+.network-svg text.benefit-label{
+  paint-order:stroke;
+  stroke:#ffffff;
+  stroke-width:4px;
+  stroke-linejoin:round;
+}
+#networkLeft,#networkCenter,#networkRight{
+  white-space:nowrap;
+}
