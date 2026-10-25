@@ -192,10 +192,10 @@ function persistAliases(){
   renderAliasLibrary();
 }
 function selectedCounterpartyNames(){
-  return $('.counterparty-select:checked').map(x=>x.dataset.name).filter(Boolean);
+  return $$('.counterparty-select:checked').map(x=>x.dataset.name).filter(Boolean);
 }
 function clearAliasSelection(){
-  $('.counterparty-select:checked').forEach(x=>x.checked=false);
+  $$('.counterparty-select:checked').forEach(x=>x.checked=false);
   if($('aliasCanonicalName'))$('aliasCanonicalName').value='';
 }
 function renderAliasLibrary(){
@@ -213,7 +213,7 @@ function renderAliasLibrary(){
   table.innerHTML='<table><thead><tr><th>Alias / Variant</th><th>Canonical Entity</th><th>Updated</th><th></th></tr></thead><tbody>'
     +entries.map(x=>'<tr><td>'+esc(x.alias)+'</td><td><strong>'+esc(x.entry.canonical)+'</strong></td><td>'+esc(x.entry.updatedAt?new Date(x.entry.updatedAt).toLocaleString():'—')+'</td><td><button class="btn ghost alias-delete-btn" type="button" data-alias="'+encodeURIComponent(x.alias)+'">Delete</button></td></tr>').join('')
     +'</tbody></table>';
-  $('.alias-delete-btn').forEach(btn=>btn.onclick=()=>{
+  $$('.alias-delete-btn').forEach(btn=>btn.onclick=()=>{
     delete state.aliasMap[decodeURIComponent(btn.dataset.alias)];
     persistAliases();
     status('aliasStatus','Saved alias mapping deleted.');
