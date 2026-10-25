@@ -2212,7 +2212,6 @@ function populateIntelligenceReportBuilder(a){
   irSetIfBlank('irSubject',subject);
   irSetIfBlank('irFullName',subject);
   irSetIfBlank('irDob',firstMappedValue('dob'));
-  irSetIfBlank('irNationality',firstMappedValue('country'));
   irSetIfBlank('irMobile',firstMappedValue('phone'));
   irSetIfBlank('irBvn',firstMappedValue('bvn'));
   irSetIfBlank('irNin',firstMappedValue('nin'));
@@ -2385,7 +2384,8 @@ function intelligenceReportBodyHtml(){
   const inference=irField('irInference')||'[Analyst inference required.]';
   const recommendation=irField('irRecommendation')||'This intelligence report is forwarded to you for further detailed investigation.';
   const reportDate=irField('irReportDate')?irDate(irField('irReportDate')):irDate(new Date());
-  const header='<div class="ir-header"><img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Any information contained in this report is sensitive, and is not to be disseminated outside your organization without express approval from the Nigerian Financial Intelligence Unit</div><h2 class="ir-main-title">INTELLIGENCE REPORT</h2></div>'
+  const logoUrl=new URL('assets/nfiu-logo.jpg?v=20261025b',window.location.href).href;
+  const header='<div class="ir-header"><img src="'+esc(logoUrl)+'" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Any information contained in this report is sensitive, and is not to be disseminated outside your organization without express approval from the Nigerian Financial Intelligence Unit</div><h2 class="ir-main-title">INTELLIGENCE REPORT</h2></div>'
     +'<table class="ir-meta"><tbody><tr><th>Agency:</th><td>'+esc(irField('irAgency')||'—')+'</td><th>Date:</th><td>'+esc(reportDate)+'</td></tr><tr><th>Address:</th><td>'+esc(irField('irAgencyAddress')||'—')+'</td><th>NFIU Case #:</th><td>'+esc(irField('irCaseNumber')||'—')+'</td></tr><tr><th>To:</th><td colspan="3">'+esc(irField('irRecipient')||'—')+'</td></tr><tr><th>Subject:</th><td colspan="3"><strong>'+esc(irField('irSubject')||$('subjectName')?.value?.trim()||'—')+'</strong></td></tr></tbody></table>';
   return header
     +'<h2>ABSTRACT</h2><p>'+esc(abstract).replace(/\n/g,'<br>')+'</p>'
@@ -2668,6 +2668,25 @@ $('closeCounterpartyProfile').onclick=()=>$('counterpartyProfileDialog').close()
 $('profileTransactionSearch').addEventListener('input',()=>{profilePage=1;renderProfileTransactions();});
 $('profileDirectionFilter').addEventListener('change',()=>{profilePage=1;renderProfileTransactions();});
 $('exportProfileCsv').onclick=exportCounterpartyProfileCsv;
+$('generateIrDraftBtn').onclick=generateIntelligenceReportDraft;
+$('refreshIrPreviewBtn').onclick=()=>{renderIntelligenceReportPreview();status('irExportStatus','Preview refreshed from the current analyst inputs.');};
+$('saveIrWordBtn').onclick=saveIntelligenceReportWord;
+$('saveIrPdfBtn').onclick=saveIntelligenceReportPdf;
+$('saveIrAppendixCsvBtn').onclick=saveIrAppendixCsv;
+$('irSubjectPhoto').addEventListener('change',e=>{
+  const file=e.target.files?.[0];
+  if(!file){irSubjectPhotoData='';$('irSubjectPhotoPreview').hidden=true;$('irPhotoPlaceholder').hidden=false;return;}
+  if(!file.type.startsWith('image/')){status('irExportStatus','Select an image file for the subject photograph.',true);return;}
+  const reader=new FileReader();
+  reader.onload=()=>{
+    irSubjectPhotoData=String(reader.result||'');
+    $('irSubjectPhotoPreview').src=irSubjectPhotoData;
+    $('irSubjectPhotoPreview').hidden=false;
+    $('irPhotoPlaceholder').hidden=true;
+    renderIntelligenceReportPreview();
+  };
+  reader.readAsDataURL(file);
+});
 $('saveGraphPdf').onclick=saveGraphPdf;
 $('saveGraphWord').onclick=saveGraphWord;
 $('exportCsvBtn').onclick=exportCSV;
@@ -2687,7 +2706,7 @@ $('clearAliasLibraryBtn').onclick=()=>{
 };
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];counterpartySelection.clear();unknownSelection.clear();unknownPage=1;aliasLibraryPage=1;dataQualityPage=1;dataQualityActiveIssue='';setStep(1);};
 $('clearAllBtn').onclick=()=>{
-  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=NETWORK_DEFAULT_ZOOM;networkFocus='center';networkSelectedNode=null;counterpartySelection.clear();unknownSelection.clear();unknownPage=1;dataQualityActiveIssue='';
+  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=NETWORK_DEFAULT_ZOOM;networkFocus='center';networkSelectedNode=null;counterpartySelection.clear();unknownSelection.clear();unknownPage=1;dataQualityActiveIssue='';irSubjectPhotoData='';
   counterpartyPage.originator=1;counterpartyPage.beneficiary=1;
   $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();
   if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='65%';
