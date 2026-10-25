@@ -1,6 +1,6 @@
 'use strict';
-const CACHE='finintel-aml-v3.2.2';
-const CORE=['./','./index.html','./styles.css?v=3.2.2','./app.js?v=3.2.2','./docx-export.js?v=3.2.2','./case-workspace.js?v=3.2.2','./offline.js?v=3.2.2','./vendor/xlsx.full.min.js?v=0.18.5','./manifest.webmanifest?v=3.2.2','./assets/nfiu-logo.jpg?v=20261025b','./assets/icon-192.png','./assets/icon-512.png','./sample-data/sample_transactions.csv','./sample-data/sample_description_transactions.csv'];
+const CACHE='finintel-aml-v3.2.3';
+const CORE=['./','./index.html','./styles.css?v=3.2.3','./app.js?v=3.2.3','./docx-export.js?v=3.2.3','./case-workspace.js?v=3.2.3','./offline.js?v=3.2.3','./vendor/xlsx.full.min.js?v=0.18.5','./manifest.webmanifest?v=3.2.3','./assets/nfiu-logo.jpg?v=20261025b','./assets/icon-192.png','./assets/icon-512.png','./sample-data/sample_transactions.csv','./sample-data/sample_description_transactions.csv'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
  const cache=await caches.open(CACHE);
  try{await cache.addAll(CORE);}catch(error){await caches.delete(CACHE);throw error;}
@@ -26,3 +26,4 @@ self.addEventListener('fetch',event=>{
   }
  })());
 });
+

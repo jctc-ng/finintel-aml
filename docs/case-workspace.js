@@ -14,7 +14,7 @@ function restoreCaseForms(values){
  }
 }
 function makeCaseSnapshot(){
- return {format:'finintel-case',schemaVersion:1,appVersion:'3.2.2',savedAt:new Date().toISOString(),
+ return {format:'finintel-case',schemaVersion:1,appVersion:'3.2.3',savedAt:new Date().toISOString(),
   dataset:{rawRows:state.rawRows,columns:state.columns,sourceName:state.sourceName,sourceType:state.sourceType,sheets:state.sheets,datasetType:state.datasetType,sourceMapping:state.sourceMapping,amountLayout:state.amountLayout,partyLayout:state.partyLayout,sheetDirections:state.sheetDirections},
   library:{customFields:state.customFields,templates:state.templates,aliasMap:state.aliasMap,counterpartyResolutions:state.counterpartyResolutions},
   forms:caseFormValues(),analysed:!!state.analysis,photo:irSubjectPhotoData,accounts:accountRows,accountFields,
@@ -84,3 +84,4 @@ document.addEventListener('input',event=>{if(event.target.closest('main, #accoun
 document.addEventListener('change',event=>{if(event.target.id!=='openCaseFile')markCaseDirty();});
 document.addEventListener('click',event=>{if(event.target.closest('#runAnalysisBtn,#generateIrDraftBtn,#accountAdd,#accountEditorSave,#accountsRows,#accountsColumns,#saveAliasBtn,#applyResolutionBtn,#acknowledgeUnknownBtn,#accountConfirm,#subjectImportApply'))markCaseDirty();});
 window.addEventListener('beforeunload',event=>{if(window.finintelCaseDirty){event.preventDefault();event.returnValue='';}});
+

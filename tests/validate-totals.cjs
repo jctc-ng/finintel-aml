@@ -23,6 +23,13 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
   if(fixture.expected.unknownPartyInKobo!==undefined)assert.equal(observed.unknownPartyInKobo,fixture.expected.unknownPartyInKobo);
   if(fixture.expected.requiresDuplicatesFlag)assert(observed.issues.some(x=>/duplicate/i.test(x)));
   if(fixture.expected.requiresConflictFlag)assert(observed.issues.some(x=>/debit.*credit/i.test(x)));
+  const attachmentCheck=await page.evaluate(()=>{
+   $('irAttachments').value='Appendix II – Significant transaction analysis generated from FinIntel.\nSupporting evidence schedule';
+   const verify=()=>{const doc=new DOMParser().parseFromString(intelligenceReportBodyHtml(),'text/html');const headings=Array.from(doc.querySelectorAll('h2'));const appendix=headings.filter(h=>/^APPENDIX\s/.test(h.textContent)).map(h=>h.textContent);const attachment=headings.find(h=>h.textContent==='ATTACHMENT');return {appendix,listed:Array.from(attachment.nextElementSibling.children).map(li=>li.textContent)};};
+   const first=verify();accountRows=Array.from({length:11},(_,i)=>({number:'00000000'+i,include:true}));$('accountsPlacement').value='auto';const second=verify();accountRows=[];verify();return {first,second};
+  });
+  for(const state of [attachmentCheck.first,attachmentCheck.second]){for(const heading of state.appendix)assert(state.listed.includes(heading),'Attachment missing '+heading);assert(state.listed.includes('Supporting evidence schedule'));assert(!state.listed.some(x=>x.includes('generated from FinIntel.')));}
+  assert.equal(attachmentCheck.first.appendix.length,3);assert.equal(attachmentCheck.second.appendix.length,4);
   const appendix=await page.evaluate(()=>{const a=state.analysis,ins=irTopPartyTransactions(a,'originator'),outs=irTopPartyTransactions(a,'beneficiary');return {inRows:ins.length,outRows:outs.length,inAmount:Math.round(ins.reduce((n,r)=>n+r.amount,0)*100),outAmount:Math.round(outs.reduce((n,r)=>n+r.amount,0)*100),html:irAppendicesHtml(a)};});
   assert.equal(appendix.inRows,fixture.expected.inCount-(fixture.expected.unknownPartyInKobo?1:0));assert.equal(appendix.outRows,fixture.expected.outCount);
   assert.equal(appendix.inAmount,fixture.expected.inKobo-(fixture.expected.unknownPartyInKobo||0));assert.equal(appendix.outAmount,fixture.expected.outKobo);

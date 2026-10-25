@@ -2393,24 +2393,22 @@ function irProfileHtml(){
   const img=irSubjectPhotoData?'<td class="ir-subject-photo" rowspan="'+Math.max(1,rows.length)+'"><img src="'+irSubjectPhotoData+'" alt="Subject photograph"></td>':'';
   return rows.length?'<table class="ir-profile-table"><tbody>'+rows.map((x,i)=>'<tr>'+(i===0?img:'')+'<th>'+esc(x[0])+'</th><td>'+esc(x[1])+'</td></tr>').join('')+'</tbody></table>':'<p class="ir-draft-note">Subject profile has not been supplied.</p>';
 }
-function irGeneratedAttachmentLines(){
-  const lines=[];
-  if(selectedAccounts().length&&accountsInAppendix())lines.push('Appendix I – Accounts Register.');
-  lines.push('Appendix II – Significant Transaction Analysis.');
-  lines.push('Appendix III – Top Originators’ Transactions.');
-  lines.push('Appendix IV – Top Beneficiaries’ Transactions.');
-  return lines;
+function irGeneratedAttachmentLines(appendixHtml){
+  if(appendixHtml===undefined&&state.analysis?.kind==='transaction')appendixHtml=irAppendicesHtml(state.analysis);
+  if(!appendixHtml)return [];
+  const doc=new DOMParser().parseFromString(appendixHtml,'text/html');
+  return Array.from(doc.querySelectorAll('h2')).map(h=>h.textContent.trim()).filter(title=>/^APPENDIX\s/i.test(title));
 }
-function syncIrAttachments(){
+function syncIrAttachments(appendixHtml){
   const manual=irField('irAttachments').split(/\n+/).map(x=>x.trim()).filter(Boolean)
     .filter(line=>!/^appendix\s+(?:IV|III|II|I)\b/i.test(line));
-  const lines=[...irGeneratedAttachmentLines(),...manual];
+  const lines=[...irGeneratedAttachmentLines(appendixHtml),...manual];
   if($('irAttachments'))$('irAttachments').value=lines.join('\n');
   return lines;
 }
-function irAttachmentsHtml(){
-  const lines=syncIrAttachments();
-  return '<h2>ATTACHMENT</h2><ul class="ir-bullets">'+lines.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
+function irAttachmentsHtml(appendixHtml){
+  const lines=syncIrAttachments(appendixHtml);
+  return lines.length?'<h2>ATTACHMENT</h2><ul class="ir-bullets">'+lines.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'';
 }
 function irTopPartyTransactions(a,role){
   const limit=Math.max(1,Math.min(20,Number(irField('irTopPartyCount'))||10));
@@ -2451,6 +2449,7 @@ function irCounterpartyRelationshipHtml(graphData=''){
 function intelligenceReportBodyHtml(graphData='',logoData=''){
   const a=state.analysis;
   if(!a||a.kind!=='transaction')return'';
+  const appendixHtml=irAppendicesHtml(a);
   const background=irField('irBackground')||'[Analyst input required: state the reporting trigger/background.]';
   const abstract=irField('irAbstract')||'[Generate and review the abstract.]';
   const findings=irField('irFindings')||'[Generate and review factual findings.]';
@@ -2460,7 +2459,7 @@ function intelligenceReportBodyHtml(graphData='',logoData=''){
   const logoUrl=logoData||new URL('assets/nfiu-logo.jpg?v=20261025b',window.location.href).href;
   const header='<div class="ir-header"><img src="'+esc(logoUrl)+'" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Any information contained in this report is sensitive, and is not to be disseminated outside your organization without express approval from the Nigerian Financial Intelligence Unit</div><h2 class="ir-main-title">INTELLIGENCE REPORT</h2></div>'
     +'<table class="ir-meta"><tbody><tr><th>Agency:</th><td>'+esc(irField('irAgency')||'—')+'</td><th>Date:</th><td>'+esc(reportDate)+'</td></tr><tr><th>Address:</th><td>'+esc(irField('irAgencyAddress')||'—')+'</td><th>NFIU Case #:</th><td>'+esc(irField('irCaseNumber')||'—')+'</td></tr><tr><th>To:</th><td colspan="3">'+esc(irField('irRecipient')||'—')+'</td></tr><tr><th>Subject:</th><td colspan="3"><strong>'+esc(irField('irSubject')||$('subjectName')?.value?.trim()||'—')+'</strong></td></tr></tbody></table>';
-  return header
+  return '<p class="ir-small-note" style="text-align:right">Generated with FinIntel v3.2.3</p>'+header
     +'<h2>ABSTRACT</h2><p>'+esc(abstract).replace(/\n/g,'<br>')+'</p>'
     +'<h2>NARRATIVE</h2><h3>Background</h3><p>'+esc(background).replace(/\n/g,'<br>')+'</p>'
     +irProfileHtml()
@@ -2473,10 +2472,10 @@ function intelligenceReportBodyHtml(graphData='',logoData=''){
     +'<h2>FINDINGS</h2><div class="ir-pre">'+esc(findings)+'</div>'
     +'<h2>INFERENCE</h2><p>'+esc(inference).replace(/\n/g,'<br>')+'</p>'
     +'<h2>RECOMMENDATION</h2><p>'+esc(recommendation).replace(/\n/g,'<br>')+'</p>'
-    +irAttachmentsHtml()
+    +irAttachmentsHtml(appendixHtml)
     +'<p class="ir-note"><strong>NOTE:</strong> Where additional information is required, please quote NFIU reference number, name of subject above, and provide details of status of investigation. Kindly note that NFIU will periodically require feedback on status of case.</p>'
     +'<div class="ir-signature"><strong>DCEO NFIU</strong><strong>Date: '+esc(reportDate)+'</strong></div>'
-    +irAppendicesHtml(a);
+    +appendixHtml;
 }
 function intelligenceReportDocumentHtml(graphData='',logoData=''){
   const title=esc((irField('irCaseNumber')||'NFIU Intelligence Report')+' - '+(irField('irSubject')||'Subject'));
@@ -2622,7 +2621,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.2.2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.2.3 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2973,6 +2972,7 @@ function setupSubjectProfileImport(){
  }catch(err){status('subjectImportStatus',err.message,true);}};
 }
 setupSubjectProfileImport();
+
 
 
 
