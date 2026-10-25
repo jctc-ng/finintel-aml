@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#071722" />
-  <meta name="description" content="FinIntel AML v2.2 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <meta name="description" content="FinIntel AML v2.3 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
   <title>FinIntel AML v2.1</title>
-  <link rel="manifest" href="manifest.webmanifest?v=2.2" />
-  <link rel="stylesheet" href="styles.css?v=2.2.0" />
+  <link rel="manifest" href="manifest.webmanifest?v=2.3" />
+  <link rel="stylesheet" href="styles.css?v=2.3.0" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -265,6 +265,32 @@
           </article>
         </section>
 
+        <section class="card pad results-grid" id="aliasManager">
+          <div class="section-title">
+            <div>
+              <p class="kicker">ANALYST ENTITY RESOLUTION</p>
+              <h3>Map name variants to the same person or entity</h3>
+            </div>
+            <span id="aliasLibraryCount" class="dataset-pill">0 saved mappings</span>
+          </div>
+          <p class="muted">Tick names directly in Top Originators and Top Beneficiaries, enter the canonical name, then save the mapping. Saved aliases are retained in this browser and automatically applied on future sessions before the analysis is recalculated.</p>
+          <div class="alias-controls">
+            <input id="aliasCanonicalName" type="text" placeholder="Canonical name, e.g. Prime Logistics Limited" />
+            <button id="saveAliasBtn" class="btn primary" type="button">Save Selected Mapping</button>
+            <button id="rerunAliasBtn" class="btn secondary" type="button">Rerun Analysis</button>
+            <button id="clearAliasSelectionBtn" class="btn ghost" type="button">Clear Selection</button>
+          </div>
+          <p id="aliasStatus" class="status" aria-live="polite"></p>
+          <div class="alias-library-head">
+            <strong>Persistent Alias Library</strong>
+            <div class="button-row">
+              <button id="exportAliasBtn" class="btn ghost" type="button">Export Library</button>
+              <button id="clearAliasLibraryBtn" class="btn ghost danger-outline" type="button">Clear Library</button>
+            </div>
+          </div>
+          <div id="aliasLibraryTable" class="table-wrap"></div>
+        </section>
+
         <section class="card pad results-grid">
           <div class="section-title">
             <div>
@@ -347,10 +373,10 @@
 
   <footer>
     <img src="https://raw.githubusercontent.com/jctc-ng/jctc-cyberguard/main/docs/assets/jctc-logo.jpeg" alt="JCTC logo" />
-    <div><strong>FinIntel AML v2.2</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v2.3</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.2.0" defer></script>
+  <script src="app.js?v=2.3.0" defer></script>
 </body>
 </html>
