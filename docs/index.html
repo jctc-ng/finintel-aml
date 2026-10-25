@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0d5c8f" />
-  <meta name="description" content="FinIntel AML v2.6.4 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
-  <title>FinIntel AML v2.6.4</title>
-  <link rel="manifest" href="manifest.webmanifest?v=2.6.4" />
-  <link rel="stylesheet" href="styles.css?v=2.6.4" />
+  <meta name="description" content="FinIntel AML v2.7 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <title>FinIntel AML v2.7</title>
+  <link rel="manifest" href="manifest.webmanifest?v=2.7.0" />
+  <link rel="stylesheet" href="styles.css?v=2.7.0" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -394,7 +394,7 @@
           <article class="card pad result-accent flow-card">
             <p class="kicker flow-kicker">FLOW OF FUNDS</p>
             <h3>Counterparty relationship view</h3>
-            <p class="network-help">Green = originators/inflows • Blue = beneficiaries/outflows • Gold = subject. Each node shows its own transaction date range beneath the amount. The relationship canvas has extra space beyond both outer node groups. Choose Originators or Beneficiaries first, then zoom; FinIntel will keep that label block in focus while you zoom.</p>
+            <p class="network-help">Green = originators/inflows • Blue = beneficiaries/outflows • Gold = subject. Click any green or blue child node (or its label) to focus that single counterparty and zoom it independently. The selected node stays centered while you continue zooming.</p>
             <div class="network-toolbar">
               <label>Parties per side
                 <input id="networkPartyCount" type="number" value="4" min="4" max="20" step="1" />
@@ -407,6 +407,29 @@
                 <button id="networkRight" class="btn ghost" type="button" title="Show beneficiary side">Beneficiaries</button>
                 <button id="networkZoomIn" class="btn ghost" type="button" title="Zoom in">+</button>
               </div>
+            </div>
+            <div class="network-export-row">
+              <div>
+                <button id="saveGraphPdf" class="btn secondary" type="button">Save Graph as PDF</button>
+                <button id="saveGraphWord" class="btn secondary" type="button">Save Graph as Word</button>
+              </div>
+              <span id="graphExportStatus" class="status" aria-live="polite"></span>
+            </div>
+            <div id="nodeFocusPanel" class="node-focus-panel" hidden>
+              <div class="node-focus-head">
+                <div>
+                  <span id="nodeFocusRole" class="node-focus-role">Selected node</span>
+                  <h4 id="nodeFocusName">Counterparty</h4>
+                </div>
+                <button id="clearNodeFocus" class="btn ghost" type="button">Clear Node Focus</button>
+              </div>
+              <div class="node-focus-metrics">
+                <div><small>Total value</small><strong id="nodeFocusAmount">—</strong></div>
+                <div><small>Transactions</small><strong id="nodeFocusCount">—</strong></div>
+                <div><small>Share of side</small><strong id="nodeFocusShare">—</strong></div>
+                <div><small>Observed dates</small><strong id="nodeFocusDates">—</strong></div>
+              </div>
+              <p class="node-focus-help">This node is locked as the zoom target. Use + / − to inspect it further; FinIntel will keep the selected node and its details centered.</p>
             </div>
             <div id="networkRangeStatus" class="network-range-status"></div>
             <div id="networkView" class="network-view"></div>
@@ -469,10 +492,11 @@
 
   <footer>
     <img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo" />
-    <div><strong>FinIntel AML v2.6.4</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v2.7</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.6.4" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+  <script src="app.js?v=2.7.0" defer></script>
 </body>
 </html>
