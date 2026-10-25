@@ -910,13 +910,31 @@ function standardize(){
       if(flow==='inflow'&&!originator){originator=extracted.counterparty;counterpartyFromDescription=true;}
       if(flow==='outflow'&&!beneficiary){beneficiary=extracted.counterparty;counterpartyFromDescription=true;}
     }
+
+    const dateRaw=String(values.date??'');
+    const resolutionKey=resolutionKeyParts(state.sourceName,sheet,i+2,dateRaw,amount,flow,narration);
+    const resolution=getCounterpartyResolutionByKey(resolutionKey);
+    const preResolutionOriginator=originator,preResolutionBeneficiary=beneficiary;
+    let counterpartyResolutionApplied=false,counterpartyResolutionIgnored=false;
+    if(resolution){
+      if(resolution.ignored){
+        counterpartyResolutionIgnored=true;
+      }else if(resolution.name){
+        if(flow==='inflow'&&!originator){originator=String(resolution.name).trim();counterpartyResolutionApplied=true;}
+        if(flow==='outflow'&&!beneficiary){beneficiary=String(resolution.name).trim();counterpartyResolutionApplied=true;}
+      }
+    }
+
     const originalOriginator=originator,originalBeneficiary=beneficiary;
     originator=resolveAlias(originator);
     beneficiary=resolveAlias(beneficiary);
     return{
-      row:i+2,values,raw,date:parseDate(values.date),dateRaw:String(values.date??''),amount,direction:flow,
+      row:i+2,values,raw,date:parseDate(values.date),dateRaw,amount,direction:flow,
       originator,beneficiary,narration,account:String(values.account??values.wallet??'').trim(),
       txid:String(values.txid??'').trim(),sheet,sheetHint,extracted,counterpartyFromDescription,
+      resolutionKey,counterpartyResolutionApplied,counterpartyResolutionIgnored,
+      resolutionName:resolution?.name||'',resolutionUpdatedAt:resolution?.updatedAt||'',
+      preResolutionOriginator,preResolutionBeneficiary,
       originalOriginator,originalBeneficiary,
       aliasAppliedOriginator:!!originalOriginator&&norm(originalOriginator)!==norm(originator),
       aliasAppliedBeneficiary:!!originalBeneficiary&&norm(originalBeneficiary)!==norm(beneficiary)
