@@ -140,6 +140,8 @@ const SAMPLE_CSV='Date,Amount,Direction,Originator,Beneficiary,Narration,Account
 +'2026-01-25 15:30,19000000,Debit,Subject Account,Prime Logistics Ltd,Transfer,0011223344';
 
 let networkZoom=1;
+const counterpartyPage={originator:1,beneficiary:1};
+const COUNTERPARTY_PAGE_SIZE=10;
 
 const state={
   rawRows:[],columns:[],sourceName:'',sourceType:'',sheets:[],
@@ -504,7 +506,7 @@ function refreshMappingUI(){
       +'<td class="mapping-type" id="map-type-'+i+'">'+esc(f?TYPE_LABELS[f.type]||f.type:'Unmapped')+'</td>';
     body.appendChild(tr);
   });
-  $$('.map-select').forEach((sel,i)=>sel.addEventListener('change',()=>{
+  $('.map-select').forEach((sel,i)=>sel.addEventListener('change',()=>{
     state.sourceMapping[sel.dataset.source]=sel.value;
     const f=fieldById(sel.value);
     $('map-type-'+i).textContent=f?(TYPE_LABELS[f.type]||f.type):'Unmapped';
@@ -875,8 +877,12 @@ function group(txs,dir){
   const m=new Map();
   txs.filter(t=>t.direction===dir).forEach(t=>{
     const name=(dir==='inflow'?t.originator:t.beneficiary)||'Unknown counterparty',k=norm(name)||'unknown';
-    if(!m.has(k))m.set(k,{name,count:0,total:0});
+    if(!m.has(k))m.set(k,{name,count:0,total:0,first:null,last:null});
     const x=m.get(k);x.count++;x.total+=t.amount;
+    if(t.date){
+      if(!x.first||t.date<x.first)x.first=t.date;
+      if(!x.last||t.date>x.last)x.last=t.date;
+    }
   });
   return Array.from(m.values()).sort((a,b)=>b.total-a.total);
 }
@@ -1068,18 +1074,41 @@ function filteredCounterpartyRows(id,rows,total){
   });
   return filtered;
 }
+function renderCounterpartyPagination(prefix,totalRows){
+  const el=$(prefix+'Pagination');if(!el)return;
+  const totalPages=Math.max(1,Math.ceil(totalRows/COUNTERPARTY_PAGE_SIZE));
+  counterpartyPage[prefix]=Math.max(1,Math.min(counterpartyPage[prefix]||1,totalPages));
+  const current=counterpartyPage[prefix],buttons=[];
+  const start=Math.max(1,current-2),end=Math.min(totalPages,current+2);
+  buttons.push('<button class="btn ghost cp-page-btn" type="button" data-prefix="'+prefix+'" data-page="'+Math.max(1,current-1)+'" '+(current===1?'disabled':'')+'>Previous</button>');
+  if(start>1){buttons.push('<button class="btn ghost cp-page-btn" type="button" data-prefix="'+prefix+'" data-page="1">1</button>');if(start>2)buttons.push('<span class="page-ellipsis">…</span>');}
+  for(let p=start;p<=end;p++)buttons.push('<button class="btn '+(p===current?'primary':'ghost')+' cp-page-btn" type="button" data-prefix="'+prefix+'" data-page="'+p+'">'+p+'</button>');
+  if(end<totalPages){if(end<totalPages-1)buttons.push('<span class="page-ellipsis">…</span>');buttons.push('<button class="btn ghost cp-page-btn" type="button" data-prefix="'+prefix+'" data-page="'+totalPages+'">'+totalPages+'</button>');}
+  buttons.push('<button class="btn ghost cp-page-btn" type="button" data-prefix="'+prefix+'" data-page="'+Math.min(totalPages,current+1)+'" '+(current===totalPages?'disabled':'')+'>Next</button>');
+  el.innerHTML='<span class="page-summary">Page '+current+' of '+totalPages+' • '+totalRows.toLocaleString()+' result'+(totalRows===1?'':'s')+'</span><div class="page-buttons">'+buttons.join('')+'</div>';
+  $('.cp-page-btn').forEach(btn=>btn.onclick=()=>{
+    const p=btn.dataset.prefix;counterpartyPage[p]=Number(btn.dataset.page)||1;
+    rerenderCounterpartyTables();
+    const table=$(p+'Table');if(table)table.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+}
 function renderCounterparty(id,rows,total,currency){
   const filtered=filteredCounterpartyRows(id,rows,total);
-  const max=Math.max(1,...filtered.map(r=>r.total));
   const p=counterpartyControlPrefix(id);
-  if($(p+'TableCount'))$(p+'TableCount').textContent=filtered.length.toLocaleString()+' shown / '+rows.length.toLocaleString();
+  const max=Math.max(1,...filtered.map(r=>r.total));
+  const totalPages=Math.max(1,Math.ceil(filtered.length/COUNTERPARTY_PAGE_SIZE));
+  counterpartyPage[p]=Math.max(1,Math.min(counterpartyPage[p]||1,totalPages));
+  const start=(counterpartyPage[p]-1)*COUNTERPARTY_PAGE_SIZE;
+  const pageRows=filtered.slice(start,start+COUNTERPARTY_PAGE_SIZE);
+  if($(p+'TableCount'))$(p+'TableCount').textContent=filtered.length.toLocaleString()+' match'+(filtered.length===1?'':'es')+' / '+rows.length.toLocaleString();
   $(id).innerHTML='<table><thead><tr><th></th><th>#</th><th>Counterparty</th><th class="num">Count</th><th class="num">Total</th><th class="num">Share</th></tr></thead><tbody>'
-    +(filtered.slice(0,250).map((r,i)=>{
+    +(pageRows.map((r,i)=>{
       const saved=aliasEntry(r.name);
       const hit=(norm($(p+'Search')?.value||'')&&norm(r.name).includes(norm($(p+'Search')?.value||'')))?' counterparty-highlight':'';
-      return '<tr class="'+hit.trim()+'"><td><input class="counterparty-select" type="checkbox" data-name="'+esc(r.name)+'" aria-label="Select '+esc(r.name)+' for alias mapping"></td><td>'+(i+1)+'</td><td class="counterparty-name-cell"><label><span><span class="alias-original">'+esc(r.name)+'</span>'+(saved?'<span class="alias-mapped-note">Saved mapping → '+esc(saved.canonical)+'</span>':'')+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></span></label></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+r.share.toFixed(1)+'%</td></tr>';
+      return '<tr class="'+hit.trim()+'"><td><input class="counterparty-select" type="checkbox" data-name="'+esc(r.name)+'" aria-label="Select '+esc(r.name)+' for alias mapping"></td><td>'+(start+i+1)+'</td><td class="counterparty-name-cell"><label><span><span class="alias-original">'+esc(r.name)+'</span>'+(saved?'<span class="alias-mapped-note">Saved mapping → '+esc(saved.canonical)+'</span>':'')+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></span></label></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+r.share.toFixed(1)+'%</td></tr>';
     }).join('')||'<tr><td colspan="6">No counterparties match the current filter.</td></tr>')
     +'</tbody></table>';
+  renderCounterpartyPagination(p,filtered.length);
 }
 function rerenderCounterpartyTables(){
   const a=state.analysis;
@@ -1095,30 +1124,12 @@ function renderAlerts(a){
 
 function shortName(s,n){s=String(s||'Unknown');return s.length>n?s.slice(0,n-1)+'…':s;}
 function shortMoney(n,c){const v=Number(n)||0;if(v>=1e9)return c+' '+(v/1e9).toFixed(2)+'bn';if(v>=1e6)return c+' '+(v/1e6).toFixed(2)+'m';if(v>=1e3)return c+' '+(v/1e3).toFixed(1)+'k';return c+' '+v.toFixed(0);}
-function dateInputValue(d){
-  if(!d)return'';
-  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
-  return y+'-'+m+'-'+day;
-}
-function parseNetworkDate(value,endOfDay=false){
-  if(!value)return null;
-  const p=value.split('-').map(Number);
-  if(p.length!==3)return null;
-  return new Date(p[0],p[1]-1,p[2],endOfDay?23:0,endOfDay?59:0,endOfDay?59:0,endOfDay?999:0);
-}
-function initialiseNetworkRange(a){
-  if(!$('networkDateFrom').value&&a.first)$('networkDateFrom').value=dateInputValue(a.first);
-  if(!$('networkDateTo').value&&a.last)$('networkDateTo').value=dateInputValue(a.last);
-}
-function networkTransactions(a){
-  const from=parseNetworkDate($('networkDateFrom')?.value||'',false);
-  const to=parseNetworkDate($('networkDateTo')?.value||'',true);
-  return a.records.filter(r=>{
-    if((from||to)&&!r.date)return false;
-    if(from&&r.date<from)return false;
-    if(to&&r.date>to)return false;
-    return true;
-  });
+function nodeDateRange(x){
+  if(x.first&&x.last){
+    if(x.first.toDateString()===x.last.toDateString())return fmtDate(x.first);
+    return fmtDate(x.first)+' – '+fmtDate(x.last);
+  }
+  return 'Date unavailable';
 }
 function setNetworkZoom(value){
   networkZoom=Math.max(.65,Math.min(2.25,value));
@@ -1131,39 +1142,40 @@ function networkYPositions(count,height){
   return Array.from({length:count},(_,i)=>top+i*step);
 }
 function renderNetwork(a){
-  const txs=networkTransactions(a);
+  const txs=a.records;
   const count=Math.max(4,Math.min(20,Number($('networkPartyCount')?.value)||4));
   if($('networkPartyCount'))$('networkPartyCount').value=count;
   const origins=group(txs,'inflow'),benefits=group(txs,'outflow');
   const o=origins.slice(0,count),b=benefits.slice(0,count);
-  const n=Math.max(4,o.length,b.length),height=Math.max(440,100+n*76),width=960,subject=$('subjectName').value.trim()||'Subject',subjectY=height/2;
+  const n=Math.max(4,o.length,b.length),height=Math.max(500,120+n*88),width=1200,subject=$('subjectName').value.trim()||'Subject',subjectY=height/2;
   const oy=networkYPositions(Math.max(1,o.length),height),by=networkYPositions(Math.max(1,b.length),height);
-  const from=$('networkDateFrom')?.value||'',to=$('networkDateTo')?.value||'';
-  if($('networkRangeStatus'))$('networkRangeStatus').textContent=txs.length.toLocaleString()+' transaction(s) in relationship view'+(from||to?' • '+(from||'earliest')+' to '+(to||'latest'):'')+' • '+o.length+' originator(s) • '+b.length+' beneficiary/beneficiaries';
+  if($('networkRangeStatus'))$('networkRangeStatus').textContent=txs.length.toLocaleString()+' transaction(s) • '+o.length+' originator(s) shown • '+b.length+' beneficiary/beneficiaries shown • dates are shown per node';
 
   if(!txs.length||(!o.length&&!b.length)){
-    $('networkView').innerHTML='<div class="network-empty">No classified inflow/outflow relationships are available for the selected date range.</div>';
+    $('networkView').innerHTML='<div class="network-empty">No classified inflow/outflow relationships are available.</div>';
     return;
   }
 
-  let s='<svg class="network-svg" style="width:'+Math.round(networkZoom*100)+'%" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Originator and beneficiary relationship view">';
+  let s='<svg class="network-svg" style="width:'+Math.round(width*networkZoom)+'px" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Originator and beneficiary relationship view">';
   o.forEach((x,i)=>{
-    const y=oy[i],label=shortName(x.name,28);
-    s+='<line class="origin-link" x1="265" y1="'+y+'" x2="420" y2="'+subjectY+'"/>'
-      +'<circle class="origin" cx="240" cy="'+y+'" r="25"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+'</title></circle>'
-      +'<text x="24" y="'+(y-5)+'">'+esc(label)+'</text>'
-      +'<text class="money" x="24" y="'+(y+15)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>';
+    const y=oy[i],label=shortName(x.name,30),dates=nodeDateRange(x);
+    s+='<line class="origin-link" x1="325" y1="'+y+'" x2="535" y2="'+subjectY+'"/>'
+      +'<circle class="origin" cx="300" cy="'+y+'" r="27"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
+      +'<text x="34" y="'+(y-14)+'">'+esc(label)+'</text>'
+      +'<text class="money" x="34" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
+      +'<text class="node-date" x="34" y="'+(y+29)+'">'+esc(dates)+'</text>';
   });
   b.forEach((x,i)=>{
-    const y=by[i],label=shortName(x.name,26);
-    s+='<line class="benefit-link" x1="540" y1="'+subjectY+'" x2="695" y2="'+y+'"/>'
-      +'<circle class="benefit" cx="720" cy="'+y+'" r="25"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+'</title></circle>'
-      +'<text x="755" y="'+(y-5)+'">'+esc(label)+'</text>'
-      +'<text class="money" x="755" y="'+(y+15)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>';
+    const y=by[i],label=shortName(x.name,28),dates=nodeDateRange(x);
+    s+='<line class="benefit-link" x1="665" y1="'+subjectY+'" x2="875" y2="'+y+'"/>'
+      +'<circle class="benefit" cx="900" cy="'+y+'" r="27"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
+      +'<text x="940" y="'+(y-14)+'">'+esc(label)+'</text>'
+      +'<text class="money" x="940" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
+      +'<text class="node-date" x="940" y="'+(y+29)+'">'+esc(dates)+'</text>';
   });
-  s+='<circle class="subject" cx="480" cy="'+subjectY+'" r="50"/>'
-    +'<text class="subject-label" x="480" y="'+(subjectY-3)+'" text-anchor="middle">'+esc(shortName(subject,20))+'</text>'
-    +'<text class="subject-sub" x="480" y="'+(subjectY+18)+'" text-anchor="middle">SUBJECT</text></svg>';
+  s+='<circle class="subject" cx="600" cy="'+subjectY+'" r="54"/>'
+    +'<text class="subject-label" x="600" y="'+(subjectY-3)+'" text-anchor="middle">'+esc(shortName(subject,20))+'</text>'
+    +'<text class="subject-sub" x="600" y="'+(subjectY+20)+'" text-anchor="middle">SUBJECT</text></svg>';
   $('networkView').innerHTML=s;
 }
 
@@ -1242,7 +1254,7 @@ function renderAnalysis(a){
     renderCounterparty('originatorTable',a.origins,a.totalIn,a.currency);
     renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
     renderDescriptionIntelligence(a);
-    renderAlerts(a);initialiseNetworkRange(a);renderNetwork(a);
+    renderAlerts(a);renderNetwork(a);
   }
   renderProfiles(a);renderRecords();renderAliasLibrary();
   $('draftSummary').value=makeDraft(a);
@@ -1276,7 +1288,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.5 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.5.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1353,11 +1365,13 @@ $('runAnalysisBtn').onclick=()=>{
 $('txSearch').addEventListener('input',renderRecords);
 $('directionFilter').addEventListener('change',renderRecords);
 ['originatorSearch','originatorSort','originatorMinCount','beneficiarySearch','beneficiarySort','beneficiaryMinCount'].forEach(id=>{
-  const el=$(id);if(el)el.addEventListener(id.includes('Search')?'input':'change',rerenderCounterpartyTables);
+  const el=$(id);if(el)el.addEventListener(id.includes('Search')?'input':'change',()=>{
+    const prefix=id.startsWith('originator')?'originator':'beneficiary';
+    counterpartyPage[prefix]=1;
+    rerenderCounterpartyTables();
+  });
 });
-['networkDateFrom','networkDateTo','networkPartyCount'].forEach(id=>{
-  const el=$(id);if(el)el.addEventListener('change',()=>{if(state.analysis?.kind==='transaction')renderNetwork(state.analysis);});
-});
+$('networkPartyCount').addEventListener('change',()=>{if(state.analysis?.kind==='transaction')renderNetwork(state.analysis);});
 $('networkZoomOut').onclick=()=>setNetworkZoom(networkZoom-.15);
 $('networkZoomIn').onclick=()=>setNetworkZoom(networkZoom+.15);
 $('networkZoomReset').onclick=()=>setNetworkZoom(1);
@@ -1366,7 +1380,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_4_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_5_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1379,8 +1393,9 @@ $('clearAliasLibraryBtn').onclick=()=>{
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
 $('clearAllBtn').onclick=()=>{
   state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=1;
+  counterpartyPage.originator=1;counterpartyPage.beneficiary=1;
   $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();
-  if($('networkDateFrom'))$('networkDateFrom').value='';if($('networkDateTo'))$('networkDateTo').value='';if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='100%';
+  if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='100%';
   setStep(1);
 };
 $('schemaLibraryBtn').onclick=()=>{renderSchemaDialog();$('schemaDialog').showModal();};
@@ -1397,4 +1412,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.5').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.5.1').then(r=>r.update()).catch(()=>{}));
