@@ -2207,6 +2207,7 @@ function uniqueObservedAccounts(a){
   return[...seen.values()].sort((x,y)=>y.count-x.count||x.value.localeCompare(y.value));
 }
 function resetIntelligenceReportBuilder(){
+  resetAccountsRegister();
   irSubjectPhotoData='';
   const ids=[
     'irCaseNumber','irReportDate','irSubject','irFullName','irDob','irNationality','irMobile','irBvn','irNin','irAddress','irOccupation','irEmail','irSocial',
@@ -2243,7 +2244,7 @@ function populateIntelligenceReportBuilder(a){
   if(accounts.length)irSetIfBlank('irLinkedAccountsCount',accounts.length);
   if(!$('irAttachments')?.value){
     const items=[];
-    if(accounts.length)items.push('Appendix I – Accounts / account identifiers observed in the analysed dataset.');
+    
     items.push('Appendix II – Significant transaction analysis generated from FinIntel.');
     $('irAttachments').value=items.join('\n');
   }
@@ -2363,6 +2364,7 @@ function irFinancialDatabaseHtml(a){
     +(balance?'<p>Current balance supplied by the analyst: <strong>'+esc(balance)+'</strong>.</p>':'');
   return'<h2>FINANCIAL DATABASE</h2>'
     +(context.length?'<ul class="ir-bullets">'+context.map(x=>'<li>'+x+'</li>').join('')+'</ul>':'<p class="ir-draft-note">No analyst-supplied STR/CTR/account-opening context has been entered.</p>')
+    +accountsReportSection(false)
     +'<p>Further analysis of '+subject+"'s financial transactions"+period+' reveals the following significant and relevant transactions:</p>'
     +deposits+withdrawals;
 }
@@ -2387,8 +2389,7 @@ function irAttachmentsHtml(){
   return lines.length?'<h2>ATTACHMENT</h2><ul class="ir-bullets">'+lines.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'';
 }
 function irAppendicesHtml(a){
-  const accounts=uniqueObservedAccounts(a);
-  const accountHtml=accounts.length?'<div class="ir-page-break"><h2>APPENDIX I – ACCOUNTS / IDENTIFIERS OBSERVED</h2><table><thead><tr><th>S/N</th><th>Account / Identifier</th><th>Records</th></tr></thead><tbody>'+accounts.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(x.value)+'</td><td>'+x.count+'</td></tr>').join('')+'</tbody></table></div>':'';
+  const accountHtml=accountsReportSection(true);
   const top=[...a.records].filter(r=>r.amount>0).sort((x,y)=>y.amount-x.amount).slice(0,50);
   const txHtml='<div class="ir-page-break"><h2>APPENDIX II – SIGNIFICANT TRANSACTION ANALYSIS</h2><table><thead><tr><th>S/N</th><th>Transaction Date</th><th>Amount</th><th>Source/Originator</th><th>Mode of Transaction</th><th>Beneficiary</th></tr></thead><tbody>'
     +top.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td><td>'+esc(fmt(r.amount,a.currency))+'</td><td>'+esc(r.originator||'—')+'</td><td>'+esc(r.extracted?.channel||r.values?.channel||r.extracted?.category||'—')+'</td><td>'+esc(r.beneficiary||'—')+'</td></tr>').join('')
@@ -2564,7 +2565,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1.2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2747,4 +2748,56 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.1').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.2').then(r=>r.update()).catch(()=>{}));
+
+// Accounts are case inputs; importing a register never changes transaction evidence.
+const accountFields=[['holder','Account holder'],['number','Account number'],['bank','Bank / institution'],['type','Account type'],['currency','Currency'],['opened','Opening date'],['status','Account status'],['bvn','BVN / customer ID'],['balance','Balance'],['balanceDate','Balance date'],['relationship','Relationship to subject'],['source','Information source'],['received','Date received'],['coverage','Statement coverage'],['supplied','Statement supplied (yes/no)'],['analysed','Statement analysed (yes/no; analyst verified)'],['remarks','Analyst remarks']].map(([id,label])=>({id,label,visible:['holder','number','bank','status'].includes(id)}));
+let accountRows=[],accountImport=null,accountPage=1;
+function resetAccountsRegister(){accountRows=[];accountImport=null;accountPage=1;if($('accountsRegister'))renderAccountsRegister();}
+function selectedAccounts(){return accountRows.filter(r=>r.include!==false);}
+function accountsInAppendix(){const p=$('accountsPlacement')?.value||'auto';return p==='appendix'||(p==='auto'&&selectedAccounts().length>10);}
+function accountsTable(){const fields=accountFields.filter(f=>f.visible);return '<table><thead><tr><th>S/N</th>'+fields.map(f=>'<th>'+esc(f.label)+'</th>').join('')+'</tr></thead><tbody>'+selectedAccounts().map((r,i)=>'<tr><td>'+(i+1)+'</td>'+fields.map(f=>'<td>'+esc(r[f.id]||'Not supplied')+'</td>').join('')+'</tr>').join('')+'</tbody></table>';}
+function accountsReportSection(appendix){const rows=selectedAccounts();if(!rows.length)return '';if(appendix)return accountsInAppendix()?'<div class="ir-page-break"><h2>APPENDIX I – ACCOUNTS REGISTER</h2>'+accountsTable()+'</div>':'';const analysed=rows.filter(r=>/^(yes|true|1)$/i.test(r.analysed||'')).length;const supplied=rows.filter(r=>/^(yes|true|1)$/i.test(r.supplied||'')).length;return '<h3>Accounts Register</h3><p>'+rows.length+' account(s) selected for reporting; statements marked as supplied for '+supplied+'; '+analysed+' marked as analysed by the analyst. Inclusion in this register does not establish that a statement was analysed.</p>'+(accountsInAppendix()?'<p>Account details are provided in Appendix I.</p>':accountsTable());}
+function accountInput(r,f,i){return '<input type="text" aria-label="'+esc(f.label)+'" data-account-row="'+i+'" data-field="'+f.id+'" value="'+esc(r[f.id]||'')+'">';}
+function renderAccountsRegister(){
+ const root=$('accountsRegister');if(!root)return;
+ const pages=Math.max(1,Math.ceil(accountRows.length/10));accountPage=Math.min(accountPage,pages);
+ $('accountsColumns').innerHTML=accountFields.map((f,i)=>'<div><label><input type="checkbox" data-column="'+i+'" '+(f.visible?'checked':'')+'> Include</label> <input aria-label="Column heading" data-label="'+i+'" value="'+esc(f.label)+'"> <button type="button" data-up="'+i+'" '+(!i?'disabled':'')+'>Move up</button></div>').join('');
+ $('accountsRows').innerHTML='<p>'+accountRows.length+' registered • '+selectedAccounts().length+' selected • Page '+accountPage+' / '+pages+'</p><div style="overflow:auto"><table><thead><tr><th>Include</th>'+accountFields.map(f=>'<th>'+esc(f.label)+'</th>').join('')+'<th>Remove</th></tr></thead><tbody>'+accountRows.slice((accountPage-1)*10,accountPage*10).map((r,j)=>{const i=(accountPage-1)*10+j;return '<tr><td><input type="checkbox" data-include="'+i+'" '+(r.include!==false?'checked':'')+'></td>'+accountFields.map(f=>'<td>'+accountInput(r,f,i)+'</td>').join('')+'<td><button data-remove="'+i+'" type="button">Remove</button></td></tr>';}).join('')+'</tbody></table></div><button type="button" id="accountsPrev" '+(accountPage===1?'disabled':'')+'>Previous</button> <button type="button" id="accountsNext" '+(accountPage===pages?'disabled':'')+'>Next</button>';
+ $('accountsPrev').onclick=()=>{accountPage--;renderAccountsRegister();};$('accountsNext').onclick=()=>{accountPage++;renderAccountsRegister();};
+ root.querySelectorAll('[data-account-row]').forEach(el=>el.onchange=()=>{accountRows[Number(el.dataset.accountRow)][el.dataset.field]=el.value;renderIntelligenceReportPreview();});
+ root.querySelectorAll('[data-include]').forEach(el=>el.onchange=()=>{accountRows[Number(el.dataset.include)].include=el.checked;renderAccountsRegister();renderIntelligenceReportPreview();});
+ root.querySelectorAll('[data-remove]').forEach(el=>el.onclick=()=>{accountRows.splice(Number(el.dataset.remove),1);renderAccountsRegister();renderIntelligenceReportPreview();});
+ root.querySelectorAll('[data-column]').forEach(el=>el.onchange=()=>{accountFields[Number(el.dataset.column)].visible=el.checked;renderIntelligenceReportPreview();});
+ root.querySelectorAll('[data-label]').forEach(el=>el.onchange=()=>{accountFields[Number(el.dataset.label)].label=el.value;renderAccountsRegister();renderIntelligenceReportPreview();});
+ root.querySelectorAll('[data-up]').forEach(el=>el.onclick=()=>{const i=Number(el.dataset.up);[accountFields[i-1],accountFields[i]]=[accountFields[i],accountFields[i-1]];renderAccountsRegister();renderIntelligenceReportPreview();});
+}
+function setupAccountsRegister(){
+ const host=document.createElement('section');host.id='accountsRegister';host.className='panel';
+ host.innerHTML='<h3>Accounts Register</h3><p>Enter or import identified accounts independently of transaction analysis. Account numbers remain text. Review possible duplicates and missing holder/bank/number before reporting.</p><label>Report placement <select id="accountsPlacement"><option value="auto">Automatic: up to 10 in report, 11+ in Appendix I</option><option value="main">Main report</option><option value="appendix">Appendix I</option></select></label><p><button type="button" id="accountAdd">Add account</button> <button type="button" id="accountTemplate">Download CSV template</button> <button type="button" id="accountObserved">Add observed identifiers for review</button></p><label>Import accounts <input id="accountFile" type="file" accept=".csv,.xlsx,.xls"></label><div id="accountMapping"></div><p id="accountImportStatus" role="status"></p><details><summary>Customize report columns</summary><div id="accountsColumns"></div><button type="button" id="accountCustom">Add custom field</button></details><div id="accountsRows"></div>';
+ $('irBankName').closest('.ir-form-grid')?.after(host);
+ if(!host.isConnected)$('irBankName').parentElement.parentElement.after(host);
+ $('accountAdd').onclick=()=>{accountRows.push({include:true});accountPage=Math.ceil(accountRows.length/10);renderAccountsRegister();};
+ $('accountTemplate').onclick=()=>download('finintel_accounts_template.csv',accountFields.map(f=>csvEscape(f.label)).join(',')+'\n','text/csv');
+ $('accountCustom').onclick=()=>{const label=prompt('Custom field name');if(!label?.trim())return;accountFields.push({id:'custom_'+Date.now(),label:label.trim(),visible:true});renderAccountsRegister();};
+ $('accountsPlacement').onchange=renderIntelligenceReportPreview;
+ $('accountObserved').onclick=()=>{for(const a of uniqueObservedAccounts(state.analysis)){if(!accountRows.some(r=>r.number===a.value))accountRows.push({number:a.value,source:'Identifier observed in transaction data; ownership requires verification',include:true});}renderAccountsRegister();renderIntelligenceReportPreview();};
+ $('accountFile').onchange=async e=>{try{
+ const f=e.target.files[0];if(!f)return;
+ let rows;
+ if(/\.csv$/i.test(f.name))rows=parseCSV(await f.text());else {if(typeof XLSX==='undefined')throw Error('Excel reader unavailable. Use CSV.');const wb=XLSX.read(await f.arrayBuffer(),{type:'array',cellText:true});rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{raw:false,defval:''});}
+ if(!rows.length)throw Error('No account rows found.');accountImport={rows,file:f.name};
+ const columns=Object.keys(rows[0]);
+ $('accountMapping').innerHTML='<p>Review column mapping ('+rows.length+' rows). Excel import uses the first worksheet. Preview: '+esc(JSON.stringify(rows.slice(0,3)))+'</p>'+columns.map((c,i)=>'<label>'+esc(c)+' <select data-map="'+i+'"><option value="">Ignore</option>'+accountFields.map(f=>'<option value="'+f.id+'" '+(norm(c)===norm(f.label)||norm(c)===norm(f.id)?'selected':'')+'>'+esc(f.label)+'</option>').join('')+'</select></label>').join('')+'<button id="accountConfirm" type="button">Confirm import</button>';
+ $('accountConfirm').onclick=()=>{
+ const mapping=Array.from($('accountMapping').querySelectorAll('[data-map]')).map(el=>({col:columns[Number(el.dataset.map)],id:el.value})).filter(x=>x.id);
+ if(!mapping.some(m=>m.id==='number'))throwImport('Map the account number column first.');else if(new Set(mapping.map(x=>x.id)).size!==mapping.length)throwImport('Map each destination field only once.');else {
+ let duplicates=0,missing=0;const added=[];
+ for(const row of accountImport.rows){const r={include:true,source:accountImport.file};mapping.forEach(m=>r[m.id]=String(row[m.col]??'').trim());if(!r.number&&!r.holder&&!r.bank)continue;if(!r.number||!r.bank||!r.holder)missing++;if(accountRows.concat(added).some(x=>r.number&&x.number===r.number&&norm(x.bank)===norm(r.bank)))duplicates++;added.push(r);}
+ accountRows.push(...added);$('accountMapping').innerHTML='';status('accountImportStatus',added.length+' imported; '+duplicates+' possible duplicates retained for review; '+missing+' incomplete records.');renderAccountsRegister();renderIntelligenceReportPreview();
+ }};
+ }catch(err){status('accountImportStatus',err.message,true);}};
+ renderAccountsRegister();
+}
+function throwImport(message){status('accountImportStatus',message,true);}
+setupAccountsRegister();
