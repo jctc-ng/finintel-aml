@@ -565,3 +565,75 @@ FinIntel v3.0 includes data-quality and analyst-resolution statistics in the dow
 ### Governance note
 
 The public GitHub Pages MVP stores analyst aliases and counterparty resolutions only in the local browser profile. Production institutional deployment should use authenticated users, auditable analyst actions, protected storage and role-based access controls.
+
+
+---
+
+## FinIntel AML v3.1 — NFIU Intelligence Report Builder
+
+FinIntel v3.1 adds an analyst-controlled intelligence product workflow modelled on the July 2026 NFIU domestic intelligence report structure.
+
+### Report workflow
+
+After transaction analysis, analysts can open the **NFIU Intelligence Report Builder** and enter or review:
+- recipient agency, address and designation;
+- NFIU case reference and report date;
+- subject identity and photograph;
+- date of birth, nationality, phone, BVN, NIN, address, occupation, email and social media identifiers;
+- reporting trigger/background;
+- primary financial institution, account number, opening date and current balance;
+- previous STR and CTR counts where supplied;
+- linked-account count where supplied;
+- law-enforcement, regulatory, commercial and open-source database results;
+- analyst inference, recommendation and attachments.
+
+### Automatically generated financial analysis
+
+FinIntel can draft:
+- total inflow and total outflow with figures expressed in words;
+- period under review;
+- major originator/depositor narratives;
+- major beneficiary/withdrawal narratives;
+- dates and transaction counts for each narrated counterparty;
+- dominant transaction mode/channel where available;
+- factual Findings based on the analysed dataset;
+- a cautious draft Inference for analyst editing;
+- significant-transaction appendix;
+- account/identifier appendix;
+- full transaction appendix CSV.
+
+For each major counterparty used in the draft, the builder exposes an evidence card that opens the Counterparty Investigation Profile and underlying transactions.
+
+### Analyst-controlled database sections
+
+FinIntel does **not** fabricate results from databases it cannot query. For Law Enforcement, Regulatory Authority, Commercial Database and Open Source sections, the analyst must choose one of:
+- Record Found;
+- No Record Found;
+- Not Queried;
+- Exclude Section.
+
+A Record Found section uses only the text entered by the analyst. A Not Queried section remains visibly marked for analyst review in the draft.
+
+### Findings vs inference
+
+Generated **Findings** are factual observations derived from the analysed data and avoid unsupported allegations.
+
+The **Inference** remains an analyst judgment. FinIntel supplies a cautious draft based on observed transaction behaviour, but the analyst must review it against KYC/CDD information, source of funds/wealth, transaction purpose and corroborative intelligence.
+
+### Report outputs
+
+Available outputs:
+- on-screen NFIU-style report preview;
+- Word-compatible report file;
+- print-ready browser output for saving as PDF;
+- complete transaction appendix CSV.
+
+All report exports contain a **DRAFT – ANALYST REVIEW REQUIRED BEFORE DISSEMINATION** banner.
+
+### Cross-case safety
+
+When a fresh dataset or new analysis is started, subject-specific report fields and photographs are reset so information from a previous case is not silently carried into a new report. Institutional header fields may be re-entered as appropriate.
+
+### Production note
+
+The public GitHub Pages build is a local-browser MVP. Operational intelligence-report generation should ultimately run in a protected institutional environment with authenticated users, audit logs, role-based access, evidence storage and formal report approval controls.
