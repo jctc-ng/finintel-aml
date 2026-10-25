@@ -6,15 +6,15 @@
   <meta name="theme-color" content="#0d5c8f" />
   <meta name="description" content="FinIntel AML v2.4 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
   <title>FinIntel AML v2.4</title>
-  <link rel="manifest" href="manifest.webmanifest?v=2.4.1" />
-  <link rel="stylesheet" href="styles.css?v=2.4.1" />
+  <link rel="manifest" href="manifest.webmanifest?v=2.4.2" />
+  <link rel="stylesheet" href="styles.css?v=2.4.2" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
 
   <header class="topbar">
     <div class="brand">
-      <img src="assets/nfiu-logo.jpg" alt="NFIU logo" />
+      <img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo" />
       <div>
         <p class="kicker">FINANCIAL INTELLIGENCE & AML/CFT ANALYSIS</p>
         <h1>FinIntel AML <span class="version">v2.4</span></h1>
@@ -286,19 +286,19 @@
 
       <section id="transactionResults">
         <section class="grid two results-grid">
-          <article class="card pad">
-            <p class="kicker">COUNTERPARTIES</p>
+          <article class="card pad result-accent originator-card">
+            <p class="kicker inflow-kicker">COUNTERPARTIES • INFLOW</p>
             <h3>Top Originators</h3>
             <div id="originatorTable" class="table-wrap"></div>
           </article>
-          <article class="card pad">
-            <p class="kicker">COUNTERPARTIES</p>
+          <article class="card pad result-accent beneficiary-card">
+            <p class="kicker outflow-kicker">COUNTERPARTIES • OUTFLOW</p>
             <h3>Top Beneficiaries</h3>
             <div id="beneficiaryTable" class="table-wrap"></div>
           </article>
         </section>
 
-        <section class="card pad results-grid" id="aliasManager">
+        <section class="card pad results-grid result-accent alias-card" id="aliasManager">
           <div class="section-title">
             <div>
               <p class="kicker">ANALYST ENTITY RESOLUTION</p>
@@ -324,10 +324,10 @@
           <div id="aliasLibraryTable" class="table-wrap"></div>
         </section>
 
-        <section class="card pad results-grid">
+        <section class="card pad results-grid result-accent description-card">
           <div class="section-title">
             <div>
-              <p class="kicker">DESCRIPTION INTELLIGENCE</p>
+              <p class="kicker description-kicker">DESCRIPTION INTELLIGENCE</p>
               <h3>Meaning extracted from unclean transaction descriptions</h3>
             </div>
             <span id="descriptionCoverage" class="dataset-pill">0 parsed</span>
@@ -338,13 +338,13 @@
         </section>
 
         <section class="grid two results-grid">
-          <article class="card pad">
-            <p class="kicker">AML/CFT SCENARIO ENGINE</p>
+          <article class="card pad result-accent alert-card">
+            <p class="kicker alert-kicker">AML/CFT SCENARIO ENGINE</p>
             <h3>Indicators requiring analyst review</h3>
             <div id="alertsList" class="alert-list"></div>
           </article>
-          <article class="card pad">
-            <p class="kicker">FLOW OF FUNDS</p>
+          <article class="card pad result-accent flow-card">
+            <p class="kicker flow-kicker">FLOW OF FUNDS</p>
             <h3>Counterparty relationship view</h3>
             <div id="networkView" class="network-view"></div>
           </article>
@@ -405,11 +405,11 @@
   </dialog>
 
   <footer>
-    <img src="assets/nfiu-logo.jpg" alt="NFIU logo" />
+    <img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo" />
     <div><strong>FinIntel AML v2.4</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.4.1" defer></script>
+  <script src="app.js?v=2.4.2" defer></script>
 </body>
 </html>
