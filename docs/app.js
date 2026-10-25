@@ -73,7 +73,7 @@ const DATASET_LABELS={
 const autoPatterns={
   date:[/^date$/i,/transaction.*date/i,/value.*date/i,/posting.*date/i,/timestamp/i,/created.*at/i,/time$/i],
   amount:[/^amount$/i,/transaction.*amount/i,/value$/i,/amt$/i],
-  direction:[/^direction$/i,/dr.?cr/i,/debit.?credit/i,/transaction.*direction/i,/flow.*type/i],
+  direction:[/^direction$/i,/dr.?cr/i,/debit.?credit/i,/inflow.*outflow/i,/outflow.*inflow/i,/credit.*debit/i,/transaction.*direction/i,/flow.*type/i],
   debit:[/^debit$/i,/debit.*amount/i,/^outflow$/i,/outflow.*amount/i,/withdrawal.*amount/i,/money.*out/i],
   credit:[/^credit$/i,/credit.*amount/i,/^inflow$/i,/inflow.*amount/i,/deposit.*amount/i,/money.*in/i],
   originator:[/originator/i,/sender/i,/source.*name/i,/payer/i,/from.*name/i],
@@ -418,7 +418,10 @@ async function importFile(file){
 }
 
 function guessField(source){
-  const c=CORE_FIELDS.find(f=>(autoPatterns[f.id]||[]).some(p=>p.test(source)));
+  const s=String(source||'');
+  if(/originator.*beneficiary|beneficiary.*originator|sender.*receiver|receiver.*sender|counterparty|other.*party/i.test(s))return'counterparty';
+  if(/inflow.*outflow|outflow.*inflow|credit.*debit|debit.*credit/i.test(s))return'direction';
+  const c=CORE_FIELDS.find(f=>(autoPatterns[f.id]||[]).some(p=>p.test(s)));
   return c?.id||'';
 }
 
