@@ -78,7 +78,7 @@ const autoPatterns={
   credit:[/^credit$/i,/credit.*amount/i,/^inflow$/i,/inflow.*amount/i,/deposit.*amount/i,/money.*in/i],
   originator:[/originator/i,/sender/i,/source.*name/i,/payer/i,/from.*name/i],
   beneficiary:[/beneficiary/i,/receiver/i,/recipient/i,/payee/i,/to.*name/i],
-  counterparty:[/counterparty/i,/other.*party/i,/party.*name/i,/counter.*name/i],
+  counterparty:[/counterparty/i,/other.*party/i,/party.*name/i,/counter.*name/i,/originator.*beneficiary/i,/beneficiary.*originator/i,/sender.*receiver/i,/receiver.*sender/i],
   narration:[/narration/i,/description/i,/remarks/i,/memo/i,/details/i],
   account:[/account.*number/i,/account$/i,/wallet.*id/i],
   txid:[/transaction.*id/i,/transaction.*ref/i,/reference/i,/tx.*hash/i,/hash/i,/txn/i],
@@ -806,6 +806,7 @@ function extractDescriptionMeaning(value){
   return{clean,category,channel,counterparty,counterpartyType,counterpartyConfidence:selected?.confidence||0,entities,account,phone,email,wallet,directionHint,meaning:pieces.join(' • '),confidence};
 }
 function direction(raw,o,b,subject,debit,credit,amountInfo,sheetHint,desc){
+  if(credit>0&&debit>0)return'unknown';
   if(credit>0&&debit<=0)return'inflow';
   if(debit>0&&credit<=0)return'outflow';
   const d=norm(raw).replace(/[^a-z]/g,'');
