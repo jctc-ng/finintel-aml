@@ -502,3 +502,66 @@ The transaction drill-down supports:
 ### Analyst control
 
 Counterparty profiles are calculated locally from the currently analysed dataset. The feature does not automatically conclude that linked identifiers or extracted entities belong to the counterparty. Analysts remain responsible for verification, entity resolution and intelligence judgments.
+
+
+---
+
+## FinIntel AML v3.0 — Counterparty Resolution & Data Quality
+
+FinIntel v3.0 adds two analyst-control modules that improve the reliability of transaction analysis before intelligence judgments are made.
+
+### Unknown Counterparty Resolution
+
+The **Unknown Counterparty Resolution** workspace isolates classified inflow/outflow records where the other party remains unresolved.
+
+Analysts can:
+- search unresolved records by narration, amount, candidate, source sheet or row;
+- filter inflows and outflows;
+- select individual records or select all filtered unresolved records;
+- assign one resolved counterparty name to selected records;
+- use a FinIntel-extracted candidate when available;
+- acknowledge selected records as intentionally unknown;
+- clear transient selections;
+- clear saved resolution decisions for the current dataset;
+- automatically rerun the analysis after a resolution decision.
+
+Resolution decisions are stored locally in the browser under the FinIntel v3 resolution store and are reapplied during standardisation when the same source record is analysed again.
+
+A resolved counterparty becomes part of the normal originator/beneficiary aggregation, relationship graph, counterparty profile and report outputs. An analyst-acknowledged unknown remains visible as an unknown counterparty but is not counted as an unresolved missing-party quality issue.
+
+### Data Quality & Integrity Dashboard
+
+The dashboard performs structural checks on the standardised transaction records and provides record-level drill-down.
+
+Current checks include:
+- missing counterparties;
+- unresolved transaction direction;
+- potential duplicate transactions;
+- debit and credit both populated;
+- invalid dates;
+- missing dates;
+- missing monetary values;
+- zero or unusable amounts;
+- conflict between explicit direction and assigned worksheet direction;
+- missing narration when Narration / Description is mapped;
+- analyst-acknowledged unknown counterparties.
+
+The dashboard reports:
+- total records reviewed;
+- records without material quality flags;
+- affected records;
+- duplicate groups;
+- analyst counterparty resolutions applied;
+- acknowledged unknown records.
+
+The displayed percentage is the proportion of records with **no material structural quality flag**. It is a data-quality review measure and is not an AML/CFT risk score.
+
+Clicking a quality issue displays the exact affected source rows, including date, direction, amount, counterparty, narration and source worksheet.
+
+### Reporting
+
+FinIntel v3.0 includes data-quality and analyst-resolution statistics in the downloadable analytical report. Resolution decisions remain analyst actions and do not constitute automatic identity determinations.
+
+### Governance note
+
+The public GitHub Pages MVP stores analyst aliases and counterparty resolutions only in the local browser profile. Production institutional deployment should use authenticated users, auditable analyst actions, protected storage and role-based access controls.
