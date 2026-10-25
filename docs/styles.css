@@ -1013,3 +1013,25 @@ footer strong{color:#17384c;font-weight:850}
   stroke-width:4px!important;
   stroke-linejoin:round;
 }
+
+/* FinIntel AML v2.8 — centered fit view with stable zoom */
+.network-svg text.node-name{
+  font-size:20px!important;
+  font-weight:950!important;
+}
+.network-svg text.money{
+  font-size:16px!important;
+  font-weight:900!important;
+}
+.network-svg text.node-date{
+  font-size:14px!important;
+  font-weight:900!important;
+}
+.network-svg .subject-label{
+  font-size:18px!important;
+  font-weight:950!important;
+}
+.network-svg .subject-sub{
+  font-size:13px!important;
+  font-weight:900!important;
+}
