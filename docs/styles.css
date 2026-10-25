@@ -622,3 +622,70 @@ footer strong{color:#17384c;font-weight:850}
   .network-toolbar{grid-template-columns:minmax(0,1fr)!important}
   .counterparty-pagination{align-items:flex-start;flex-direction:column}
 }
+
+/* FinIntel AML v2.5.2 — mapped fields high-contrast readability */
+.mapped-schema-card{
+  background:linear-gradient(180deg,#12384e 0%,#0d2f43 100%)!important;
+  border-color:#315c72!important;
+  box-shadow:0 14px 32px rgba(16,48,69,.16)!important;
+}
+.mapped-schema-card .kicker{
+  color:#9ee8ff!important;
+  font-weight:950!important;
+}
+.mapped-schema-card h3{
+  color:#ffffff!important;
+  font-weight:900!important;
+  letter-spacing:-.01em;
+}
+.mapped-schema-card .button-row .btn.ghost{
+  color:#ffffff!important;
+  background:#163f56!important;
+  border-color:#5b8195!important;
+}
+#mappedFieldSummary{
+  display:grid;
+  gap:10px;
+}
+#mappedFieldSummary .schema-summary-row{
+  background:#173f56!important;
+  border:1px solid #4e7489!important;
+  border-left:5px solid #8ccce8!important;
+  box-shadow:0 4px 12px rgba(0,0,0,.08);
+}
+#mappedFieldSummary .schema-summary-row span,
+#mappedFieldSummary .schema-summary-row strong,
+#mappedFieldSummary .schema-summary-row small{
+  color:#ffffff!important;
+  opacity:1!important;
+  text-shadow:none!important;
+}
+#mappedFieldSummary .schema-summary-row strong{
+  font-size:1rem!important;
+  font-weight:950!important;
+  line-height:1.25;
+}
+#mappedFieldSummary .schema-summary-row span small{
+  margin-top:4px;
+  color:#e8f5fb!important;
+  font-size:.9rem!important;
+  font-weight:800!important;
+}
+#mappedFieldSummary .schema-summary-row > small{
+  color:#ffffff!important;
+  background:#0d2f43!important;
+  border:1px solid #6d94a8!important;
+  font-size:.82rem!important;
+  font-weight:900!important;
+  padding:6px 9px!important;
+}
+#mappedFieldSummary .emptybox{
+  color:#ffffff!important;
+  border-color:#557b8f!important;
+  background:#173f56!important;
+  font-weight:800!important;
+}
+#configStatus{
+  color:#ffd7dc!important;
+  font-weight:800!important;
+}
