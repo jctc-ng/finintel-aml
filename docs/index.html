@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0d5c8f" />
-  <meta name="description" content="FinIntel AML v2.9.3 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
-  <title>FinIntel AML v2.9.3</title>
-  <link rel="manifest" href="manifest.webmanifest?v=2.9.3" />
-  <link rel="stylesheet" href="styles.css?v=2.9.3" />
+  <meta name="description" content="FinIntel AML v3.0 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <title>FinIntel AML v3.0</title>
+  <link rel="manifest" href="manifest.webmanifest?v=3.0.0" />
+  <link rel="stylesheet" href="styles.css?v=3.0.0" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -366,6 +366,58 @@
           <div id="aliasLibraryTable" class="table-wrap"></div>
         </section>
 
+        <section class="card pad results-grid result-accent resolution-card" id="unknownResolutionCard">
+          <div class="section-title">
+            <div>
+              <p class="kicker resolution-kicker">COUNTERPARTY RESOLUTION</p>
+              <h3>Unknown Counterparty Resolution</h3>
+            </div>
+            <span id="unknownResolutionCount" class="dataset-pill">0 unresolved</span>
+          </div>
+          <p class="muted">Review classified inflow/outflow records where the other party could not be reliably identified. Analyst resolutions are stored locally in this browser and reapplied when the analysis is rerun.</p>
+
+          <div class="resolution-toolbar">
+            <input id="unknownSearch" type="search" placeholder="Search narration, amount, candidate, sheet…" />
+            <select id="unknownDirectionFilter">
+              <option value="all">All directions</option>
+              <option value="inflow">Inflows / missing originator</option>
+              <option value="outflow">Outflows / missing beneficiary</option>
+            </select>
+            <span id="unknownFilteredCount" class="table-count-pill">0 shown</span>
+          </div>
+
+          <div class="resolution-bulk">
+            <input id="resolutionName" type="text" placeholder="Resolved counterparty name for selected records…" />
+            <button id="applyResolutionBtn" class="btn primary" type="button">Apply &amp; Rerun</button>
+            <button id="acknowledgeUnknownBtn" class="btn secondary" type="button">Acknowledge as Unknown</button>
+            <button id="clearResolutionSelectionBtn" class="btn ghost" type="button">Clear Selection</button>
+          </div>
+          <p id="resolutionStatus" class="status" aria-live="polite"></p>
+          <div id="unknownResolutionTable" class="table-wrap resolution-table"></div>
+          <div id="unknownResolutionPagination" class="counterparty-pagination"></div>
+        </section>
+
+        <section class="card pad results-grid result-accent quality-card" id="dataQualityCard">
+          <div class="section-title">
+            <div>
+              <p class="kicker quality-kicker">DATA QUALITY &amp; INTEGRITY</p>
+              <h3>Data Quality Dashboard</h3>
+            </div>
+            <span id="dataQualityScore" class="dataset-pill">—</span>
+          </div>
+          <p class="muted">Quality checks identify structural issues that can affect transaction totals, direction classification, counterparty analysis and evidential traceability. Click an issue to inspect its source records.</p>
+          <div id="dataQualityMetrics" class="quality-metric-grid"></div>
+          <div id="dataQualityIssues" class="quality-issue-grid"></div>
+          <div class="quality-detail-head">
+            <div>
+              <strong id="dataQualityIssueTitle">Issue drill-down</strong>
+              <small id="dataQualityIssueDescription">Select an issue above to inspect affected records.</small>
+            </div>
+            <span id="dataQualityIssueCount" class="table-count-pill">0 records</span>
+          </div>
+          <div id="dataQualityIssueTable" class="table-wrap quality-table"></div>
+        </section>
+
         <section class="card pad results-grid result-accent description-card">
           <div class="section-title">
             <div>
@@ -575,10 +627,10 @@
 
   <footer>
     <img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo" />
-    <div><strong>FinIntel AML v2.9.3</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v3.0</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.9.3" defer></script>
+  <script src="app.js?v=3.0.0" defer></script>
 </body>
 </html>
