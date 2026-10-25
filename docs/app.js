@@ -922,11 +922,18 @@ function rapidMoves(txs,hours,ratio){
 }
 function structuring(txs,ref,band,min){
   if(!ref)return[];
-  const low=ref*(1-band/100),c=txs.filter(t=>t.amount>=low&&t.amount<=ref&&t.date).sort((a,b)=>a.date-b.date),groups=[];
+  const low=ref*(1-band/100);
+  const c=txs.filter(t=>t.amount>=low&&t.amount<=ref&&t.date).sort((a,b)=>a.date-b.date);
+  const groups=[];
+  let right=0;
   for(let i=0;i<c.length;i++){
-    const g=[c[i]];
-    for(let j=i+1;j<c.length;j++){if((c[j].date-c[i].date)/86400000>7)break;g.push(c[j]);}
-    if(g.length>=min){groups.push(g);i+=g.length-1;}
+    if(right<i+1)right=i+1;
+    const cutoff=c[i].date.getTime()+7*86400000;
+    while(right<c.length&&c[right].date.getTime()<=cutoff)right++;
+    if(right-i>=min){
+      groups.push(c.slice(i,right));
+      i=right-1;
+    }
   }
   return groups;
 }
