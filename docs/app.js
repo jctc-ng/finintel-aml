@@ -199,10 +199,10 @@ function getCounterpartyResolutionByKey(key){
   const raw=state.counterpartyResolutions[key];
   return raw&&typeof raw==='object'?raw:null;
 }
-function setCounterpartyResolution(key,payload){
+function setCounterpartyResolution(key,payload,persist=true){
   if(!key)return;
   state.counterpartyResolutions[key]={...payload,updatedAt:new Date().toISOString()};
-  persistCounterpartyResolutions();
+  if(persist)persistCounterpartyResolutions();
 }
 
 function aliasEntry(name){
@@ -1621,9 +1621,10 @@ function applyResolutionToKeys(keys,name){
   let applied=0;
   keys.forEach(key=>{
     if(!key)return;
-    setCounterpartyResolution(key,{name:value,ignored:false,source:'analyst'});
+    setCounterpartyResolution(key,{name:value,ignored:false,source:'analyst'},false);
     applied++;
   });
+  if(applied)persistCounterpartyResolutions();
   return applied;
 }
 function renderUnknownResolution(a){
@@ -2253,7 +2254,8 @@ $('applyResolutionBtn').onclick=()=>{
 $('acknowledgeUnknownBtn').onclick=()=>{
   const keys=Array.from(unknownSelection.keys());
   if(!keys.length){status('resolutionStatus','Select one or more unresolved records first.',true);return;}
-  keys.forEach(key=>setCounterpartyResolution(key,{name:'',ignored:true,source:'analyst'}));
+  keys.forEach(key=>setCounterpartyResolution(key,{name:'',ignored:true,source:'analyst'},false));
+  persistCounterpartyResolutions();
   rerunAfterCounterpartyResolution(keys.length+' record'+(keys.length===1?'':'s')+' acknowledged and retained as unknown.');
 };
 $('clearResolutionDecisionsBtn').onclick=()=>{
