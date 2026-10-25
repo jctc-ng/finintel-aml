@@ -1,0 +1,269 @@
+{
+  "note": "Synthetic statements only. Expected figures are independently specified in integer kobo, not calculated with FinIntel helpers. Duplicates remain included until an analyst excludes them.",
+  "cases": [
+    {
+      "id": "single-amount-csv",
+      "type": "csv",
+      "sheets": [
+        {
+          "name": "Transactions",
+          "rows": [
+            [
+              "Date",
+              "Amount",
+              "Direction",
+              "Originator",
+              "Beneficiary",
+              "Account"
+            ],
+            [
+              "2026-01-01",
+              "100,000.25",
+              "CR",
+              "Sender A",
+              "Subject",
+              "0012345678"
+            ],
+            [
+              "2026-01-02",
+              "250,000.50",
+              "Credit",
+              "Sender B",
+              "Subject",
+              "0012345678"
+            ],
+            [
+              "2026-01-03",
+              "499.25",
+              "Credit",
+              "",
+              "Subject",
+              "0012345678"
+            ],
+            [
+              "2026-01-04",
+              "125,000.10",
+              "DR",
+              "Subject",
+              "Receiver A",
+              "0012345678"
+            ],
+            [
+              "2026-01-05",
+              "20,000.20",
+              "Debit",
+              "Subject",
+              "Receiver B",
+              "0012345678"
+            ],
+            [
+              "2026-01-06",
+              "1,000.00",
+              "Debit",
+              "Subject",
+              "Receiver A",
+              "0012345678"
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "inKobo": 35050000,
+        "outKobo": 14600030,
+        "netKobo": 20449970,
+        "records": 6,
+        "inCount": 3,
+        "outCount": 3,
+        "unknownCount": 0,
+        "unknownPartyInKobo": 49925
+      }
+    },
+    {
+      "id": "split-debit-credit-xlsx",
+      "type": "xlsx",
+      "sheets": [
+        {
+          "name": "Statement",
+          "rows": [
+            [
+              "Date",
+              "Debit",
+              "Credit",
+              "Counterparty",
+              "Account"
+            ],
+            [
+              "2026-02-01",
+              "",
+              "1200000.35",
+              "Sender A",
+              "0001234567"
+            ],
+            [
+              "2026-02-02",
+              "",
+              "800000.15",
+              "Sender B",
+              "0001234567"
+            ],
+            [
+              "2026-02-03",
+              "750000.10",
+              "",
+              "Receiver A",
+              "0001234567"
+            ],
+            [
+              "2026-02-04",
+              "125000.25",
+              "",
+              "Receiver B",
+              "0001234567"
+            ],
+            [
+              "2026-02-05",
+              "50.50",
+              "",
+              "Bank Charges",
+              "0001234567"
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "inKobo": 200000050,
+        "outKobo": 87505085,
+        "netKobo": 112494965,
+        "records": 5,
+        "inCount": 2,
+        "outCount": 3,
+        "unknownCount": 0
+      }
+    },
+    {
+      "id": "credit-debit-worksheets-xlsx",
+      "type": "xlsx",
+      "sheets": [
+        {
+          "name": "Credits",
+          "rows": [
+            [
+              "Date",
+              "Amount",
+              "Counterparty",
+              "Account"
+            ],
+            [
+              "2026-03-01",
+              "60000.10",
+              "Sender A",
+              "0010000001"
+            ],
+            [
+              "2026-03-02",
+              "70000.20",
+              "Sender B",
+              "0010000001"
+            ]
+          ]
+        },
+        {
+          "name": "Debits",
+          "rows": [
+            [
+              "Date",
+              "Amount",
+              "Counterparty",
+              "Account"
+            ],
+            [
+              "2026-03-03",
+              "45000.15",
+              "Receiver A",
+              "0010000001"
+            ],
+            [
+              "2026-03-04",
+              "25000.05",
+              "Receiver B",
+              "0010000001"
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "inKobo": 13000030,
+        "outKobo": 7000020,
+        "netKobo": 6000010,
+        "records": 4,
+        "inCount": 2,
+        "outCount": 2,
+        "unknownCount": 0
+      }
+    },
+    {
+      "id": "duplicates-and-conflicting-directions",
+      "type": "xlsx",
+      "sheets": [
+        {
+          "name": "Statement",
+          "rows": [
+            [
+              "Date",
+              "Debit",
+              "Credit",
+              "Counterparty",
+              "Account"
+            ],
+            [
+              "2026-04-01",
+              "",
+              "5000",
+              "Sender A",
+              "0010000002"
+            ],
+            [
+              "2026-04-01",
+              "",
+              "5000",
+              "Sender A",
+              "0010000002"
+            ],
+            [
+              "2026-04-02",
+              "1000",
+              "",
+              "Receiver A",
+              "0010000002"
+            ],
+            [
+              "2026-04-03",
+              "900",
+              "800",
+              "Conflicting row",
+              "0010000002"
+            ],
+            [
+              "2026-04-04",
+              "",
+              "",
+              "Missing amount",
+              "0010000002"
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "inKobo": 1000000,
+        "outKobo": 100000,
+        "netKobo": 900000,
+        "records": 5,
+        "inCount": 2,
+        "outCount": 1,
+        "unknownCount": 2,
+        "requiresDuplicatesFlag": true,
+        "requiresConflictFlag": true
+      }
+    }
+  ]
+}

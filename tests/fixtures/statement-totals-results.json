@@ -1,0 +1,153 @@
+{
+  "status": "PASS",
+  "statements": 4,
+  "network": "disabled",
+  "reports": [
+    {
+      "statement": "single-amount-csv",
+      "result": "PASS",
+      "expected": {
+        "inKobo": 35050000,
+        "outKobo": 14600030,
+        "netKobo": 20449970,
+        "records": 6,
+        "inCount": 3,
+        "outCount": 3,
+        "unknownCount": 0,
+        "unknownPartyInKobo": 49925
+      },
+      "observed": {
+        "inKobo": 35050000,
+        "outKobo": 14600030,
+        "netKobo": 20449970,
+        "records": 6,
+        "inCount": 3,
+        "outCount": 3,
+        "unknownCount": 0,
+        "originKobo": 35050000,
+        "beneficiaryKobo": 14600030,
+        "accounts": [
+          "0012345678",
+          "0012345678",
+          "0012345678",
+          "0012345678",
+          "0012345678",
+          "0012345678"
+        ],
+        "unknownPartyInKobo": 49925,
+        "issues": [
+          "Missing counterparties"
+        ]
+      }
+    },
+    {
+      "statement": "split-debit-credit-xlsx",
+      "result": "PASS",
+      "expected": {
+        "inKobo": 200000050,
+        "outKobo": 87505085,
+        "netKobo": 112494965,
+        "records": 5,
+        "inCount": 2,
+        "outCount": 3,
+        "unknownCount": 0
+      },
+      "observed": {
+        "inKobo": 200000050,
+        "outKobo": 87505085,
+        "netKobo": 112494965,
+        "records": 5,
+        "inCount": 2,
+        "outCount": 3,
+        "unknownCount": 0,
+        "originKobo": 200000050,
+        "beneficiaryKobo": 87505085,
+        "accounts": [
+          "0001234567",
+          "0001234567",
+          "0001234567",
+          "0001234567",
+          "0001234567"
+        ],
+        "unknownPartyInKobo": 0,
+        "issues": []
+      }
+    },
+    {
+      "statement": "credit-debit-worksheets-xlsx",
+      "result": "PASS",
+      "expected": {
+        "inKobo": 13000030,
+        "outKobo": 7000020,
+        "netKobo": 6000010,
+        "records": 4,
+        "inCount": 2,
+        "outCount": 2,
+        "unknownCount": 0
+      },
+      "observed": {
+        "inKobo": 13000030,
+        "outKobo": 7000020,
+        "netKobo": 6000010,
+        "records": 4,
+        "inCount": 2,
+        "outCount": 2,
+        "unknownCount": 0,
+        "originKobo": 13000030,
+        "beneficiaryKobo": 7000020,
+        "accounts": [
+          "0010000001",
+          "0010000001",
+          "0010000001",
+          "0010000001"
+        ],
+        "unknownPartyInKobo": 0,
+        "issues": []
+      }
+    },
+    {
+      "statement": "duplicates-and-conflicting-directions",
+      "result": "PASS",
+      "expected": {
+        "inKobo": 1000000,
+        "outKobo": 100000,
+        "netKobo": 900000,
+        "records": 5,
+        "inCount": 2,
+        "outCount": 1,
+        "unknownCount": 2,
+        "requiresDuplicatesFlag": true,
+        "requiresConflictFlag": true
+      },
+      "observed": {
+        "inKobo": 1000000,
+        "outKobo": 100000,
+        "netKobo": 900000,
+        "records": 5,
+        "inCount": 2,
+        "outCount": 1,
+        "unknownCount": 2,
+        "originKobo": 1000000,
+        "beneficiaryKobo": 100000,
+        "accounts": [
+          "0010000002",
+          "0010000002",
+          "0010000002",
+          "0010000002",
+          "0010000002"
+        ],
+        "unknownPartyInKobo": 0,
+        "issues": [
+          "Unresolved direction",
+          "Potential duplicate transactions",
+          "Debit and credit both populated",
+          "Missing amounts"
+        ]
+      }
+    }
+  ],
+  "sourceCommit": "69c7a31154c18a600dc6f6582bb22b7371c14f64",
+  "testedOn": "2026-10-25",
+  "browser": "Chromium 153 headless",
+  "scope": "Synthetic statements only; not validation of real bank statements or all AML indicators."
+}
