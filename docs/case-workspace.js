@@ -14,7 +14,7 @@ function restoreCaseForms(values){
  }
 }
 function makeCaseSnapshot(){
- return {format:'finintel-case',schemaVersion:1,appVersion:'3.2.0',savedAt:new Date().toISOString(),
+ return {format:'finintel-case',schemaVersion:1,appVersion:'3.2.1',savedAt:new Date().toISOString(),
   dataset:{rawRows:state.rawRows,columns:state.columns,sourceName:state.sourceName,sourceType:state.sourceType,sheets:state.sheets,datasetType:state.datasetType,sourceMapping:state.sourceMapping,amountLayout:state.amountLayout,partyLayout:state.partyLayout,sheetDirections:state.sheetDirections},
   library:{customFields:state.customFields,templates:state.templates,aliasMap:state.aliasMap,counterpartyResolutions:state.counterpartyResolutions},
   forms:caseFormValues(),analysed:!!state.analysis,photo:irSubjectPhotoData,accounts:accountRows,accountFields,

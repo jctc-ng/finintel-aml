@@ -2256,6 +2256,8 @@ function populateIntelligenceReportBuilder(a){
     const items=[];
     
     items.push('Appendix II – Significant transaction analysis generated from FinIntel.');
+    items.push('Appendix III – Top originators’ individual transactions.');
+    items.push('Appendix IV – Top beneficiaries’ individual transactions.');
     $('irAttachments').value=items.join('\n');
   }
   renderIrEvidenceSummary(a);
@@ -2402,13 +2404,36 @@ function irAttachmentsHtml(){
   const lines=irField('irAttachments').split(/\n+/).map(x=>x.trim()).filter(Boolean);
   return lines.length?'<h2>ATTACHMENT</h2><ul class="ir-bullets">'+lines.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'';
 }
+function irTopPartyTransactions(a,role){
+  const limit=Math.max(1,Math.min(20,Number(irField('irTopPartyCount'))||10));
+  const parties=(role==='originator'?a.origins:a.benefits).filter(p=>norm(p.name)!=='unknown counterparty').slice(0,limit);
+  const names=new Set(parties.map(p=>norm(p.name))),direction=role==='originator'?'inflow':'outflow';
+  return a.records.filter(r=>r.direction===direction&&names.has(norm(role==='originator'?r.originator:r.beneficiary)));
+}
+function irSourceParty(r,role){
+  const explicit=r.values?.[role];if(explicit!==undefined&&String(explicit).trim())return String(explicit);
+  return (role==='originator'?r.originalOriginator:r.originalBeneficiary)||r[role]||'';
+}
+function irPartyTransactionAppendix(a,role){
+  const rows=irTopPartyTransactions(a,role),origin=role==='originator';
+  const title=origin?'APPENDIX III – TOP ORIGINATORS’ TRANSACTIONS':'APPENDIX IV – TOP BENEFICIARIES’ TRANSACTIONS';
+  return '<div class="ir-page-break"><h2>'+title+'</h2><p class="ir-small-note">Individual '+(origin?'inflow':'outflow')+' transactions for the top counterparties selected in the report settings. Original record order is preserved; transactions are not consolidated or deduplicated.</p>'
+    +(rows.length?'<table><thead><tr><th>S/N</th><th>Date</th><th>Amount</th><th>Originator</th><th>Beneficiary</th><th>Narration</th><th>Source sheet / row</th></tr></thead><tbody>'+rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(r.dateRaw||fmtDate(r.date)||'')+'</td><td>'+esc(fmt(r.amount,a.currency))+'</td><td>'+esc(irSourceParty(r,'originator'))+'</td><td>'+esc(irSourceParty(r,'beneficiary'))+'</td><td>'+esc(r.narration||'')+'</td><td>'+esc(r.sheet||'')+' / '+esc(r.row)+'</td></tr>').join('')+'</tbody></table>':'<p>No matching transactions are available.</p>')+'</div>';
+}
+function saveIrPartyTransactionsCsv(role){
+  const a=state.analysis;if(!a||a.kind!=='transaction')return;
+  const head=['Source Row','Source Sheet','Date as Supplied','Amount','Currency','Originator as Supplied','Beneficiary as Supplied','Narration','Resolved Originator','Resolved Beneficiary','Source Amount'];
+  const rows=irTopPartyTransactions(a,role).map(r=>[r.row,r.sheet||'',r.dateRaw||'',r.amount,a.currency,irSourceParty(r,'originator'),irSourceParty(r,'beneficiary'),r.narration||'',r.originator||'',r.beneficiary||'',r.values?.amount??(role==='originator'?r.values?.credit:r.values?.debit)??''].map(csvEscape).join(','));
+  const name=((irField('irCaseNumber')||'NFIU_IR')+(role==='originator'?'_Appendix_III_Originator_Transactions':'_Appendix_IV_Beneficiary_Transactions')).replace(/[^a-z0-9._-]+/gi,'_');
+  download(name+'.csv','\ufeff'+[head.map(csvEscape).join(','),...rows].join('\n'),'text/csv;charset=utf-8');
+}
 function irAppendicesHtml(a){
   const accountHtml=accountsReportSection(true);
   const top=[...a.records].filter(r=>r.amount>0).sort((x,y)=>y.amount-x.amount).slice(0,50);
   const txHtml='<div class="ir-page-break"><h2>APPENDIX II – SIGNIFICANT TRANSACTION ANALYSIS</h2><table><thead><tr><th>S/N</th><th>Transaction Date</th><th>Amount</th><th>Source/Originator</th><th>Mode of Transaction</th><th>Beneficiary</th></tr></thead><tbody>'
     +top.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td><td>'+esc(fmt(r.amount,a.currency))+'</td><td>'+esc(r.originator||'—')+'</td><td>'+esc(r.extracted?.channel||r.values?.channel||r.extracted?.category||'—')+'</td><td>'+esc(r.beneficiary||'—')+'</td></tr>').join('')
     +'</tbody></table><p class="ir-small-note">This appendix contains up to the 50 highest-value transactions in the analysed dataset. The standardised CSV should be retained for complete record-level analysis.</p></div>';
-  return accountHtml+txHtml;
+  return accountHtml+txHtml+irPartyTransactionAppendix(a,'originator')+irPartyTransactionAppendix(a,'beneficiary');
 }
 function irCounterpartyRelationshipHtml(graphData=''){
   if(!state.analysis||state.analysis.kind!=='transaction')return '';
@@ -2589,7 +2614,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.2.0 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.2.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2718,6 +2743,8 @@ $('refreshIrPreviewBtn').onclick=()=>{renderIntelligenceReportPreview();status('
 $('saveIrWordBtn').onclick=saveIntelligenceReportWord;
 $('saveIrPdfBtn').onclick=saveIntelligenceReportPdf;
 $('saveIrAppendixCsvBtn').onclick=saveIrAppendixCsv;
+$('saveIrOriginatorCsvBtn').onclick=()=>saveIrPartyTransactionsCsv('originator');
+$('saveIrBeneficiaryCsvBtn').onclick=()=>saveIrPartyTransactionsCsv('beneficiary');
 $('irSubjectPhoto').addEventListener('change',e=>{
   const file=e.target.files?.[0];
   if(!file){irSubjectPhotoData='';$('irSubjectPhotoPreview').hidden=true;$('irPhotoPlaceholder').hidden=false;return;}

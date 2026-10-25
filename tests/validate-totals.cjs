@@ -23,6 +23,11 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
   if(fixture.expected.unknownPartyInKobo!==undefined)assert.equal(observed.unknownPartyInKobo,fixture.expected.unknownPartyInKobo);
   if(fixture.expected.requiresDuplicatesFlag)assert(observed.issues.some(x=>/duplicate/i.test(x)));
   if(fixture.expected.requiresConflictFlag)assert(observed.issues.some(x=>/debit.*credit/i.test(x)));
+  const appendix=await page.evaluate(()=>{const a=state.analysis,ins=irTopPartyTransactions(a,'originator'),outs=irTopPartyTransactions(a,'beneficiary');return {inRows:ins.length,outRows:outs.length,inAmount:Math.round(ins.reduce((n,r)=>n+r.amount,0)*100),outAmount:Math.round(outs.reduce((n,r)=>n+r.amount,0)*100),html:irAppendicesHtml(a)};});
+  assert.equal(appendix.inRows,fixture.expected.inCount-(fixture.expected.unknownPartyInKobo?1:0));assert.equal(appendix.outRows,fixture.expected.outCount);
+  assert.equal(appendix.inAmount,fixture.expected.inKobo-(fixture.expected.unknownPartyInKobo||0));assert.equal(appendix.outAmount,fixture.expected.outKobo);
+  assert(appendix.html.includes('APPENDIX III')&&appendix.html.includes('APPENDIX IV'));
+  for(const [button,count] of [['saveIrOriginatorCsvBtn',appendix.inRows],['saveIrBeneficiaryCsvBtn',appendix.outRows]]){const pending=page.waitForEvent('download');await page.locator('#'+button).click();const file=await pending;const text=fs.readFileSync(await file.path(),'utf8').replace(/^\ufeff/,'');const rows=await page.evaluate(text=>parseCSV(text),text);assert.equal(rows.length,count);}
   const restored=await page.evaluate(()=>{const snapshot=parseCaseFile(JSON.stringify(makeCaseSnapshot()));applyCaseSnapshot(snapshot);return {inKobo:Math.round(state.analysis.totalIn*100),outKobo:Math.round(state.analysis.totalOut*100),netKobo:Math.round(state.analysis.net*100)};});
   for(const key of ['inKobo','outKobo','netKobo'])assert.equal(restored[key],fixture.expected[key],fixture.id+': restored '+key);
   reports.push({statement:fixture.id,result:'PASS',expected:fixture.expected,observed});console.log(fixture.id+': PASS '+JSON.stringify({in:observed.inKobo/100,out:observed.outKobo/100,net:observed.netKobo/100}));
