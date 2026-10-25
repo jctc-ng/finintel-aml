@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0d5c8f" />
-  <meta name="description" content="FinIntel AML v2.4 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
-  <title>FinIntel AML v2.4</title>
+  <meta name="description" content="FinIntel AML v2.5 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <title>FinIntel AML v2.5</title>
   <link rel="manifest" href="manifest.webmanifest?v=2.4.2" />
-  <link rel="stylesheet" href="styles.css?v=2.4.3" />
+  <link rel="stylesheet" href="styles.css?v=2.5.0" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -289,11 +289,51 @@
           <article class="card pad result-accent originator-card">
             <p class="kicker inflow-kicker">COUNTERPARTIES • INFLOW</p>
             <h3>Top Originators</h3>
+            <div class="counterparty-toolbar">
+              <input id="originatorSearch" type="search" placeholder="Search originator…" />
+              <select id="originatorSort">
+                <option value="total-desc">Total — highest first</option>
+                <option value="total-asc">Total — lowest first</option>
+                <option value="count-desc">Count — highest first</option>
+                <option value="count-asc">Count — lowest first</option>
+                <option value="name-asc">Name — A to Z</option>
+                <option value="name-desc">Name — Z to A</option>
+                <option value="share-desc">Share — highest first</option>
+              </select>
+              <select id="originatorMinCount">
+                <option value="1">All transaction counts</option>
+                <option value="2">2+ transactions</option>
+                <option value="3">3+ transactions</option>
+                <option value="5">5+ transactions</option>
+                <option value="10">10+ transactions</option>
+              </select>
+              <span id="originatorTableCount" class="table-count-pill">0 shown</span>
+            </div>
             <div id="originatorTable" class="table-wrap"></div>
           </article>
           <article class="card pad result-accent beneficiary-card">
             <p class="kicker outflow-kicker">COUNTERPARTIES • OUTFLOW</p>
             <h3>Top Beneficiaries</h3>
+            <div class="counterparty-toolbar">
+              <input id="beneficiarySearch" type="search" placeholder="Search beneficiary…" />
+              <select id="beneficiarySort">
+                <option value="total-desc">Total — highest first</option>
+                <option value="total-asc">Total — lowest first</option>
+                <option value="count-desc">Count — highest first</option>
+                <option value="count-asc">Count — lowest first</option>
+                <option value="name-asc">Name — A to Z</option>
+                <option value="name-desc">Name — Z to A</option>
+                <option value="share-desc">Share — highest first</option>
+              </select>
+              <select id="beneficiaryMinCount">
+                <option value="1">All transaction counts</option>
+                <option value="2">2+ transactions</option>
+                <option value="3">3+ transactions</option>
+                <option value="5">5+ transactions</option>
+                <option value="10">10+ transactions</option>
+              </select>
+              <span id="beneficiaryTableCount" class="table-count-pill">0 shown</span>
+            </div>
             <div id="beneficiaryTable" class="table-wrap"></div>
           </article>
         </section>
@@ -346,6 +386,20 @@
           <article class="card pad result-accent flow-card">
             <p class="kicker flow-kicker">FLOW OF FUNDS</p>
             <h3>Counterparty relationship view</h3>
+            <p class="network-help">Green = originators/inflows • Blue = beneficiaries/outflows • Gold = subject. Use the controls to focus the relationship view.</p>
+            <div class="network-toolbar">
+              <label>From<input id="networkDateFrom" type="date" /></label>
+              <label>To<input id="networkDateTo" type="date" /></label>
+              <label>Parties per side
+                <input id="networkPartyCount" type="number" value="4" min="4" max="20" step="1" />
+              </label>
+              <div class="network-zoom-controls" aria-label="Network zoom controls">
+                <button id="networkZoomOut" class="btn ghost" type="button" title="Zoom out">−</button>
+                <button id="networkZoomReset" class="btn ghost" type="button" title="Reset zoom">100%</button>
+                <button id="networkZoomIn" class="btn ghost" type="button" title="Zoom in">+</button>
+              </div>
+            </div>
+            <div id="networkRangeStatus" class="network-range-status"></div>
             <div id="networkView" class="network-view"></div>
           </article>
         </section>
@@ -406,10 +460,10 @@
 
   <footer>
     <img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo" />
-    <div><strong>FinIntel AML v2.4</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v2.5</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.4.2" defer></script>
+  <script src="app.js?v=2.5.0" defer></script>
 </body>
 </html>
