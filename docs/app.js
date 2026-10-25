@@ -1167,6 +1167,30 @@ function profileLinkedEntities(records,name){
   }));
   return [...m.values()].sort((a,b)=>b.count-a.count||b.maxConfidence-a.maxConfidence);
 }
+function meaningfulCategory(value){
+  const v=String(value||'').trim();
+  return v&&!/^(?:other\s*\/\s*)?unclassified$/i.test(v)&&!/^no description$/i.test(v)?v:'';
+}
+function profileNarrationMeaning(r){
+  const raw=String(r.narration||'').trim();
+  const clean=String(r.extracted?.clean||'').trim();
+  const category=meaningfulCategory(r.extracted?.category);
+  const channel=String(r.extracted?.channel||'').trim();
+  const counterparty=String(r.extracted?.counterparty||'').trim();
+  const pieces=[];
+  if(category)pieces.push(category);
+  if(channel&&!pieces.some(x=>norm(x)===norm(channel)))pieces.push(channel);
+  if(counterparty&&norm(counterparty)!==norm(profilePartyName))pieces.push('Related entity: '+counterparty);
+  if(!pieces.length&&r.extracted?.account)pieces.push('Account / ID: '+r.extracted.account);
+  if(!pieces.length&&r.extracted?.wallet)pieces.push('Wallet / blockchain identifier detected');
+  if(!pieces.length&&r.extracted?.email)pieces.push('Email identifier detected');
+  if(!pieces.length&&r.extracted?.phone)pieces.push('Phone identifier detected');
+  return{
+    narration:raw||clean||'No narration mapped',
+    meaning:pieces.join(' • ')
+  };
+}
+
 function profileBehaviour(records){
   const m=new Map();
   const add=(kind,value,amount)=>{
@@ -1176,7 +1200,8 @@ function profileBehaviour(records){
     const x=m.get(k);x.count++;x.total+=Number(amount)||0;
   };
   records.forEach(r=>{
-    add('Meaning',r.extracted?.category,r.amount);
+    const category=meaningfulCategory(r.extracted?.category);
+    if(category)add('Meaning',category,r.amount);
     add('Channel',r.extracted?.channel,r.amount);
   });
   return [...m.values()].sort((a,b)=>b.count-a.count||b.total-a.total);
@@ -1219,7 +1244,8 @@ function renderProfileTransactions(){
     +(page.map(r=>{
       const role=r.direction==='inflow'?'Originator / Inflow':'Beneficiary / Outflow';
       const ids=[r.extracted?.account,r.extracted?.phone,r.extracted?.email,r.extracted?.wallet,r.txid].filter(Boolean);
-      return'<tr><td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td><td><span class="direction-badge '+esc(r.direction)+'">'+esc(role)+'</span></td><td class="num"><strong>'+esc(fmt(r.amount,a.currency))+'</strong></td><td>'+esc(r.narration||r.extracted?.meaning||'—')+(r.extracted?.category?'<br><small>'+esc(r.extracted.category)+(r.extracted.channel?' • '+esc(r.extracted.channel):'')+'</small>':'')+'</td><td>'+esc(ids.join(' • ')||'—')+'</td><td>'+esc(r.sheet||'—')+'<br><small>Row '+r.row+'</small></td></tr>';
+      const nm=profileNarrationMeaning(r);
+      return'<tr><td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td><td><span class="direction-badge '+esc(r.direction)+'">'+esc(role)+'</span></td><td class="num"><strong>'+esc(fmt(r.amount,a.currency))+'</strong></td><td><div class="profile-raw-narration">'+esc(nm.narration)+'</div>'+(nm.meaning?'<div class="profile-derived-meaning">'+esc(nm.meaning)+'</div>':'')+'</td><td>'+esc(ids.join(' • ')||'—')+'</td><td>'+esc(r.sheet||'—')+'<br><small>Row '+r.row+'</small></td></tr>';
     }).join('')||'<tr><td colspan="6">No transactions match the current profile filter.</td></tr>')
     +'</tbody></table>';
   renderProfilePagination(rows.length);
@@ -1281,7 +1307,7 @@ function exportCounterpartyProfileCsv(){
   const head=['Date','Direction','Role','Amount','Originator','Beneficiary','Narration','Meaning','Channel','Account/ID','Phone','Email','Wallet','TXID','Sheet','Source Row'];
   const body=rows.map(r=>[
     fmtDate(r.date)||r.dateRaw,r.direction,r.direction==='inflow'?'Originator':'Beneficiary',r.amount,r.originator,r.beneficiary,r.narration,
-    r.extracted?.category||'',r.extracted?.channel||'',r.extracted?.account||'',r.extracted?.phone||'',r.extracted?.email||'',r.extracted?.wallet||'',r.txid||'',r.sheet||'',r.row
+    meaningfulCategory(r.extracted?.category)||'',r.extracted?.channel||'',r.extracted?.account||'',r.extracted?.phone||'',r.extracted?.email||'',r.extracted?.wallet||'',r.txid||'',r.sheet||'',r.row
   ].map(csvEscape).join(','));
   download('finintel_counterparty_'+slug(profilePartyName)+'.csv',[head.map(csvEscape).join(','),...body].join('\n'),'text/csv');
 }
@@ -1798,7 +1824,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.9.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.9.2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1899,7 +1925,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_9_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_9_2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1931,4 +1957,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.9.1').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.9.2').then(r=>r.update()).catch(()=>{}));
