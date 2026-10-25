@@ -981,3 +981,35 @@ footer strong{color:#17384c;font-weight:850}
   background:#fffdf4;
   box-shadow:0 0 calc(18px * var(--network-scale,1)) rgba(184,149,47,.34);
 }
+
+/* FinIntel AML v2.7.2 — restored clean two-sided relationship map */
+.network-label-card{display:none!important}
+.network-canvas{
+  overflow:visible!important;
+  box-sizing:border-box!important;
+}
+.network-svg{
+  overflow:visible!important;
+}
+.network-svg text.node-name{
+  font-size:17px!important;
+  font-weight:950!important;
+  fill:#102f42!important;
+}
+.network-svg text.money{
+  font-size:14px!important;
+  font-weight:900!important;
+  fill:#23485e!important;
+}
+.network-svg text.node-date{
+  font-size:13px!important;
+  font-weight:900!important;
+  fill:#725d17!important;
+}
+.network-svg text.origin-label,
+.network-svg text.benefit-label{
+  paint-order:stroke;
+  stroke:#ffffff!important;
+  stroke-width:4px!important;
+  stroke-linejoin:round;
+}
