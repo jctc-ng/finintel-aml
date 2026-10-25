@@ -1221,13 +1221,17 @@ function nodeDateRange(x){
   }
   return 'Date unavailable';
 }
-function centerNetworkView(){
+function scrollNetworkTo(position){
   const view=$('networkView');if(!view)return;
   requestAnimationFrame(()=>{
-    view.scrollLeft=Math.max(0,(view.scrollWidth-view.clientWidth)/2);
+    const maxX=Math.max(0,view.scrollWidth-view.clientWidth);
+    if(position==='left')view.scrollLeft=0;
+    else if(position==='right')view.scrollLeft=maxX;
+    else view.scrollLeft=maxX/2;
     view.scrollTop=Math.max(0,(view.scrollHeight-view.clientHeight)/2);
   });
 }
+function centerNetworkView(){scrollNetworkTo('center');}
 function initNetworkPan(){
   const view=$('networkView');if(!view)return;
   let dragging=false,startX=0,startY=0,startLeft=0,startTop=0;
@@ -1282,7 +1286,12 @@ function renderNetwork(a){
     return;
   }
 
-  let s='<svg class="network-svg" style="width:'+Math.round(width*networkZoom)+'px" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Originator and beneficiary relationship view">';
+  const scaledWidth=Math.round(width*networkZoom);
+  const scaledHeight=Math.round(height*networkZoom);
+  const sideBuffer=Math.max(320,Math.round(360*networkZoom));
+  const canvasWidth=scaledWidth+(sideBuffer*2);
+  let s='<div class="network-canvas" style="width:'+canvasWidth+'px;min-width:'+canvasWidth+'px;padding-left:'+sideBuffer+'px;padding-right:'+sideBuffer+'px">'
+    +'<svg class="network-svg" width="'+scaledWidth+'" height="'+scaledHeight+'" viewBox="0 0 '+width+' '+height+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Originator and beneficiary relationship view">';
   o.forEach((x,i)=>{
     const y=oy[i],label=shortName(x.name,36),dates=nodeDateRange(x);
     s+='<line class="origin-link" x1="'+originLineStart+'" y1="'+y+'" x2="'+originLineEnd+'" y2="'+subjectY+'"/>'
@@ -1301,7 +1310,7 @@ function renderNetwork(a){
   });
   s+='<circle class="subject" cx="'+subjectX+'" cy="'+subjectY+'" r="56"/>'
     +'<text class="subject-label" x="'+subjectX+'" y="'+(subjectY-3)+'" text-anchor="middle">'+esc(shortName(subject,22))+'</text>'
-    +'<text class="subject-sub" x="'+subjectX+'" y="'+(subjectY+20)+'" text-anchor="middle">SUBJECT</text></svg>';
+    +'<text class="subject-sub" x="'+subjectX+'" y="'+(subjectY+20)+'" text-anchor="middle">SUBJECT</text></svg></div>';
   $('networkView').innerHTML=s;
   initNetworkPan();
   centerNetworkView();
@@ -1416,7 +1425,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6.2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1501,13 +1510,15 @@ $('networkPartyCount').addEventListener('change',()=>{if(state.analysis?.kind===
 $('networkZoomOut').onclick=()=>setNetworkZoom(networkZoom-.15);
 $('networkZoomIn').onclick=()=>setNetworkZoom(networkZoom+.15);
 $('networkZoomReset').onclick=()=>setNetworkZoom(1);
+$('networkLeft').onclick=()=>scrollNetworkTo('left');
 $('networkCenter').onclick=centerNetworkView;
+$('networkRight').onclick=()=>scrollNetworkTo('right');
 $('exportCsvBtn').onclick=exportCSV;
 $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1539,4 +1550,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.1').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.2').then(r=>r.update()).catch(()=>{}));
