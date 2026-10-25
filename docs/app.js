@@ -49,6 +49,7 @@ const CORE_FIELDS=[
   {id:'blockchain',label:'Blockchain',type:'text',category:'crypto'},
   {id:'network',label:'Network',type:'text',category:'crypto'},
   {id:'vasp_uid',label:'VASP / Exchange UID',type:'identifier',category:'crypto'},
+  {id:'transaction_status',label:'Transaction Status',type:'text',category:'crypto'},
   {id:'transaction_type',label:'Transaction Type',type:'text',category:'crypto'},
   {id:'ip',label:'IP Address',type:'ip',category:'technical',sensitivity:'confidential'},
   {id:'device',label:'Device ID',type:'device',category:'technical',sensitivity:'confidential'},
@@ -103,14 +104,15 @@ const autoPatterns={
   ubo:[/\bubo\b/i,/beneficial.*owner/i],
   ownership_pct:[/ownership/i,/share.*percent/i,/percentage/i],
   country:[/^country$/i,/jurisdiction/i],
-  asset:[/^asset$/i,/coin/i,/token/i],
-  quantity:[/quantity/i,/crypto.*amount/i,/asset.*amount/i],
+  asset:[/^asset$/i,/coin/i,/token/i,/^symbol$/i],
+  quantity:[/quantity/i,/crypto.*amount/i,/asset.*amount/i,/^volume$/i],
   wallet:[/^wallet$/i,/wallet.*address/i,/deposit.*address/i],
   counterparty_wallet:[/counterparty.*wallet/i,/withdrawal.*address/i,/destination.*address/i],
   blockchain:[/blockchain/i,/chain$/i],
   network:[/^network$/i],
   vasp_uid:[/\buid\b/i,/exchange.*id/i,/vasp.*id/i],
-  transaction_type:[/transaction.*type/i,/tx.*type/i],
+  transaction_status:[/^status$/i,/transaction.*status/i,/tx.*status/i],
+  transaction_type:[/transaction.*type/i,/tx.*type/i,/^type$/i,/^operation$/i],
   ip:[/^ip$/i,/ip.*address/i],
   device:[/device.*id/i,/device$/i,/imei/i],
   channel:[/channel/i],
@@ -1263,7 +1265,7 @@ function universalAnalysis(records){
   const totalCells=records.length*profiles.length;
   const filled=sum(profiles,p=>p.nonEmpty);
   const completeness=totalCells?filled/totalCells*100:0;
-  return{
+  const result={
     kind:'universal',records,profiles,
     mappedCount:profiles.length,
     completeness,
@@ -1276,6 +1278,7 @@ function universalAnalysis(records){
       evidence:p.field.sensitivity==='highly-sensitive'?'Sensitive value hidden in profile view.':(p.topRepeated?'Most repeated value appeared '+p.topRepeated.count+' times.':'')
     }))
   };
+  return state.datasetType==='crypto'?cryptoAnalysis(records,result):result;
 }
 
 function renderMetrics(a){
@@ -2300,6 +2303,7 @@ function irExternalSection(title,status,textValue){
   return'<h2>'+esc(title.toUpperCase())+'</h2><p>'+esc(body).replace(/\n/g,'<br>')+'</p>';
 }
 function irGeneratedFindings(a){
+  if(a.kind==='crypto')return cryptoFindings(a);
   const out=[],records=a.records||[],money=value=>fmt(value,a.currency),pct=(value,total)=>total?(value/total*100).toFixed(1)+'%':'0.0%';
   const ins=a.ins||records.filter(r=>r.direction==='inflow'),outs=a.outs||records.filter(r=>r.direction==='outflow');
   const origins=(a.origins||[]).filter(p=>norm(p.name)!=='unknown counterparty'),benefits=(a.benefits||[]).filter(p=>norm(p.name)!=='unknown counterparty');
@@ -2353,6 +2357,7 @@ function irDraftInference(a){
 }
 function generateIntelligenceReportDraft(){
   const a=state.analysis;
+  if(a?.kind==='crypto'){generateCryptoReport(a);return;}
   if(!a||a.kind!=='transaction'){status('irExportStatus','Run a transaction analysis before generating the intelligence report.',true);return;}
   populateIntelligenceReportBuilder(a);
   const subject=irField('irSubject')||$('subjectName')?.value?.trim()||'the subject';
@@ -2454,7 +2459,8 @@ function irPartyTransactionAppendix(a,role){
     +(rows.length?'<table><thead><tr><th>S/N</th><th>Date</th><th>Amount</th><th>Originator</th><th>Beneficiary</th><th>Narration</th><th>Source sheet / row</th></tr></thead><tbody>'+rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(r.dateRaw||fmtDate(r.date)||'')+'</td><td>'+esc(fmt(r.amount,a.currency))+'</td><td>'+esc(irSourceParty(r,'originator'))+'</td><td>'+esc(irSourceParty(r,'beneficiary'))+'</td><td>'+esc(r.narration||'')+'</td><td>'+esc(r.sheet||'')+' / '+esc(r.row)+'</td></tr>').join('')+'</tbody></table>':'<p>No matching transactions are available.</p>')+'</div>';
 }
 function saveIrPartyTransactionsCsv(role){
-  const a=state.analysis;if(!a||a.kind!=='transaction')return;
+  const a=state.analysis;
+  if(a?.kind==='crypto'){exportCryptoCsv(a,role==='originator'?'deposit':'withdrawal');return;}if(!a||a.kind!=='transaction')return;
   const head=['Source Row','Source Sheet','Date as Supplied','Amount','Currency','Originator as Supplied','Beneficiary as Supplied','Narration','Resolved Originator','Resolved Beneficiary','Source Amount'];
   const rows=irTopPartyTransactions(a,role).map(r=>[r.row,r.sheet||'',r.dateRaw||'',r.amount,a.currency,irSourceParty(r,'originator'),irSourceParty(r,'beneficiary'),r.narration||'',r.originator||'',r.beneficiary||'',r.values?.amount??(role==='originator'?r.values?.credit:r.values?.debit)??''].map(csvEscape).join(','));
   const name=((irField('irCaseNumber')||'NFIU_IR')+(role==='originator'?'_Appendix_III_Originator_Transactions':'_Appendix_IV_Beneficiary_Transactions')).replace(/[^a-z0-9._-]+/gi,'_');
@@ -2475,6 +2481,7 @@ function irCounterpartyRelationshipHtml(graphData=''){
 }
 function intelligenceReportBodyHtml(graphData='',logoData=''){
   const a=state.analysis;
+  if(a?.kind==='crypto')return cryptoReportBody(a,logoData);
   if(!a||a.kind!=='transaction')return'';
   const appendixHtml=irAppendicesHtml(a);
   const background=irField('irBackground')||'[Analyst input required: state the reporting trigger/background.]';
@@ -2486,7 +2493,7 @@ function intelligenceReportBodyHtml(graphData='',logoData=''){
   const logoUrl=logoData||new URL('assets/nfiu-logo.jpg?v=20261025b',window.location.href).href;
   const header='<div class="ir-header"><img src="'+esc(logoUrl)+'" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Any information contained in this report is sensitive, and is not to be disseminated outside your organization without express approval from the Nigerian Financial Intelligence Unit</div><h2 class="ir-main-title">INTELLIGENCE REPORT</h2></div>'
     +'<table class="ir-meta"><tbody><tr><th>Agency:</th><td>'+esc(irField('irAgency')||'—')+'</td><th>Date:</th><td>'+esc(reportDate)+'</td></tr><tr><th>Address:</th><td>'+esc(irField('irAgencyAddress')||'—')+'</td><th>NFIU Case #:</th><td>'+esc(irField('irCaseNumber')||'—')+'</td></tr><tr><th>To:</th><td colspan="3">'+esc(irField('irRecipient')||'—')+'</td></tr><tr><th>Subject:</th><td colspan="3"><strong>'+esc(irField('irSubject')||$('subjectName')?.value?.trim()||'—')+'</strong></td></tr></tbody></table>';
-  return '<p class="ir-small-note" style="text-align:right">Generated with FinIntel v3.2.4</p>'+header
+  return '<p class="ir-small-note" style="text-align:right">Generated with FinIntel v3.3.0</p>'+header
     +'<h2>ABSTRACT</h2><p>'+esc(abstract).replace(/\n/g,'<br>')+'</p>'
     +'<h2>NARRATIVE</h2><h3>Background</h3><p>'+esc(background).replace(/\n/g,'<br>')+'</p>'
     +irProfileHtml()
@@ -2519,18 +2526,18 @@ function renderIrEvidenceSummary(a){
 }
 function renderIntelligenceReportPreview(){
   const a=state.analysis;
-  if(!a||a.kind!=='transaction')return;
+  if(!a||!['transaction','crypto'].includes(a.kind))return;
   const preview=$('irReportPreview');if(!preview)return;
   preview.innerHTML='<div class="ir-preview-paper">'+intelligenceReportBodyHtml()+'</div>';
   renderIrEvidenceSummary(a);
 }
 async function saveIntelligenceReportWord(){
   const a=state.analysis;
-  if(!a||a.kind!=='transaction'){status('irExportStatus','No transaction analysis is available.',true);return;}
+  if(!a||!['transaction','crypto'].includes(a.kind)){status('irExportStatus','No transaction analysis is available.',true);return;}
   renderIntelligenceReportPreview();
   const file=((irField('irCaseNumber')||'NFIU_IR')+'_'+(irField('irSubject')||'Subject')).replace(/[^a-z0-9._-]+/gi,'_');
   try{
-    const graphData=await exportGraphPngData();
+    const graphData=a.kind==='crypto'?'':await exportGraphPngData();
     const blob=await FinIntelDocx.build(intelligenceReportDocumentHtml(graphData));
     FinIntelDocx.save(file+'.docx',blob);
   }catch(error){status('irExportStatus','Unable to export DOCX report: '+error.message,true);return;}
@@ -2538,10 +2545,10 @@ async function saveIntelligenceReportWord(){
 }
 async function saveIntelligenceReportPdf(){
   const a=state.analysis;
-  if(!a||a.kind!=='transaction'){status('irExportStatus','No transaction analysis is available.',true);return;}
+  if(!a||!['transaction','crypto'].includes(a.kind)){status('irExportStatus','No transaction analysis is available.',true);return;}
   try{
     status('irExportStatus','Embedding images for print / PDF…');
-    const graph=await exportGraphPngData();
+    const graph=a.kind==='crypto'?'':await exportGraphPngData();
     const response=await fetch(new URL('assets/nfiu-logo.jpg?v=20261025b',window.location.href));
     if(!response.ok)throw Error('The cached logo is unavailable. Reconnect once to prepare the offline files.');
     const logo=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Could not read the logo.'));response.blob().then(blob=>reader.readAsDataURL(blob),reject);});
@@ -2557,6 +2564,7 @@ async function saveIntelligenceReportPdf(){
 }
 function saveIrAppendixCsv(){
   const a=state.analysis;
+  if(a?.kind==='crypto'){exportCryptoCsv(a);return;}
   if(!a||a.kind!=='transaction')return;
   const head=['Source Row','Date','Amount','Direction','Source/Originator','Mode','Beneficiary','Narration','Source Sheet'];
   const rows=a.records.map(r=>[r.row,fmtDate(r.date)||r.dateRaw||'',r.amount,r.direction,r.originator||'',r.extracted?.channel||r.values?.channel||r.extracted?.category||'',r.beneficiary||'',r.narration||'',r.sheet||''].map(csvEscape).join(','));
@@ -2602,7 +2610,7 @@ function renderAnalysis(a){
   $('resultMeta').textContent=state.sourceName+' • '+datasetLabel()+' • '+a.records.length.toLocaleString()+' record(s)';
   const badge=$('overallRisk');
   if(a.kind==='transaction'){badge.className='risk-badge '+a.risk;badge.textContent=a.risk.toUpperCase()+' • '+a.riskScore+'/100';}
-  else{badge.className='risk-badge low';badge.textContent='DATA PROFILE';}
+  else{badge.className='risk-badge low';badge.textContent=a.kind==='crypto'?'CRYPTO RECORD ANALYSIS':'DATA PROFILE';}
   renderMetrics(a);
   $('transactionResults').hidden=a.kind!=='transaction';
   $('directionFilter').hidden=a.kind!=='transaction';
@@ -2615,8 +2623,11 @@ function renderAnalysis(a){
     renderDescriptionIntelligence(a);
     renderAlerts(a);renderSupplementalIndicators(a);renderNetwork(a);
   }
+  if(a.kind==='crypto'){irSetIfBlank('irReportDate',irTodayInput());irSetIfBlank('irSubject',irField('subjectName')||firstMappedValue('name'));irSetIfBlank('irFullName',irField('irSubject'));$('draftSummary').value=cryptoFindings(a).join('\n');}
+  if($('saveIrOriginatorCsvBtn'))$('saveIrOriginatorCsvBtn').textContent=a.kind==='crypto'?'Deposit Transactions CSV':'Originator Transactions CSV';
+  if($('saveIrBeneficiaryCsvBtn'))$('saveIrBeneficiaryCsvBtn').textContent=a.kind==='crypto'?'Withdrawal Transactions CSV':'Beneficiary Transactions CSV';
   renderProfiles(a);renderRecords();renderAliasLibrary();
-  $('draftSummary').value=makeDraft(a);
+  $('draftSummary').value=a.kind==='crypto'?cryptoFindings(a).join('\n'):makeDraft(a);
 }
 
 function download(filename,text,type){
@@ -2648,7 +2659,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.2.4 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.3.0 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2773,7 +2784,7 @@ $('profileTransactionSearch').addEventListener('input',()=>{profilePage=1;render
 $('profileDirectionFilter').addEventListener('change',()=>{profilePage=1;renderProfileTransactions();});
 $('exportProfileCsv').onclick=exportCounterpartyProfileCsv;
 $('generateIrDraftBtn').onclick=generateIntelligenceReportDraft;
-$('refreshIrFindingsBtn').onclick=()=>{const a=state.analysis;if(!a||a.kind!=='transaction')return;$('irFindings').value=irGeneratedFindings(a).map(x=>'• '+x).join('\n');renderIntelligenceReportPreview();if(typeof markCaseDirty==='function')markCaseDirty();status('irExportStatus','Findings refreshed. Review the observations and screening indicators before export.');};
+$('refreshIrFindingsBtn').onclick=()=>{const a=state.analysis;if(!a||!['transaction','crypto'].includes(a.kind))return;$('irFindings').value=irGeneratedFindings(a).map(x=>'• '+x).join('\n');renderIntelligenceReportPreview();if(typeof markCaseDirty==='function')markCaseDirty();status('irExportStatus','Findings refreshed. Review the observations and screening indicators before export.');};
 $('refreshIrPreviewBtn').onclick=()=>{renderIntelligenceReportPreview();status('irExportStatus','Preview refreshed from the current analyst inputs.');};
 $('saveIrWordBtn').onclick=saveIntelligenceReportWord;
 $('saveIrPdfBtn').onclick=saveIntelligenceReportPdf;
@@ -3006,3 +3017,62 @@ setupSubjectProfileImport();
 
 
 
+
+
+function cryptoDecimal(value){
+  let s=String(value??'').trim().replace(/,/g,'').replace(/^([+-]?)\./,'$10.');
+  const scientific=s.match(/^([+-]?)(\d+)(?:\.(\d*))?[eE]([+-]?\d+)$/);
+  if(scientific){const [,sign,integer,fraction='',exponent]=scientific,e=Number(exponent);if(Math.abs(e)>100)return null;const digits=integer+fraction,point=integer.length+e;s=sign+(point<=0?'0.'+'0'.repeat(-point)+digits:point>=digits.length?digits+'0'.repeat(point-digits.length):digits.slice(0,point)+'.'+digits.slice(point));}
+  if(!/^[+-]?\d+(?:\.\d+)?$/.test(s))return null;
+  const [whole,fraction='']=s.replace(/^[+-]/,'').split('.');return {units:BigInt(whole+fraction),scale:fraction.length};
+}
+function cryptoQuantitySum(records){
+  let units=0n,scale=0;for(const r of records){const n=cryptoDecimal(r.quantity);if(!n)continue;if(n.scale>scale){units*=10n**BigInt(n.scale-scale);scale=n.scale;}units+=n.units*10n**BigInt(scale-n.scale);}
+  const digits=units.toString().padStart(scale+1,'0');return scale?(digits.slice(0,-scale)+'.'+digits.slice(-scale)).replace(/\.?0+$/,''):digits;
+}
+function cryptoRecordType(v){
+  const type=norm(v.transaction_type),direction=norm(v.direction);
+  if(/fail|cancel|reject|pending|revers|processing|queued|unconfirmed/.test(norm(v.transaction_status)))return 'non-final';
+  if(/p2p|peer.to.peer/.test(type))return 'p2p';
+  if(/internal/.test(type))return 'internal transfer';
+  if(/trade|swap|buy|sell|convert/.test(type))return 'trade';
+  if(/fee|charge/.test(type))return 'fee';
+  const typedIn=/^(?:(?:on.chain|crypto|asset)\s+)?(?:deposit|deposits|receive|received|incoming)$/.test(type),typedOut=/^(?:(?:on.chain|crypto|asset)\s+)?(?:withdrawal|withdraw|withdrawals|send|sent|outgoing)$/.test(type);
+  const directIn=/^(credit|cr|inflow|deposit|incoming)$/.test(direction),directOut=/^(debit|dr|outflow|withdrawal|outgoing)$/.test(direction);
+  if((typedIn&&directOut)||(typedOut&&directIn))return 'unclassified';
+  if(typedIn||directIn)return 'deposit';
+  if(typedOut||directOut)return 'withdrawal';
+  return 'unclassified';
+}
+function cryptoAnalysis(records,base){
+  const rows=records.map(r=>({...r,quantity:String(r.values.quantity??r.values.amount??'').trim(),asset:String(r.values.asset||'Not supplied').trim().toUpperCase(),network:String(r.values.blockchain||r.values.network||'Not supplied').trim().toUpperCase(),cryptoType:cryptoRecordType({...r.values,direction:r.values.direction||(r.sheetHint==='inflow'?'credit':r.sheetHint==='outflow'?'debit':'')})}));
+  const groups=new Map();for(const r of rows){const key=JSON.stringify([r.asset,r.network]);if(!groups.has(key))groups.set(key,{asset:r.asset,network:r.network,records:[]});groups.get(key).records.push(r);}
+  return {...base,kind:'crypto',records:rows,cryptoGroups:[...groups.values()],invalidQuantity:rows.filter(r=>!cryptoDecimal(r.quantity)).length,missingAsset:rows.filter(r=>r.asset==='NOT SUPPLIED').length,missingNetwork:rows.filter(r=>r.network==='NOT SUPPLIED').length};
+}
+function cryptoFindings(a){
+  const out=[a.records.length+' cryptocurrency/exchange record(s) were examined. Quantities are grouped separately by asset and supplied network; no cross-asset or fiat-value total is inferred.'];
+  for(const g of a.cryptoGroups){const deposits=g.records.filter(r=>r.cryptoType==='deposit'),withdrawals=g.records.filter(r=>r.cryptoType==='withdrawal');out.push(g.asset+' / '+g.network+': '+deposits.length+' deposit record(s), total quantity '+cryptoQuantitySum(deposits).trim()+'; '+withdrawals.length+' withdrawal record(s), total quantity '+cryptoQuantitySum(withdrawals).trim()+'. Quantities are based on valid numeric entries only.');}
+  for(const type of ['trade','p2p','internal transfer','fee','non-final','unclassified']){const count=a.records.filter(r=>r.cryptoType===type).length;if(count)out.push(count+' record(s) were classified as '+type+' and kept outside deposit/withdrawal totals.');}
+  if(a.invalidQuantity)out.push(a.invalidQuantity+' record(s) had missing or unreadable asset quantities; these entries were retained in the appendices but excluded from quantity totals.');
+  if(a.missingAsset||a.missingNetwork)out.push('Asset was not supplied for '+a.missingAsset+' record(s); network was not supplied for '+a.missingNetwork+' record(s). Labels and mappings require analyst verification.');
+  out.push('Classification uses mapped transaction type, direction and status. An unspecified status is not proof that a transaction completed. No wallet ownership, exchange attribution, blockchain tracing or offence is inferred from these records alone.');
+  return out;
+}
+function cryptoSummaryHtml(a){return '<table><thead><tr><th>Asset</th><th>Network</th><th>Deposit quantity</th><th>Withdrawal quantity</th><th>Records</th></tr></thead><tbody>'+a.cryptoGroups.map(g=>'<tr><td>'+esc(g.asset)+'</td><td>'+esc(g.network)+'</td><td>'+esc(cryptoQuantitySum(g.records.filter(r=>r.cryptoType==='deposit')).trim())+'</td><td>'+esc(cryptoQuantitySum(g.records.filter(r=>r.cryptoType==='withdrawal')).trim())+'</td><td>'+g.records.length+'</td></tr>').join('')+'</tbody></table>';}
+function cryptoRowsHtml(rows){return '<table><thead><tr><th>Date</th><th>Type</th><th>Asset / Network</th><th>Quantity as supplied</th><th>Wallet / UID</th><th>Counterparty wallet</th><th>Hash / Reference</th><th>Source record</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.dateRaw)+'</td><td>'+esc(r.cryptoType)+'</td><td>'+esc(r.asset+' / '+r.network)+'</td><td>'+esc(r.quantity)+'</td><td>'+esc(r.values.wallet||r.values.account||r.values.vasp_uid||'')+'</td><td>'+esc(r.values.counterparty_wallet||'')+'</td><td>'+esc(r.values.txid||'')+'</td><td>'+esc(r.sheet)+' / '+r.row+'</td></tr>').join('')+'</tbody></table>';}
+function cryptoAppendicesHtml(a){return '<div class="ir-page-break"><h2>APPENDIX I – CRYPTO ASSET AND NETWORK SUMMARY</h2>'+cryptoSummaryHtml(a)+'</div><div class="ir-page-break"><h2>APPENDIX II – ALL CRYPTO RECORDS</h2>'+cryptoRowsHtml(a.records)+'</div><div class="ir-page-break"><h2>APPENDIX III – DEPOSIT TRANSACTIONS</h2>'+cryptoRowsHtml(a.records.filter(r=>r.cryptoType==='deposit'))+'</div><div class="ir-page-break"><h2>APPENDIX IV – WITHDRAWAL TRANSACTIONS</h2>'+cryptoRowsHtml(a.records.filter(r=>r.cryptoType==='withdrawal'))+'</div>';}
+function cryptoReportBody(a,logoData=''){
+ const appendices=cryptoAppendicesHtml(a),logo=logoData||new URL('assets/nfiu-logo.jpg?v=20261025b',location.href).href;
+ return '<p class="ir-small-note">Generated with FinIntel v3.3.0 – Crypto record analysis</p><div class="ir-header"><img src="'+esc(logo)+'" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Sensitive intelligence. Dissemination requires appropriate authorization.</div><h2>INTELLIGENCE REPORT</h2></div><table><tr><th>Case reference</th><td>'+esc(irField('irCaseNumber'))+'</td><th>Date</th><td>'+esc(irField('irReportDate'))+'</td></tr><tr><th>Agency / To</th><td colspan="3">'+esc(irField('irAgency')+' / '+irField('irRecipient'))+'</td></tr><tr><th>Subject</th><td colspan="3">'+esc(irField('irSubject')||irField('subjectName'))+'</td></tr></table><h2>ABSTRACT</h2><p>'+esc(irField('irAbstract'))+'</p><h2>NARRATIVE</h2><p>'+esc(irField('irBackground'))+'</p>'+irProfileHtml()+'<h2>CRYPTOCURRENCY / VASP RECORD ANALYSIS</h2>'+cryptoSummaryHtml(a)+irExternalSection('Law Enforcement Database',irField('irLawStatus'),irField('irLawText'))+irExternalSection('Regulatory Authority Database',irField('irRegStatus'),irField('irRegText'))+irExternalSection('Commercial Database',irField('irCommercialStatus'),irField('irCommercialText'))+irExternalSection('Open Source',irField('irOsintStatus'),irField('irOsintText'))+'<h2>FINDINGS</h2><div class="ir-pre">'+esc(irField('irFindings'))+'</div><h2>INFERENCE</h2><p>'+esc(irField('irInference'))+'</p><h2>RECOMMENDATION</h2><p>'+esc(irField('irRecommendation'))+'</p>'+irAttachmentsHtml(appendices)+appendices;
+}
+function generateCryptoReport(a){
+ irSetIfBlank('irReportDate',irTodayInput());irSetIfBlank('irSubject',irField('subjectName')||firstMappedValue('name'));irSetIfBlank('irFullName',irField('irSubject'));
+ $('irAbstract').value='Analysis examined '+a.records.length+' cryptocurrency/exchange records from '+state.sourceName+'. The analysis presents asset/network-specific quantities and separates deposits, withdrawals and other record types. External database results and ownership assertions require analyst-supplied evidence.';
+ $('irFindings').value=cryptoFindings(a).map(x=>'• '+x).join('\n');
+ if(!irField('irInference'))$('irInference').value='The uploaded records show the activity described above. Classification, transaction completion, subject ownership and counterparties require verification against the exchange or blockchain source before an intelligence assessment is finalized.';
+ renderIntelligenceReportPreview();$('irBuilderStatusPill').textContent='Crypto draft generated • analyst review required';status('irExportStatus','Crypto intelligence report generated. Review mappings, quantities and findings before export.');
+}
+function exportCryptoCsv(a,type){
+ const rows=type?a.records.filter(r=>r.cryptoType===type):a.records,headers=['Source record','Source sheet','Date as supplied','Type','Status','Asset','Network','Quantity as supplied','Wallet','UID','Counterparty wallet','Hash / Reference','Narration'];
+ const body=rows.map(r=>[r.row,r.sheet,r.dateRaw,r.cryptoType,r.values.transaction_status||'',r.asset,r.network,r.quantity,r.values.wallet||r.values.account||'',r.values.vasp_uid||'',r.values.counterparty_wallet||'',r.values.txid||'',r.narration].map(csvEscape).join(','));download('FinIntel_Crypto_'+(type||'All_Records')+'.csv','\ufeff'+[headers.join(','),...body].join('\n'),'text/csv;charset=utf-8');
+}

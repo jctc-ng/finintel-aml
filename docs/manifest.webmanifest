@@ -1,5 +1,5 @@
 {
-  "name": "FinIntel AML v3.2.4",
+  "name": "FinIntel AML v3.3.0",
   "short_name": "FinIntel",
   "start_url": "./",
   "scope": "./",
@@ -22,5 +22,6 @@
     }
   ]
 }
+
 
 
