@@ -2396,7 +2396,12 @@ function irAppendicesHtml(a){
     +'</tbody></table><p class="ir-small-note">This appendix contains up to the 50 highest-value transactions in the analysed dataset. The standardised CSV should be retained for complete record-level analysis.</p></div>';
   return accountHtml+txHtml;
 }
-function intelligenceReportBodyHtml(){
+function irCounterpartyRelationshipHtml(graphData=''){
+  if(!state.analysis||state.analysis.kind!=='transaction')return '';
+  const src=graphData||'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(exportGraphSvgMarkup());
+  return '<section style="text-align:center;break-inside:avoid;page-break-inside:avoid;margin:20px 0"><h2 style="text-align:center;text-transform:none">Counterparty relationship view</h2><img src="'+esc(src)+'" alt="Counterparty relationship graph with the subject at the centre" style="display:block;width:100%;max-width:100%;height:auto;margin:12px auto"></section>';
+}
+function intelligenceReportBodyHtml(graphData=''){
   const a=state.analysis;
   if(!a||a.kind!=='transaction')return'';
   const background=irField('irBackground')||'[Analyst input required: state the reporting trigger/background.]';
@@ -2413,6 +2418,7 @@ function intelligenceReportBodyHtml(){
     +'<h2>NARRATIVE</h2><h3>Background</h3><p>'+esc(background).replace(/\n/g,'<br>')+'</p>'
     +irProfileHtml()
     +irFinancialDatabaseHtml(a)
+    +irCounterpartyRelationshipHtml(graphData)
     +irExternalSection('Law Enforcement Database',$('irLawStatus').value,irField('irLawText'))
     +irExternalSection('Regulatory Authority Database',$('irRegStatus').value,irField('irRegText'))
     +irExternalSection('Commercial Database',$('irCommercialStatus').value,irField('irCommercialText'))
@@ -2425,11 +2431,11 @@ function intelligenceReportBodyHtml(){
     +'<div class="ir-signature"><strong>DCEO NFIU</strong><strong>Date: '+esc(reportDate)+'</strong></div>'
     +irAppendicesHtml(a);
 }
-function intelligenceReportDocumentHtml(){
+function intelligenceReportDocumentHtml(graphData=''){
   const title=esc((irField('irCaseNumber')||'NFIU Intelligence Report')+' - '+(irField('irSubject')||'Subject'));
   return'<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'
     +'@page{size:A4;margin:16mm 15mm 22mm}*{box-sizing:border-box}body{font-family:"Courier New",Courier,monospace;color:#111;font-size:10.5pt;line-height:1.22;margin:0}.ir-doc{max-width:190mm;margin:0 auto}.ir-header{text-align:center}.ir-header img{width:78px;height:78px;object-fit:contain}.ir-header h1{font-size:14pt;margin:4px 0}.ir-warning{border:1.5px solid #111;padding:5px 8px;font-weight:700;font-size:9.5pt}.ir-main-title{font-size:14pt;text-decoration:none;margin:10px 0 5px}.ir-meta,.ir-profile-table,table{width:100%;border-collapse:collapse}.ir-meta th,.ir-meta td,.ir-profile-table th,.ir-profile-table td,table th,table td{border:1px solid #555;padding:4px 5px;text-align:left;vertical-align:top}.ir-meta th{width:18%;font-weight:800}.ir-doc h2{font-size:12pt;text-transform:uppercase;text-decoration:underline;margin:14px 0 4px}.ir-doc h3{font-size:11pt;margin:7px 0 2px}.ir-doc p{margin:3px 0 7px;text-align:justify}.ir-bullets{margin:5px 0 10px;padding-left:22px}.ir-bullets li{margin:3px 0;text-align:justify}.ir-subject-photo{width:30mm;padding:3px!important}.ir-subject-photo img{width:28mm;max-height:38mm;object-fit:cover}.ir-pre{white-space:pre-wrap;margin:4px 0 9px}.ir-note{margin-top:16px!important}.ir-signature{display:flex;justify-content:space-between;border-top:1px solid #111;margin-top:22px;padding-top:5px}.ir-draft-note{padding:6px;border-left:4px solid #c48a18;background:#fff8df}.ir-page-break{break-before:page;page-break-before:always}.ir-small-note{font-size:8.5pt}.ir-print-footer{position:fixed;bottom:-14mm;left:0;right:0;text-align:center;color:#b72727;font-size:7.5pt;font-weight:700}.ir-draft-banner{border:2px solid #b87519;background:#fff5e7;padding:7px;text-align:center;font-weight:800;margin-bottom:10px}@media print{.ir-draft-banner{display:block}}'
-    +'</style></head><body><div class="ir-doc"><div class="ir-draft-banner">DRAFT – ANALYST REVIEW REQUIRED BEFORE DISSEMINATION</div>'+intelligenceReportBodyHtml()+'</div><div class="ir-print-footer">Unauthorized disclosure of information contained herein is strictly prohibited and against the Official Secrets Act and Section 18 of the Nigerian Financial Intelligence Unit Act, 2018</div></body></html>';
+    +'</style></head><body><div class="ir-doc"><div class="ir-draft-banner">DRAFT – ANALYST REVIEW REQUIRED BEFORE DISSEMINATION</div>'+intelligenceReportBodyHtml(graphData)+'</div><div class="ir-print-footer">Unauthorized disclosure of information contained herein is strictly prohibited and against the Official Secrets Act and Section 18 of the Nigerian Financial Intelligence Unit Act, 2018</div></body></html>';
 }
 function renderIrEvidenceSummary(a){
   const el=$('irEvidenceSummary');if(!el||!a||a.kind!=='transaction')return;
@@ -2445,12 +2451,15 @@ function renderIntelligenceReportPreview(){
   preview.innerHTML='<div class="ir-preview-paper">'+intelligenceReportBodyHtml()+'</div>';
   renderIrEvidenceSummary(a);
 }
-function saveIntelligenceReportWord(){
+async function saveIntelligenceReportWord(){
   const a=state.analysis;
   if(!a||a.kind!=='transaction'){status('irExportStatus','No transaction analysis is available.',true);return;}
   renderIntelligenceReportPreview();
   const file=((irField('irCaseNumber')||'NFIU_IR')+'_'+(irField('irSubject')||'Subject')).replace(/[^a-z0-9._-]+/gi,'_');
-  download(file+'.doc',intelligenceReportDocumentHtml(),'application/msword');
+  try{
+    const graphData=await exportGraphPngData();
+    download(file+'.doc',intelligenceReportDocumentHtml(graphData),'application/msword');
+  }catch(error){status('irExportStatus','Unable to export report graph: '+error.message,true);return;}
   status('irExportStatus','Word-compatible intelligence report saved. Review the draft before dissemination.');
 }
 function saveIntelligenceReportPdf(){
@@ -2565,7 +2574,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1.3 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1.4 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2748,7 +2757,7 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.3').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.4').then(r=>r.update()).catch(()=>{}));
 
 // Accounts are case inputs; importing a register never changes transaction evidence.
 const accountFields=[['holder','Account holder'],['number','Account number'],['bank','Bank / institution'],['type','Account type'],['currency','Currency'],['opened','Opening date'],['status','Account status'],['bvn','BVN / customer ID'],['balance','Balance'],['balanceDate','Balance date'],['relationship','Relationship to subject'],['source','Information source'],['received','Date received'],['coverage','Statement coverage'],['supplied','Statement supplied (yes/no)'],['analysed','Statement analysed (yes/no; analyst verified)'],['remarks','Analyst remarks']].map(([id,label])=>({id,label,visible:['holder','number','bank','status'].includes(id)}));
@@ -2811,4 +2820,5 @@ function setupAccountsRegister(){
 }
 function throwImport(message){status('accountImportStatus',message,true);}
 setupAccountsRegister();
+
 
