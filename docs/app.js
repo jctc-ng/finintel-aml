@@ -309,7 +309,7 @@ function renderTransactionStructure(){
         +'<option value="outflow" '+(selected==='outflow'?'selected':'')+'>Outflow / Debit sheet</option>'
         +'<option value="ignore" '+(selected==='ignore'?'selected':'')+'>Ignore this sheet</option></select></div>';
     }).join('');
-    $('.sheet-direction-select').forEach(sel=>sel.addEventListener('change',()=>{
+    $$('.sheet-direction-select').forEach(sel=>sel.addEventListener('change',()=>{
       state.sheetDirections[sel.dataset.sheet]=sel.value;
       renderTransactionStructure();
     }));
@@ -506,7 +506,7 @@ function refreshMappingUI(){
       +'<td class="mapping-type" id="map-type-'+i+'">'+esc(f?TYPE_LABELS[f.type]||f.type:'Unmapped')+'</td>';
     body.appendChild(tr);
   });
-  $('.map-select').forEach((sel,i)=>sel.addEventListener('change',()=>{
+  $$('.map-select').forEach((sel,i)=>sel.addEventListener('change',()=>{
     state.sourceMapping[sel.dataset.source]=sel.value;
     const f=fieldById(sel.value);
     $('map-type-'+i).textContent=f?(TYPE_LABELS[f.type]||f.type):'Unmapped';
@@ -1118,7 +1118,7 @@ function renderCounterpartyPagination(prefix,totalRows){
   if(end<totalPages){if(end<totalPages-1)buttons.push('<span class="page-ellipsis">…</span>');buttons.push('<button class="btn ghost cp-page-btn" type="button" data-prefix="'+prefix+'" data-page="'+totalPages+'">'+totalPages+'</button>');}
   buttons.push('<button class="btn ghost cp-page-btn" type="button" data-prefix="'+prefix+'" data-page="'+Math.min(totalPages,current+1)+'" '+(current===totalPages?'disabled':'')+'>Next</button>');
   el.innerHTML='<span class="page-summary">Page '+current+' of '+totalPages+' • '+totalRows.toLocaleString()+' result'+(totalRows===1?'':'s')+'</span><div class="page-buttons">'+buttons.join('')+'</div>';
-  $('.cp-page-btn').forEach(btn=>btn.onclick=()=>{
+  $$('.cp-page-btn').forEach(btn=>btn.onclick=()=>{
     const p=btn.dataset.prefix;counterpartyPage[p]=Number(btn.dataset.page)||1;
     rerenderCounterpartyTables();
     const table=$(p+'Table');if(table)table.scrollIntoView({behavior:'smooth',block:'nearest'});
