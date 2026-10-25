@@ -1429,6 +1429,27 @@ function exportGraphSvgMarkup(){
   s+='<circle class="subject" cx="'+subjectX+'" cy="'+subjectY+'" r="56"/><text x="'+subjectX+'" y="'+(subjectY-3)+'" text-anchor="middle" style="font-size:18px;font-weight:800">'+esc($('subjectName').value.trim()||'Subject')+'</text><text x="'+subjectX+'" y="'+(subjectY+20)+'" text-anchor="middle" style="font-size:13px;font-weight:800;fill:#67571d">SUBJECT</text></svg>';
   return s;
 }
+async function exportGraphPngData(){
+  const svg=exportGraphSvgMarkup();
+  const blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  try{
+    const img=await new Promise((resolve,reject)=>{
+      const i=new Image();
+      i.onload=()=>resolve(i);
+      i.onerror=()=>reject(new Error('Could not render the graph image for export.'));
+      i.src=url;
+    });
+    const canvas=document.createElement('canvas');
+    canvas.width=2400;
+    canvas.height=Math.max(700,Math.round(2400*(img.naturalHeight/img.naturalWidth)));
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    return canvas.toDataURL('image/png',1);
+  }finally{URL.revokeObjectURL(url);}
+}
+
 function graphExportHtml(){
   const svg=exportGraphSvgMarkup();
   const title=esc(($('caseName').value.trim()||'FinIntel AML')+' — Counterparty Relationship View');
@@ -1444,10 +1465,13 @@ function saveGraphPdf(){
     setTimeout(()=>{try{w.focus();w.print();status('graphExportStatus','Print dialog opened. Choose “Save as PDF”.');}catch(e){status('graphExportStatus','Print view opened. Use the browser Print command and choose “Save as PDF”.');}},500);
   }catch(e){status('graphExportStatus',e.message,true);}
 }
-function saveGraphWord(){
+async function saveGraphWord(){
   status('graphExportStatus','Preparing Word document…');
   try{
-    const html=graphExportHtml();
+    const png=await exportGraphPngData();
+    const title=esc(($('caseName').value.trim()||'FinIntel AML')+' — Counterparty Relationship View');
+    const focused=networkSelectedNode?'<p><b>Focused node:</b> '+esc(networkSelectedNode.name)+' ('+esc(networkSelectedNode.role)+')</p>':'';
+    const html='<!doctype html><html><head><meta charset="utf-8"><style>@page{size:landscape;margin:18mm}body{font-family:Arial;color:#173447}h1{font-size:18pt;color:#123b4c}p{font-size:10pt}img{width:100%;height:auto;border:1px solid #ccd5da}</style></head><body><h1>'+title+'</h1>'+focused+'<p>Generated '+esc(new Date().toLocaleString())+'</p><img src="'+png+'"></body></html>';
     download(graphFileBase()+'.doc',html,'application/msword');
     status('graphExportStatus','Word document saved.');
   }catch(e){status('graphExportStatus',e.message,true);}
