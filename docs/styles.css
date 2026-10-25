@@ -747,3 +747,28 @@ footer strong{color:#17384c;font-weight:850}
 @media(max-width:720px){
   .pattern-indicator-grid{grid-template-columns:minmax(0,1fr)}
 }
+
+/* FinIntel AML v2.6.1 — wide relationship canvas at normal zoom */
+.network-view{
+  overflow-x:scroll!important;
+  overflow-y:auto!important;
+  padding:12px 10px 18px!important;
+}
+.network-view::after{
+  content:"Drag horizontally or use the scrollbar to inspect both sides of the relationship map";
+  display:block;
+  position:sticky;
+  left:12px;
+  width:max-content;
+  margin-top:8px;
+  color:#476477;
+  font-size:.78rem;
+  font-weight:750;
+  pointer-events:none;
+}
+.network-view::-webkit-scrollbar{height:16px!important}
+.network-view::-webkit-scrollbar-thumb{
+  background:#688ca2!important;
+  border:3px solid #e7eef4!important;
+}
+.network-view::-webkit-scrollbar-thumb:hover{background:#4f748b!important}
