@@ -1409,10 +1409,10 @@ function exportGraphSvgMarkup(){
   const a=state.analysis;if(!a||a.kind!=='transaction')throw new Error('No relationship graph is available to export.');
   const count=Math.max(4,Math.min(20,Number($('networkPartyCount')?.value)||4));
   const o=a.origins.slice(0,count),b=a.benefits.slice(0,count);
-  const n=Math.max(4,o.length,b.length),height=Math.max(500,120+n*92),width=1800;
-  const subjectX=900,originNodeX=720,benefitNodeX=1080,subjectY=height/2;
+  const n=Math.max(4,o.length,b.length),height=Math.max(520,140+n*100),width=2000;
+  const subjectX=1000,originNodeX=650,benefitNodeX=1350,subjectY=height/2;
   const oy=networkYPositions(Math.max(1,o.length),height),by=networkYPositions(Math.max(1,b.length),height);
-  const originLineStart=originNodeX+32,originLineEnd=subjectX-72,benefitLineStart=subjectX+72,benefitLineEnd=benefitNodeX-32;
+  const originLineStart=originNodeX+34,originLineEnd=subjectX-78,benefitLineStart=subjectX+78,benefitLineEnd=benefitNodeX-34;
   const wrap=(name,max=34)=>{
     const words=String(name||'Unknown').split(/\s+/),lines=[];let line='';
     words.forEach(w=>{const test=(line+' '+w).trim();if(test.length>max&&line){lines.push(line);line=w;}else line=test;});if(line)lines.push(line);return lines.slice(0,3);
@@ -1421,16 +1421,16 @@ function exportGraphSvgMarkup(){
   o.forEach((x,i)=>{
     const y=oy[i],lines=wrap(x.name);
     s+='<line class="ol" x1="'+originLineStart+'" y1="'+y+'" x2="'+originLineEnd+'" y2="'+subjectY+'"/><circle class="origin" cx="'+originNodeX+'" cy="'+y+'" r="29"/>';
-    lines.forEach((line,j)=>s+='<text class="nm" text-anchor="end" x="640" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
+    lines.forEach((line,j)=>s+='<text class="nm" text-anchor="end" x="430" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
     const base=y-24+(lines.length*22);
-    s+='<text class="am" text-anchor="end" x="640" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" text-anchor="end" x="640" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
+    s+='<text class="am" text-anchor="end" x="430" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" text-anchor="end" x="430" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
   });
   b.forEach((x,i)=>{
     const y=by[i],lines=wrap(x.name);
     s+='<line class="bl" x1="'+benefitLineStart+'" y1="'+subjectY+'" x2="'+benefitLineEnd+'" y2="'+y+'"/><circle class="benefit" cx="'+benefitNodeX+'" cy="'+y+'" r="29"/>';
-    lines.forEach((line,j)=>s+='<text class="nm" x="1160" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
+    lines.forEach((line,j)=>s+='<text class="nm" x="1410" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
     const base=y-24+(lines.length*22);
-    s+='<text class="am" x="1160" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" x="1160" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
+    s+='<text class="am" x="1410" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" x="1410" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
   });
   s+='<circle class="subject" cx="'+subjectX+'" cy="'+subjectY+'" r="56"/><text x="'+subjectX+'" y="'+(subjectY-3)+'" text-anchor="middle" style="font-size:18px;font-weight:800">'+esc($('subjectName').value.trim()||'Subject')+'</text><text x="'+subjectX+'" y="'+(subjectY+20)+'" text-anchor="middle" style="font-size:13px;font-weight:800;fill:#67571d">SUBJECT</text></svg>';
   return s;
@@ -1463,12 +1463,32 @@ function graphExportHtml(){
   return '<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title><style>@page{size:A3 landscape;margin:10mm}body{font-family:Arial;color:#173447;margin:20px}h1{font-size:20px;color:#123b4c}p{font-size:11px}.graph{width:100%;height:auto;border:1px solid #ccd5da}</style></head><body><h1>'+title+'</h1>'+focused+'<p>Generated '+esc(new Date().toLocaleString())+'</p><div class="graph">'+svg+'</div></body></html>';
 }
 function saveGraphPdf(){
-  status('graphExportStatus','Opening print view…');
+  status('graphExportStatus','Preparing print-ready PDF view…');
   try{
-    const w=window.open('','_blank');
-    if(!w)throw new Error('The browser blocked the print window. Allow pop-ups for this site and try again.');
-    w.document.open();w.document.write(graphExportHtml());w.document.close();
-    setTimeout(()=>{try{w.focus();w.print();status('graphExportStatus','Print dialog opened. Choose “Save as PDF”.');}catch(e){status('graphExportStatus','Print view opened. Use the browser Print command and choose “Save as PDF”.');}},500);
+    const old=$('graphPrintFrame');if(old)old.remove();
+    const frame=document.createElement('iframe');
+    frame.id='graphPrintFrame';
+    frame.setAttribute('aria-hidden','true');
+    frame.style.position='fixed';
+    frame.style.right='0';
+    frame.style.bottom='0';
+    frame.style.width='1px';
+    frame.style.height='1px';
+    frame.style.border='0';
+    frame.style.opacity='0';
+    document.body.appendChild(frame);
+    const doc=frame.contentDocument||frame.contentWindow.document;
+    doc.open();doc.write(graphExportHtml());doc.close();
+    setTimeout(()=>{
+      try{
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        status('graphExportStatus','Print dialog opened. Choose “Save as PDF”.');
+      }catch(e){
+        status('graphExportStatus','Could not open the print dialog. Use the browser Print command and choose “Save as PDF”.',true);
+      }
+      setTimeout(()=>frame.remove(),3000);
+    },400);
   }catch(e){status('graphExportStatus',e.message,true);}
 }
 async function saveGraphWord(){
