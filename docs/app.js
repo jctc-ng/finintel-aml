@@ -5,7 +5,8 @@ const $$=s=>Array.from(document.querySelectorAll(s));
 
 const STORE={
   custom:'finintel.v2.customFields',
-  templates:'finintel.v2.importTemplates'
+  templates:'finintel.v2.importTemplates',
+  aliases:'finintel.v2.entityAliases'
 };
 
 const CORE_FIELDS=[
@@ -16,6 +17,7 @@ const CORE_FIELDS=[
   {id:'credit',label:'Credit Amount',type:'currency',category:'transaction'},
   {id:'originator',label:'Originator / Sender',type:'entity',category:'transaction'},
   {id:'beneficiary',label:'Beneficiary / Receiver',type:'entity',category:'transaction'},
+  {id:'counterparty',label:'Counterparty / Other Party',type:'entity',category:'transaction'},
   {id:'narration',label:'Narration / Description',type:'text',category:'transaction'},
   {id:'account',label:'Account / Wallet Identifier',type:'account',category:'account'},
   {id:'txid',label:'Transaction ID / Hash',type:'identifier',category:'transaction'},
@@ -76,6 +78,7 @@ const autoPatterns={
   credit:[/^credit$/i,/credit.*amount/i,/^inflow$/i,/inflow.*amount/i,/deposit.*amount/i,/money.*in/i],
   originator:[/originator/i,/sender/i,/source.*name/i,/payer/i,/from.*name/i],
   beneficiary:[/beneficiary/i,/receiver/i,/recipient/i,/payee/i,/to.*name/i],
+  counterparty:[/counterparty/i,/other.*party/i,/party.*name/i,/counter.*name/i],
   narration:[/narration/i,/description/i,/remarks/i,/memo/i,/details/i],
   account:[/account.*number/i,/account$/i,/wallet.*id/i],
   txid:[/transaction.*id/i,/transaction.*ref/i,/reference/i,/tx.*hash/i,/hash/i,/txn/i],
@@ -143,10 +146,12 @@ const state={
   standardized:[],
   analysis:null,
   customFields:loadJSON(STORE.custom,[]),
-  templates:loadJSON(STORE.templates,[])
+  templates:loadJSON(STORE.templates,[]),
+  aliasMap:loadObject(STORE.aliases,{})
 };
 
 function loadJSON(key,fallback){try{const v=JSON.parse(localStorage.getItem(key));return Array.isArray(v)?v:fallback;}catch{return fallback;}}
+function loadObject(key,fallback={}){try{const v=JSON.parse(localStorage.getItem(key));return v&&typeof v==='object'&&!Array.isArray(v)?v:fallback;}catch{return fallback;}}
 function saveJSON(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{return false;}}
 function esc(v){return String(v==null?'':v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function norm(v){return String(v==null?'':v).trim().toLowerCase().replace(/\s+/g,' ');}
@@ -160,6 +165,90 @@ function mappingCount(){return Object.values(state.sourceMapping).filter(Boolean
 function mappedFields(){return state.columns.map(source=>({source,field:fieldById(state.sourceMapping[source])})).filter(x=>x.field);}
 function signature(cols=state.columns){return [...cols].map(norm).sort().join('|');}
 function datasetLabel(){return DATASET_LABELS[state.datasetType]||state.datasetType;}
+
+function aliasEntry(name){
+  const raw=state.aliasMap[norm(name)];
+  if(!raw)return null;
+  return typeof raw==='string'?{canonical:raw,updatedAt:''}:raw;
+}
+function resolveAlias(name){
+  let current=String(name||'').trim();
+  const seen=new Set();
+  for(let i=0;i<12;i++){
+    const key=norm(current);
+    if(!key||seen.has(key))break;
+    seen.add(key);
+    const entry=aliasEntry(current);
+    if(!entry?.canonical||norm(entry.canonical)===key)break;
+    current=String(entry.canonical).trim();
+  }
+  return current;
+}
+function persistAliases(){
+  saveJSON(STORE.aliases,state.aliasMap);
+  renderAliasLibrary();
+}
+function selectedCounterpartyNames(){
+  return $('.counterparty-select:checked').map(x=>x.dataset.name).filter(Boolean);
+}
+function clearAliasSelection(){
+  $('.counterparty-select:checked').forEach(x=>x.checked=false);
+  if($('aliasCanonicalName'))$('aliasCanonicalName').value='';
+}
+function renderAliasLibrary(){
+  const table=$('aliasLibraryTable'),pill=$('aliasLibraryCount');
+  if(!table||!pill)return;
+  const entries=Object.entries(state.aliasMap)
+    .map(([alias,raw])=>({alias,entry:typeof raw==='string'?{canonical:raw,updatedAt:''}:raw}))
+    .filter(x=>x.entry?.canonical)
+    .sort((a,b)=>a.entry.canonical.localeCompare(b.entry.canonical)||a.alias.localeCompare(b.alias));
+  pill.textContent=entries.length+' saved mapping'+(entries.length===1?'':'s');
+  if(!entries.length){
+    table.innerHTML='<div class="alias-library-empty">No persistent alias mappings have been saved in this browser.</div>';
+    return;
+  }
+  table.innerHTML='<table><thead><tr><th>Alias / Variant</th><th>Canonical Entity</th><th>Updated</th><th></th></tr></thead><tbody>'
+    +entries.map(x=>'<tr><td>'+esc(x.alias)+'</td><td><strong>'+esc(x.entry.canonical)+'</strong></td><td>'+esc(x.entry.updatedAt?new Date(x.entry.updatedAt).toLocaleString():'—')+'</td><td><button class="btn ghost alias-delete-btn" type="button" data-alias="'+encodeURIComponent(x.alias)+'">Delete</button></td></tr>').join('')
+    +'</tbody></table>';
+  $('.alias-delete-btn').forEach(btn=>btn.onclick=()=>{
+    delete state.aliasMap[decodeURIComponent(btn.dataset.alias)];
+    persistAliases();
+    status('aliasStatus','Saved alias mapping deleted.');
+  });
+}
+function saveSelectedAliases(){
+  const selected=selectedCounterpartyNames();
+  const canonical=$('aliasCanonicalName')?.value.trim()||'';
+  if(!selected.length){status('aliasStatus','Select one or more names in Top Originators or Top Beneficiaries.',true);return;}
+  if(!canonical){status('aliasStatus','Enter the canonical person/entity name.',true);return;}
+  let saved=0;
+  selected.forEach(name=>{
+    const key=norm(name);
+    if(!key||key===norm(canonical))return;
+    state.aliasMap[key]={canonical,updatedAt:new Date().toISOString()};
+    saved++;
+  });
+  persistAliases();
+  status('aliasStatus',saved+' alias'+(saved===1?'':'es')+' saved to '+canonical+'. You can select more variants or rerun the analysis.');
+  clearAliasSelection();
+}
+function rerunWithAliases(){
+  if(!state.rawRows.length){status('aliasStatus','Load a dataset before rerunning.',true);return;}
+  try{
+    state.standardized=standardize();
+    const a=state.datasetType==='transaction'?transactionAnalysis(state.standardized):universalAnalysis(state.standardized);
+    renderAnalysis(a);
+    status('aliasStatus','Analysis rerun with '+Object.keys(state.aliasMap).length+' saved alias mapping(s).');
+  }catch(e){status('aliasStatus',e.message||'Unable to rerun analysis.',true);}
+}
+function exportAliasLibrary(){
+  download('finintel_entity_alias_library.json',JSON.stringify({
+    product:'FinIntel AML',
+    exportedAt:new Date().toISOString(),
+    aliases:state.aliasMap
+  },null,2),'application/json');
+  status('aliasStatus','Persistent alias library exported.');
+}
 
 function setLoaderProgress(percent,phase,detail=''){
   const box=$('loaderProgress');if(!box)return;
@@ -636,6 +725,7 @@ function standardize(){
     const debit=parseAmount(values.debit),credit=parseAmount(values.credit),amountInfo=parseAmountInfo(values.amount);
     const amount=values.amount!==undefined&&String(values.amount).trim()!==''?amountInfo.amount:Math.max(debit,credit);
     const explicitOriginator=String(values.originator??'').trim(),explicitBeneficiary=String(values.beneficiary??'').trim();
+    const sharedCounterparty=String(values.counterparty??'').trim();
     const narration=String(values.narration??'').trim();
     const extracted=extractDescriptionMeaning(narration);
     const sheet=String(raw.__finintel_sheet??'');
@@ -643,14 +733,24 @@ function standardize(){
     const flow=state.datasetType==='transaction'?direction(values.direction,explicitOriginator,explicitBeneficiary,subject,debit,credit,amountInfo,sheetHint,extracted):'n/a';
     let originator=explicitOriginator,beneficiary=explicitBeneficiary;
     let counterpartyFromDescription=false;
+    if(sharedCounterparty){
+      if(flow==='inflow'&&!originator)originator=sharedCounterparty;
+      if(flow==='outflow'&&!beneficiary)beneficiary=sharedCounterparty;
+    }
     if(extracted.counterparty){
       if(flow==='inflow'&&!originator){originator=extracted.counterparty;counterpartyFromDescription=true;}
       if(flow==='outflow'&&!beneficiary){beneficiary=extracted.counterparty;counterpartyFromDescription=true;}
     }
+    const originalOriginator=originator,originalBeneficiary=beneficiary;
+    originator=resolveAlias(originator);
+    beneficiary=resolveAlias(beneficiary);
     return{
       row:i+2,values,raw,date:parseDate(values.date),dateRaw:String(values.date??''),amount,direction:flow,
       originator,beneficiary,narration,account:String(values.account??values.wallet??'').trim(),
-      txid:String(values.txid??'').trim(),sheet,sheetHint,extracted,counterpartyFromDescription
+      txid:String(values.txid??'').trim(),sheet,sheetHint,extracted,counterpartyFromDescription,
+      originalOriginator,originalBeneficiary,
+      aliasAppliedOriginator:!!originalOriginator&&norm(originalOriginator)!==norm(originator),
+      aliasAppliedBeneficiary:!!originalBeneficiary&&norm(originalBeneficiary)!==norm(beneficiary)
     };
   });
 }
@@ -829,8 +929,11 @@ function renderDescriptionIntelligence(a){
 
 function renderCounterparty(id,rows,total,currency){
   const max=rows[0]?.total||1;
-  $(id).innerHTML='<table><thead><tr><th>#</th><th>Counterparty</th><th class="num">Count</th><th class="num">Total</th><th class="num">Share</th></tr></thead><tbody>'
-    +(rows.slice(0,15).map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(r.name)+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+(total?(r.total/total*100).toFixed(1):'0.0')+'%</td></tr>').join('')||'<tr><td colspan="5">No classified counterparties.</td></tr>')
+  $(id).innerHTML='<table><thead><tr><th></th><th>#</th><th>Counterparty</th><th class="num">Count</th><th class="num">Total</th><th class="num">Share</th></tr></thead><tbody>'
+    +(rows.slice(0,25).map((r,i)=>{
+      const saved=aliasEntry(r.name);
+      return '<tr><td><input class="counterparty-select" type="checkbox" data-name="'+esc(r.name)+'" aria-label="Select '+esc(r.name)+' for alias mapping"></td><td>'+(i+1)+'</td><td class="counterparty-name-cell"><label><span><span class="alias-original">'+esc(r.name)+'</span>'+(saved?'<span class="alias-mapped-note">Saved mapping → '+esc(saved.canonical)+'</span>':'')+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></span></label></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+(total?(r.total/total*100).toFixed(1):'0.0')+'%</td></tr>';
+    }).join('')||'<tr><td colspan="6">No classified counterparties.</td></tr>')
     +'</tbody></table>';
 }
 
@@ -904,6 +1007,7 @@ function makeDraft(a){
   if(a.unknown.length)lines.push('• '+a.unknown.length+' transaction(s) had unresolved direction and require data review.');
   if(a.descriptionIntel?.parsed)lines.push('• FinIntel parsed '+a.descriptionIntel.parsed+' transaction description(s), identified '+(a.descriptionIntel.entityCandidates||0)+' distinct entity candidate(s), extracted probable counterparties from '+a.descriptionIntel.withCounterparty+' record(s), and used description-derived counterparties as fallback data in '+a.descriptionIntel.fallbackUsed+' record(s).');
   if(a.descriptionIntel?.categories?.[0])lines.push('• The most frequently inferred description category was '+a.descriptionIntel.categories[0].name+' ('+a.descriptionIntel.categories[0].count+' record(s)).');
+  if(Object.keys(state.aliasMap).length)lines.push('• '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied before counterparty aggregation.');
   lines.push('','AML/CFT INDICATORS FOR REVIEW');
   if(a.alerts.length)a.alerts.forEach((x,i)=>lines.push((i+1)+'. '+x.title+': '+x.detail));else lines.push('No material rule-based indicator triggered under the current settings.');
   lines.push('','INFERENCE','The foregoing indicators are screening outputs and should be assessed alongside KYC/CDD information, source of funds/wealth, transaction purpose, counterparty information, intelligence holdings and corroborative material. The system does not determine that money laundering, terrorist financing or another predicate offence occurred.');
@@ -926,7 +1030,7 @@ function renderAnalysis(a){
     renderDescriptionIntelligence(a);
     renderAlerts(a);renderNetwork(a);
   }
-  renderProfiles(a);renderRecords();
+  renderProfiles(a);renderRecords();renderAliasLibrary();
   $('draftSummary').value=makeDraft(a);
 }
 
@@ -955,9 +1059,10 @@ function reportHtml(){
     const d=a.descriptionIntel||{parsed:0,withCounterparty:0,fallbackUsed:0,categories:[]};
     tx='<h2>Description Intelligence</h2><p>'+d.parsed+' description(s) parsed; '+d.withCounterparty+' probable counterparty extraction(s); '+d.fallbackUsed+' used as fallback counterparty data.</p>'
       +(d.categories.length?'<p>Leading inferred meanings: '+esc(d.categories.slice(0,5).map(x=>x.name+' ('+x.count+')').join(', '))+'.</p>':'')
+      +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.3 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1035,7 +1140,16 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_3_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('saveAliasBtn').onclick=saveSelectedAliases;
+$('rerunAliasBtn').onclick=rerunWithAliases;
+$('clearAliasSelectionBtn').onclick=clearAliasSelection;
+$('exportAliasBtn').onclick=exportAliasLibrary;
+$('clearAliasLibraryBtn').onclick=()=>{
+  if(!Object.keys(state.aliasMap).length){status('aliasStatus','Alias library is already empty.');return;}
+  if(!window.confirm('Clear all saved entity alias mappings from this browser?'))return;
+  state.aliasMap={};persistAliases();status('aliasStatus','Persistent alias library cleared. Rerun analysis to restore the unmerged names.');
+};
 $('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
 $('clearAllBtn').onclick=()=>{
   state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;
@@ -1053,4 +1167,5 @@ $$('.step').forEach(b=>b.onclick=()=>{
 
 renderCustomFieldList();
 renderTemplateSelect();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.1').then(r=>r.update()).catch(()=>{}));
+renderAliasLibrary();
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.3').then(r=>r.update()).catch(()=>{}));
