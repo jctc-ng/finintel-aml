@@ -6,7 +6,8 @@ const $$=s=>Array.from(document.querySelectorAll(s));
 const STORE={
   custom:'finintel.v2.customFields',
   templates:'finintel.v2.importTemplates',
-  aliases:'finintel.v2.entityAliases'
+  aliases:'finintel.v2.entityAliases',
+  resolutions:'finintel.v3.counterpartyResolutions'
 };
 
 const CORE_FIELDS=[
@@ -147,8 +148,12 @@ let profilePartyName='';
 let profilePage=1;
 const counterpartyPage={originator:1,beneficiary:1};
 const counterpartySelection=new Map();
+const unknownSelection=new Map();
+let unknownPage=1;
+let dataQualityActiveIssue='';
 const COUNTERPARTY_PAGE_SIZE=10;
 const PROFILE_PAGE_SIZE=10;
+const UNKNOWN_PAGE_SIZE=10;
 
 const state={
   rawRows:[],columns:[],sourceName:'',sourceType:'',sheets:[],
@@ -161,7 +166,8 @@ const state={
   analysis:null,
   customFields:loadJSON(STORE.custom,[]),
   templates:loadJSON(STORE.templates,[]),
-  aliasMap:loadObject(STORE.aliases,{})
+  aliasMap:loadObject(STORE.aliases,{}),
+  counterpartyResolutions:loadObject(STORE.resolutions,{})
 };
 
 function loadJSON(key,fallback){try{const v=JSON.parse(localStorage.getItem(key));return Array.isArray(v)?v:fallback;}catch{return fallback;}}
@@ -179,6 +185,25 @@ function mappingCount(){return Object.values(state.sourceMapping).filter(Boolean
 function mappedFields(){return state.columns.map(source=>({source,field:fieldById(state.sourceMapping[source])})).filter(x=>x.field);}
 function signature(cols=state.columns){return [...cols].map(norm).sort().join('|');}
 function datasetLabel(){return DATASET_LABELS[state.datasetType]||state.datasetType;}
+
+function persistCounterpartyResolutions(){
+  saveJSON(STORE.resolutions,state.counterpartyResolutions);
+}
+function resolutionKeyParts(sourceName,sheet,row,dateRaw,amount,direction,narration){
+  return [sourceName||'',sheet||'',row||'',dateRaw||'',Number(amount)||0,direction||'',String(narration||'').slice(0,180)].join('|');
+}
+function resolutionKeyForRecord(r){
+  return resolutionKeyParts(state.sourceName,r.sheet,r.row,r.dateRaw,r.amount,r.direction,r.narration);
+}
+function getCounterpartyResolutionByKey(key){
+  const raw=state.counterpartyResolutions[key];
+  return raw&&typeof raw==='object'?raw:null;
+}
+function setCounterpartyResolution(key,payload){
+  if(!key)return;
+  state.counterpartyResolutions[key]={...payload,updatedAt:new Date().toISOString()};
+  persistCounterpartyResolutions();
+}
 
 function aliasEntry(name){
   const raw=state.aliasMap[norm(name)];
