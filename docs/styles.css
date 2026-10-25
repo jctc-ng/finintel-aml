@@ -913,3 +913,71 @@ footer strong{color:#17384c;font-weight:850}
 @media(max-width:460px){
   .node-focus-metrics{grid-template-columns:minmax(0,1fr)}
 }
+
+/* FinIntel AML v2.7.1 — unclipped HTML counterparty cards */
+.network-canvas{
+  overflow:visible!important;
+}
+.network-label-card{
+  position:absolute;
+  z-index:4;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:calc(3px * var(--network-scale,1));
+  box-sizing:border-box;
+  min-height:calc(78px * var(--network-scale,1));
+  padding:calc(10px * var(--network-scale,1)) calc(12px * var(--network-scale,1));
+  border-radius:calc(10px * var(--network-scale,1));
+  border:2px solid #c9d7e1;
+  background:rgba(255,255,255,.98);
+  color:#102f42;
+  text-align:left;
+  white-space:normal;
+  overflow:visible;
+  line-height:1.18;
+  box-shadow:0 5px 14px rgba(30,58,78,.10);
+  cursor:pointer;
+}
+.network-label-card.originator{
+  border-color:#7fbea0;
+  border-left:calc(5px * var(--network-scale,1)) solid #0b6b45;
+}
+.network-label-card.beneficiary{
+  border-color:#82b2d2;
+  border-left:calc(5px * var(--network-scale,1)) solid #176aa5;
+}
+.network-label-card .network-card-role{
+  font-size:clamp(10px,calc(10px * var(--network-scale,1)),22px);
+  font-weight:950;
+  letter-spacing:.045em;
+  color:#587080;
+}
+.network-label-card strong{
+  display:block;
+  width:100%;
+  color:#12384e;
+  font-size:clamp(14px,calc(15px * var(--network-scale,1)),34px);
+  font-weight:950;
+  overflow-wrap:anywhere;
+}
+.network-label-card>span:not(.network-card-role){
+  color:#23485e;
+  font-size:clamp(12px,calc(13px * var(--network-scale,1)),28px);
+  font-weight:900;
+}
+.network-label-card small{
+  color:#725d17;
+  font-size:clamp(11px,calc(11.5px * var(--network-scale,1)),25px);
+  font-weight:900;
+}
+.network-label-card:hover{
+  border-color:#b8952f;
+  box-shadow:0 7px 20px rgba(30,58,78,.16);
+}
+.network-label-card.selected-card{
+  z-index:6;
+  border:calc(4px * var(--network-scale,1)) solid #b8952f!important;
+  background:#fffdf4;
+  box-shadow:0 0 calc(18px * var(--network-scale,1)) rgba(184,149,47,.34);
+}
