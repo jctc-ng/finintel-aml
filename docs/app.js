@@ -1669,7 +1669,7 @@ function renderUnknownResolution(a){
   }
   $('.unknown-select').forEach(box=>box.onchange=()=>{setUnknownSelected(box.dataset.key,box.checked);renderUnknownResolution(a);});
   $('.use-candidate-btn').forEach(btn=>btn.onclick=()=>{
-    const select=document.querySelector('.resolution-candidate[data-key="'+CSS.escape(btn.dataset.key)+'"]');
+    const select=$('.resolution-candidate').find(x=>x.dataset.key===btn.dataset.key);
     const name=select?.value||'';
     if(!name)return;
     applyResolutionToKeys([btn.dataset.key],name);
@@ -2094,6 +2094,11 @@ function makeDraft(a){
   if(a.descriptionIntel?.parsed)lines.push('• FinIntel parsed '+a.descriptionIntel.parsed+' transaction description(s), identified '+(a.descriptionIntel.entityCandidates||0)+' distinct entity candidate(s), extracted probable counterparties from '+a.descriptionIntel.withCounterparty+' record(s), and used description-derived counterparties as fallback data in '+a.descriptionIntel.fallbackUsed+' record(s).');
   if(a.descriptionIntel?.categories?.[0])lines.push('• The most frequently inferred description category was '+a.descriptionIntel.categories[0].name+' ('+a.descriptionIntel.categories[0].count+' record(s)).');
   if(Object.keys(state.aliasMap).length)lines.push('• '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied before counterparty aggregation.');
+  if(a.dataQuality){
+    lines.push('• Data-quality review found '+a.dataQuality.affectedRecords+' record(s) with one or more material structural flags; '+a.dataQuality.cleanRate.toFixed(1)+'% of records had no material quality flag.');
+    if(a.dataQuality.resolutionsApplied)lines.push('• '+a.dataQuality.resolutionsApplied+' transaction(s) used persistent analyst counterparty resolutions.');
+    if(a.dataQuality.acknowledgedUnknown)lines.push('• '+a.dataQuality.acknowledgedUnknown+' counterparty record(s) were reviewed and intentionally retained as unknown.');
+  }
   lines.push('','AML/CFT INDICATORS FOR REVIEW');
   if(a.alerts.length)a.alerts.forEach((x,i)=>lines.push((i+1)+'. '+x.title+': '+x.detail));else lines.push('No material rule-based indicator triggered under the current settings.');
   lines.push('','INFERENCE','The foregoing indicators are screening outputs and should be assessed alongside KYC/CDD information, source of funds/wealth, transaction purpose, counterparty information, intelligence holdings and corroborative material. The system does not determine that money laundering, terrorist financing or another predicate offence occurred.');
@@ -2150,7 +2155,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.9.3 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.0 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2210,7 +2215,7 @@ $('confirmMappingBtn').onclick=()=>{
 $('backToImport').onclick=()=>setStep(1);
 $('backToMapping').onclick=()=>setStep(2);
 $('runAnalysisBtn').onclick=()=>{
-  counterpartySelection.clear();
+  counterpartySelection.clear();unknownSelection.clear();unknownPage=1;dataQualityActiveIssue='';
   const err=validateMapping();if(err){status('configStatus',err,true);setStep(2);return;}
   status('configStatus');setStep(4);$('analysisProgress').textContent='Standardising mapped core and custom fields…';
   setTimeout(()=>{
@@ -2232,6 +2237,34 @@ $('directionFilter').addEventListener('change',renderRecords);
     rerenderCounterpartyTables();
   });
 });
+$('unknownSearch').addEventListener('input',()=>{unknownPage=1;if(state.analysis?.kind==='transaction')renderUnknownResolution(state.analysis);});
+$('unknownDirectionFilter').addEventListener('change',()=>{unknownPage=1;if(state.analysis?.kind==='transaction')renderUnknownResolution(state.analysis);});
+$('clearResolutionSelectionBtn').onclick=()=>{unknownSelection.clear();if($('resolutionName'))$('resolutionName').value='';if(state.analysis?.kind==='transaction')renderUnknownResolution(state.analysis);status('resolutionStatus');};
+$('applyResolutionBtn').onclick=()=>{
+  const keys=Array.from(unknownSelection.keys()),name=$('resolutionName').value.trim();
+  if(!keys.length){status('resolutionStatus','Select one or more unresolved records first.',true);return;}
+  if(!name){status('resolutionStatus','Enter the resolved counterparty name.',true);return;}
+  const count=applyResolutionToKeys(keys,name);
+  $('resolutionName').value='';
+  rerunAfterCounterpartyResolution(count+' record'+(count===1?'':'s')+' resolved to '+name+'.');
+};
+$('acknowledgeUnknownBtn').onclick=()=>{
+  const keys=Array.from(unknownSelection.keys());
+  if(!keys.length){status('resolutionStatus','Select one or more unresolved records first.',true);return;}
+  keys.forEach(key=>setCounterpartyResolution(key,{name:'',ignored:true,source:'analyst'}));
+  rerunAfterCounterpartyResolution(keys.length+' record'+(keys.length===1?'':'s')+' acknowledged and retained as unknown.');
+};
+$('clearResolutionDecisionsBtn').onclick=()=>{
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction')return;
+  const keys=new Set(a.records.map(r=>r.resolutionKey).filter(Boolean));
+  const existing=[...keys].filter(k=>state.counterpartyResolutions[k]);
+  if(!existing.length){status('resolutionStatus','No saved counterparty decisions exist for this dataset.');return;}
+  if(!window.confirm('Clear '+existing.length+' saved counterparty resolution decision'+(existing.length===1?'':'s')+' for the current dataset?'))return;
+  existing.forEach(k=>delete state.counterpartyResolutions[k]);
+  persistCounterpartyResolutions();
+  rerunAfterCounterpartyResolution('Saved counterparty decisions for this dataset were cleared.');
+};
 $('networkPartyCount').addEventListener('change',()=>{if(state.analysis?.kind==='transaction')renderNetwork(state.analysis);});
 $('networkZoomOut').onclick=()=>setNetworkZoom(networkZoom-.15);
 $('networkZoomIn').onclick=()=>setNetworkZoom(networkZoom+.15);
@@ -2252,7 +2285,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_9_3_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v3_0_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -2262,9 +2295,9 @@ $('clearAliasLibraryBtn').onclick=()=>{
   if(!window.confirm('Clear all saved entity alias mappings from this browser?'))return;
   state.aliasMap={};persistAliases();status('aliasStatus','Persistent alias library cleared. Rerun analysis to restore the unmerged names.');
 };
-$('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];counterpartySelection.clear();setStep(1);};
+$('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];counterpartySelection.clear();unknownSelection.clear();unknownPage=1;dataQualityActiveIssue='';setStep(1);};
 $('clearAllBtn').onclick=()=>{
-  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=NETWORK_DEFAULT_ZOOM;networkFocus='center';networkSelectedNode=null;counterpartySelection.clear();
+  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=NETWORK_DEFAULT_ZOOM;networkFocus='center';networkSelectedNode=null;counterpartySelection.clear();unknownSelection.clear();unknownPage=1;dataQualityActiveIssue='';
   counterpartyPage.originator=1;counterpartyPage.beneficiary=1;
   $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();
   if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='65%';
@@ -2284,4 +2317,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.9.3').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.0.0').then(r=>r.update()).catch(()=>{}));
