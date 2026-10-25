@@ -1339,8 +1339,8 @@ function renderNetwork(a,focus='center'){
   const height=Math.max(520,140+n*100);
   const subjectX=700,subjectY=height/2;
 
-  const originTextX=420,originNodeX=470;
-  const benefitNodeX=930,benefitTextX=980;
+  const originTextX=438,originNodeX=470;
+  const benefitNodeX=930,benefitTextX=962;
 
   const originLineStart=originNodeX+34,originLineEnd=subjectX-78;
   const benefitLineStart=subjectX+78,benefitLineEnd=benefitNodeX-34;
@@ -1440,16 +1440,16 @@ function exportGraphSvgMarkup(){
   o.forEach((x,i)=>{
     const y=oy[i],lines=wrap(x.name);
     s+='<line class="ol" x1="'+originLineStart+'" y1="'+y+'" x2="'+originLineEnd+'" y2="'+subjectY+'"/><circle class="origin" cx="'+originNodeX+'" cy="'+y+'" r="29"/>';
-    lines.forEach((line,j)=>s+='<text class="nm" text-anchor="end" x="420" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
+    lines.forEach((line,j)=>s+='<text class="nm" text-anchor="end" x="438" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
     const base=y-24+(lines.length*22);
-    s+='<text class="am" text-anchor="end" x="420" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" text-anchor="end" x="420" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
+    s+='<text class="am" text-anchor="end" x="438" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" text-anchor="end" x="438" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
   });
   b.forEach((x,i)=>{
     const y=by[i],lines=wrap(x.name);
     s+='<line class="bl" x1="'+benefitLineStart+'" y1="'+subjectY+'" x2="'+benefitLineEnd+'" y2="'+y+'"/><circle class="benefit" cx="'+benefitNodeX+'" cy="'+y+'" r="29"/>';
-    lines.forEach((line,j)=>s+='<text class="nm" x="980" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
+    lines.forEach((line,j)=>s+='<text class="nm" x="962" y="'+(y-24+(j*22))+'">'+esc(line)+'</text>');
     const base=y-24+(lines.length*22);
-    s+='<text class="am" x="980" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" x="980" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
+    s+='<text class="am" x="962" y="'+(base+4)+'">'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</text><text class="dt" x="962" y="'+(base+25)+'">'+esc(nodeDateRange(x))+'</text>';
   });
   s+='<circle class="subject" cx="'+subjectX+'" cy="'+subjectY+'" r="56"/><text x="'+subjectX+'" y="'+(subjectY-3)+'" text-anchor="middle" style="font-size:18px;font-weight:800">'+esc($('subjectName').value.trim()||'Subject')+'</text><text x="'+subjectX+'" y="'+(subjectY+20)+'" text-anchor="middle" style="font-size:13px;font-weight:800;fill:#67571d">SUBJECT</text></svg>';
   return s;
@@ -1631,7 +1631,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.8 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.8.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1727,7 +1727,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_8_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_8_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1759,4 +1759,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.8.0').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.8.1').then(r=>r.update()).catch(()=>{}));
