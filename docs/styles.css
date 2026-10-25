@@ -78,3 +78,62 @@ dialog::backdrop{background:rgba(0,0,0,.68)}
 .danger-outline{border-color:#744149!important;color:#ffb1b8!important}
 @media(max-width:850px){.alias-controls{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
 @media(max-width:540px){.alias-controls{grid-template-columns:minmax(0,1fr)}.alias-library-head{align-items:flex-start;flex-direction:column}}
+
+/* FinIntel AML v2.4 — NFIU professional light theme + transaction structure */
+:root{
+  --bg:#f4f7fb;--panel:#ffffff;--panel2:#f8fbfe;--line:#d8e3ee;--text:#173042;
+  --muted:#62788a;--cyan:#0d6ea6;--green:#0a7d54;--gold:#9d7a1f;--orange:#b86b15;--red:#bd374c;
+  --radius:18px;--shadow:0 12px 32px rgba(33,63,93,.08)
+}
+html,body{background:#f4f7fb;color:var(--text)}
+body{background:linear-gradient(180deg,#fbfdff 0,#f2f6fa 55%,#edf3f8 100%)}
+.topbar,.shell,footer{color:var(--text)}
+.brand img,footer img{background:#fff;border:1px solid var(--line);padding:4px;object-fit:contain}
+.brand .sub,.muted,.dropzone small,.mini-metrics small,.map-item small,.schema-item small,.schema-card small,.guardrails li{color:var(--muted)}
+.kicker{color:#0d5c8f}
+.privacy-chip,.dataset-pill,.source-badge{background:#edf6fd;color:#0d5c8f;border-color:#c9ddec}
+.card{background:#fff;border-color:var(--line);box-shadow:var(--shadow)}
+.hero{background:linear-gradient(135deg,#fff 0,#f7fbff 100%)}
+.hero p,.hero-note p{color:var(--muted)}
+.hero-note,.emptybox,.map-item,.notice,.schema-item,.schema-card,.alert,.mini-metrics div{background:#f8fbfe;border-color:var(--line)}
+.step{background:#fff;color:#62788a;border-color:var(--line)}
+.step span{background:#edf3f8}
+.step.active{background:#e9f4fb;border-color:#8bbad7;color:#0d5c8f}
+.dropzone{background:#f8fbfe;border-color:#9fc1d8}
+.btn{color:var(--text)}
+.btn.primary,.primary{background:linear-gradient(90deg,#0d5c8f,#2f7db6);color:#fff}
+.btn.secondary,.secondary{background:#eef5fb;border-color:#cfdeea;color:#173042}
+.btn.ghost,.ghost{background:#fff;border-color:#ccd9e4;color:#26485e}
+.full-select,.template-bar select,.template-bar input,.schema-panel input,.schema-panel select,.schema-panel textarea,
+.map-item select,.form-grid input,.toolbar input,.toolbar select,textarea,
+.transaction-structure select{background:#fff;color:var(--text);border-color:#c7d5e2}
+.mapping-table-wrap,.table-wrap{border-color:var(--line);background:#fff}
+.mapping-table th,.table-wrap th{background:#f3f7fb;color:#35566d}
+.mapping-table td,.table-wrap td{border-color:#e7eef4;color:#213b4d}
+.table-wrap tbody tr:hover,.mapping-table tbody tr:hover{background:#f8fbfe}
+.risk-badge.low{background:#e7f6ef;color:#0a7d54;border-color:#9fd3bd}
+.risk-badge.medium{background:#fff6e5;color:#936000;border-color:#e2c88f}
+.risk-badge.high,.risk-badge.critical{background:#ffedf0;color:#b42f45;border-color:#e8aab4}
+.bar{background:#edf2f6}.bar>span{background:linear-gradient(90deg,#0d5c8f,#0a7d54)}
+textarea{background:#fff}
+dialog{background:#fff;color:var(--text);border-color:var(--line)}
+dialog::backdrop{background:rgba(32,50,67,.45)}
+.alias-library-empty{background:#f8fbfe}
+.danger-outline{color:#b42f45!important;border-color:#d9a2ab!important}
+
+.transaction-structure{margin:16px 0 18px;padding:17px;border:1px solid #c9dbe8;background:linear-gradient(180deg,#f9fcff,#f3f8fc);border-radius:16px}
+.transaction-structure h4{margin:4px 0 0;font-size:1.15rem}
+.structure-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:13px}
+.structure-grid label{font-weight:800}
+.structure-grid select{display:block;width:100%;margin-top:6px;padding:11px;border-radius:11px}
+.structure-guide{margin-top:13px;padding:13px;border-left:4px solid #0d5c8f;background:#fff;border-radius:10px;color:#3d596c}
+.structure-guide strong{color:#173042}
+.structure-guide ul{margin:7px 0 0;padding-left:18px}
+.sheet-direction-panel{margin-top:13px;padding:13px;background:#fff;border:1px solid var(--line);border-radius:12px}
+.sheet-direction-row{display:grid;grid-template-columns:minmax(160px,1fr) minmax(180px,.8fr);gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #e8eef4}
+.sheet-direction-row:last-child{border-bottom:0}
+.sheet-direction-row select{width:100%;padding:9px;border:1px solid #c7d5e2;border-radius:10px;background:#fff;color:var(--text)}
+.sheet-direction-name{font-weight:800}
+.sheet-direction-name small{display:block;font-weight:400;color:var(--muted)}
+.structure-ok{color:#0a7d54}.structure-warn{color:#a86500}
+@media(max-width:760px){.structure-grid,.sheet-direction-row{grid-template-columns:minmax(0,1fr)}}
