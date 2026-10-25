@@ -1,10 +1,10 @@
 {
-  "name":"FinIntel AML v2.8.1",
+  "name":"FinIntel AML v2.9",
   "short_name":"FinIntel",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",
   "background_color":"#f4f7fb",
   "theme_color":"#0d5c8f",
-  "description":"Financial intelligence and AML/CFT workbench with centered relationship mapping, stable zoom, drag-to-pan and tightly aligned counterparty labels."
+  "description":"Financial intelligence and AML/CFT workbench with counterparty investigation profiles, transaction drill-down, entity linkage, relationship mapping and graph export."
 }
