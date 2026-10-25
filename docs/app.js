@@ -2081,7 +2081,8 @@ async function saveGraphWord(){
     const title=esc(($('caseName').value.trim()||'FinIntel AML')+' — Counterparty Relationship View');
     const focused=networkSelectedNode?'<p><b>Focused node:</b> '+esc(networkSelectedNode.name)+' ('+esc(networkSelectedNode.role)+')</p>':'';
     const html='<!doctype html><html><head><meta charset="utf-8"><style>@page{size:landscape;margin:18mm}body{font-family:Arial;color:#173447}h1{font-size:18pt;color:#123b4c}p{font-size:10pt}img{width:100%;height:auto;border:1px solid #ccd5da}</style></head><body><h1>'+title+'</h1>'+focused+'<p>Generated '+esc(new Date().toLocaleString())+'</p><img src="'+png+'"></body></html>';
-    download(graphFileBase()+'.doc',html,'application/msword');
+    const blob=await FinIntelDocx.build(html,{landscape:true});
+    FinIntelDocx.save(graphFileBase()+'.docx',blob);
     status('graphExportStatus','Word document saved.');
   }catch(e){status('graphExportStatus',e.message,true);}
 }
@@ -2470,9 +2471,10 @@ async function saveIntelligenceReportWord(){
   const file=((irField('irCaseNumber')||'NFIU_IR')+'_'+(irField('irSubject')||'Subject')).replace(/[^a-z0-9._-]+/gi,'_');
   try{
     const graphData=await exportGraphPngData();
-    download(file+'.doc',intelligenceReportDocumentHtml(graphData),'application/msword');
-  }catch(error){status('irExportStatus','Unable to export report graph: '+error.message,true);return;}
-  status('irExportStatus','Word-compatible intelligence report saved. Review the draft before dissemination.');
+    const blob=await FinIntelDocx.build(intelligenceReportDocumentHtml(graphData));
+    FinIntelDocx.save(file+'.docx',blob);
+  }catch(error){status('irExportStatus','Unable to export DOCX report: '+error.message,true);return;}
+  status('irExportStatus','DOCX intelligence report saved with embedded images. Review the draft before dissemination.');
 }
 function saveIntelligenceReportPdf(){
   const a=state.analysis;
@@ -2586,7 +2588,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1.5 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1.6 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2769,7 +2771,7 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.5').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.6').then(r=>r.update()).catch(()=>{}));
 
 // Accounts are case inputs; importing a register never changes transaction evidence.
 const accountFields=[['holder','Account holder'],['number','Account number'],['bank','Bank / institution'],['type','Account type'],['currency','Currency'],['opened','Opening date'],['status','Account status'],['bvn','BVN / customer ID'],['balance','Balance'],['balanceDate','Balance date'],['relationship','Relationship to subject'],['source','Information source'],['received','Date received'],['coverage','Statement coverage'],['supplied','Statement supplied (yes/no)'],['analysed','Statement analysed (yes/no; analyst verified)'],['remarks','Analyst remarks']].map(([id,label])=>({id,label,visible:['holder','number','bank','status'].includes(id)}));
@@ -2935,5 +2937,6 @@ function setupSubjectProfileImport(){
  }catch(err){status('subjectImportStatus',err.message,true);}};
 }
 setupSubjectProfileImport();
+
 
 
