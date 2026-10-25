@@ -2252,14 +2252,7 @@ function populateIntelligenceReportBuilder(a){
   const accounts=uniqueObservedAccounts(a);
   if(accounts.length===1)irSetIfBlank('irAccountNumber',accounts[0].value);
   if(accounts.length)irSetIfBlank('irLinkedAccountsCount',accounts.length);
-  if(!$('irAttachments')?.value){
-    const items=[];
-    
-    items.push('Appendix II – Significant transaction analysis generated from FinIntel.');
-    items.push('Appendix III – Top originators’ individual transactions.');
-    items.push('Appendix IV – Top beneficiaries’ individual transactions.');
-    $('irAttachments').value=items.join('\n');
-  }
+  syncIrAttachments();
   renderIrEvidenceSummary(a);
 }
 function counterpartyRecordsForIr(a,role,name){
@@ -2400,9 +2393,24 @@ function irProfileHtml(){
   const img=irSubjectPhotoData?'<td class="ir-subject-photo" rowspan="'+Math.max(1,rows.length)+'"><img src="'+irSubjectPhotoData+'" alt="Subject photograph"></td>':'';
   return rows.length?'<table class="ir-profile-table"><tbody>'+rows.map((x,i)=>'<tr>'+(i===0?img:'')+'<th>'+esc(x[0])+'</th><td>'+esc(x[1])+'</td></tr>').join('')+'</tbody></table>':'<p class="ir-draft-note">Subject profile has not been supplied.</p>';
 }
+function irGeneratedAttachmentLines(){
+  const lines=[];
+  if(selectedAccounts().length&&accountsInAppendix())lines.push('Appendix I – Accounts Register.');
+  lines.push('Appendix II – Significant Transaction Analysis.');
+  lines.push('Appendix III – Top Originators’ Transactions.');
+  lines.push('Appendix IV – Top Beneficiaries’ Transactions.');
+  return lines;
+}
+function syncIrAttachments(){
+  const manual=irField('irAttachments').split(/\n+/).map(x=>x.trim()).filter(Boolean)
+    .filter(line=>!/^appendix\s+(?:IV|III|II|I)\b/i.test(line));
+  const lines=[...irGeneratedAttachmentLines(),...manual];
+  if($('irAttachments'))$('irAttachments').value=lines.join('\n');
+  return lines;
+}
 function irAttachmentsHtml(){
-  const lines=irField('irAttachments').split(/\n+/).map(x=>x.trim()).filter(Boolean);
-  return lines.length?'<h2>ATTACHMENT</h2><ul class="ir-bullets">'+lines.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'';
+  const lines=syncIrAttachments();
+  return '<h2>ATTACHMENT</h2><ul class="ir-bullets">'+lines.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
 }
 function irTopPartyTransactions(a,role){
   const limit=Math.max(1,Math.min(20,Number(irField('irTopPartyCount'))||10));
