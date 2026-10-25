@@ -1266,9 +1266,16 @@ function renderNetwork(a){
   if($('networkPartyCount'))$('networkPartyCount').value=count;
   const origins=group(txs,'inflow'),benefits=group(txs,'outflow');
   const o=origins.slice(0,count),b=benefits.slice(0,count);
-  const n=Math.max(4,o.length,b.length),height=Math.max(500,120+n*88),width=1200,subject=$('subjectName').value.trim()||'Subject',subjectY=height/2;
+  const n=Math.max(4,o.length,b.length);
+  const height=Math.max(500,120+n*88);
+  const width=1800;
+  const subjectX=900,originNodeX=555,benefitNodeX=1245;
+  const originTextX=70,benefitTextX=1300;
+  const originLineStart=originNodeX+30,originLineEnd=subjectX-72;
+  const benefitLineStart=subjectX+72,benefitLineEnd=benefitNodeX-30;
+  const subject=$('subjectName').value.trim()||'Subject',subjectY=height/2;
   const oy=networkYPositions(Math.max(1,o.length),height),by=networkYPositions(Math.max(1,b.length),height);
-  if($('networkRangeStatus'))$('networkRangeStatus').textContent=txs.length.toLocaleString()+' transaction(s) • '+o.length+' originator(s) shown • '+b.length+' beneficiary/beneficiaries shown • dates are shown per node';
+  if($('networkRangeStatus'))$('networkRangeStatus').textContent=txs.length.toLocaleString()+' transaction(s) • '+o.length+' originator(s) shown • '+b.length+' beneficiary/beneficiaries shown • 1,800 px relationship canvas • drag or use the horizontal scrollbar';
 
   if(!txs.length||(!o.length&&!b.length)){
     $('networkView').innerHTML='<div class="network-empty">No classified inflow/outflow relationships are available.</div>';
@@ -1277,24 +1284,24 @@ function renderNetwork(a){
 
   let s='<svg class="network-svg" style="width:'+Math.round(width*networkZoom)+'px" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Originator and beneficiary relationship view">';
   o.forEach((x,i)=>{
-    const y=oy[i],label=shortName(x.name,30),dates=nodeDateRange(x);
-    s+='<line class="origin-link" x1="325" y1="'+y+'" x2="535" y2="'+subjectY+'"/>'
-      +'<circle class="origin" cx="300" cy="'+y+'" r="27"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
-      +'<text x="34" y="'+(y-14)+'">'+esc(label)+'</text>'
-      +'<text class="money" x="34" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
-      +'<text class="node-date" x="34" y="'+(y+29)+'">'+esc(dates)+'</text>';
+    const y=oy[i],label=shortName(x.name,36),dates=nodeDateRange(x);
+    s+='<line class="origin-link" x1="'+originLineStart+'" y1="'+y+'" x2="'+originLineEnd+'" y2="'+subjectY+'"/>'
+      +'<circle class="origin" cx="'+originNodeX+'" cy="'+y+'" r="29"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
+      +'<text x="'+originTextX+'" y="'+(y-14)+'">'+esc(label)+'</text>'
+      +'<text class="money" x="'+originTextX+'" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
+      +'<text class="node-date" x="'+originTextX+'" y="'+(y+29)+'">'+esc(dates)+'</text>';
   });
   b.forEach((x,i)=>{
-    const y=by[i],label=shortName(x.name,28),dates=nodeDateRange(x);
-    s+='<line class="benefit-link" x1="665" y1="'+subjectY+'" x2="875" y2="'+y+'"/>'
-      +'<circle class="benefit" cx="900" cy="'+y+'" r="27"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
-      +'<text x="940" y="'+(y-14)+'">'+esc(label)+'</text>'
-      +'<text class="money" x="940" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
-      +'<text class="node-date" x="940" y="'+(y+29)+'">'+esc(dates)+'</text>';
+    const y=by[i],label=shortName(x.name,36),dates=nodeDateRange(x);
+    s+='<line class="benefit-link" x1="'+benefitLineStart+'" y1="'+subjectY+'" x2="'+benefitLineEnd+'" y2="'+y+'"/>'
+      +'<circle class="benefit" cx="'+benefitNodeX+'" cy="'+y+'" r="29"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
+      +'<text x="'+benefitTextX+'" y="'+(y-14)+'">'+esc(label)+'</text>'
+      +'<text class="money" x="'+benefitTextX+'" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
+      +'<text class="node-date" x="'+benefitTextX+'" y="'+(y+29)+'">'+esc(dates)+'</text>';
   });
-  s+='<circle class="subject" cx="600" cy="'+subjectY+'" r="54"/>'
-    +'<text class="subject-label" x="600" y="'+(subjectY-3)+'" text-anchor="middle">'+esc(shortName(subject,20))+'</text>'
-    +'<text class="subject-sub" x="600" y="'+(subjectY+20)+'" text-anchor="middle">SUBJECT</text></svg>';
+  s+='<circle class="subject" cx="'+subjectX+'" cy="'+subjectY+'" r="56"/>'
+    +'<text class="subject-label" x="'+subjectX+'" y="'+(subjectY-3)+'" text-anchor="middle">'+esc(shortName(subject,22))+'</text>'
+    +'<text class="subject-sub" x="'+subjectX+'" y="'+(subjectY+20)+'" text-anchor="middle">SUBJECT</text></svg>';
   $('networkView').innerHTML=s;
   initNetworkPan();
   centerNetworkView();
@@ -1409,7 +1416,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1500,7 +1507,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1532,4 +1539,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.0').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.1').then(r=>r.update()).catch(()=>{}));
