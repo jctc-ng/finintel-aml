@@ -1387,7 +1387,7 @@ function renderNetwork(a,focus='center'){
     cards+=networkLabelCard('beneficiary',x,sideBuffer+(benefitCardSvgX*scale),(by[i]*scale)-cardHalfH,cardWidth,selected);
   });
 
-  $('networkView').innerHTML='<div class="network-canvas" data-focus-left="'+focusLeft+'" data-focus-center="'+focusCenter+'" data-focus-right="'+focusRight+'" data-focus-selected="'+focusSelected+'" data-focus-selected-y="'+focusSelectedY+'" style="width:'+canvasWidth+'px;min-width:'+canvasWidth+'px;height:'+canvasHeight+'px;min-height:'+canvasHeight+'px">'+svg+cards+'</div>';
+  $('networkView').innerHTML='<div class="network-canvas" data-focus-left="'+focusLeft+'" data-focus-center="'+focusCenter+'" data-focus-right="'+focusRight+'" data-focus-selected="'+focusSelected+'" data-focus-selected-y="'+focusSelectedY+'" style="--network-scale:'+scale+';width:'+canvasWidth+'px;min-width:'+canvasWidth+'px;height:'+canvasHeight+'px;min-height:'+canvasHeight+'px">'+svg+cards+'</div>';
   initNetworkPan();
   $$('#networkView .network-child-target').forEach(el=>{
     el.onpointerdown=e=>e.stopPropagation();
@@ -1438,10 +1438,10 @@ function graphExportHtml(){
 function saveGraphPdf(){
   status('graphExportStatus','Opening print view…');
   try{
-    const w=window.open('','_blank','noopener,noreferrer');
+    const w=window.open('','_blank');
     if(!w)throw new Error('The browser blocked the print window. Allow pop-ups for this site and try again.');
     w.document.open();w.document.write(graphExportHtml());w.document.close();
-    w.onload=()=>{setTimeout(()=>{w.focus();w.print();status('graphExportStatus','Print dialog opened. Choose “Save as PDF”.');},250);};
+    setTimeout(()=>{try{w.focus();w.print();status('graphExportStatus','Print dialog opened. Choose “Save as PDF”.');}catch(e){status('graphExportStatus','Print view opened. Use the browser Print command and choose “Save as PDF”.');}},500);
   }catch(e){status('graphExportStatus',e.message,true);}
 }
 function saveGraphWord(){
