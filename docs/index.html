@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0d5c8f" />
-  <meta name="description" content="FinIntel AML v2.6.1 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
-  <title>FinIntel AML v2.6.1</title>
-  <link rel="manifest" href="manifest.webmanifest?v=2.6.1" />
-  <link rel="stylesheet" href="styles.css?v=2.6.1" />
+  <meta name="description" content="FinIntel AML v2.6.2 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <title>FinIntel AML v2.6.2</title>
+  <link rel="manifest" href="manifest.webmanifest?v=2.6.2" />
+  <link rel="stylesheet" href="styles.css?v=2.6.2" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -394,7 +394,7 @@
           <article class="card pad result-accent flow-card">
             <p class="kicker flow-kicker">FLOW OF FUNDS</p>
             <h3>Counterparty relationship view</h3>
-            <p class="network-help">Green = originators/inflows • Blue = beneficiaries/outflows • Gold = subject. Each node shows its own transaction date range beneath the amount. The relationship canvas is wider than the screen at 100% zoom, so the horizontal scrollbar is always useful. Click and drag anywhere on the view to pan left or right.</p>
+            <p class="network-help">Green = originators/inflows • Blue = beneficiaries/outflows • Gold = subject. Each node shows its own transaction date range beneath the amount. The relationship canvas has extra space beyond both outer node groups. Use the scrollbar or drag the view; Left, Center and Right jump directly to each area.</p>
             <div class="network-toolbar">
               <label>Parties per side
                 <input id="networkPartyCount" type="number" value="4" min="4" max="20" step="1" />
@@ -402,7 +402,9 @@
               <div class="network-zoom-controls" aria-label="Network zoom controls">
                 <button id="networkZoomOut" class="btn ghost" type="button" title="Zoom out">−</button>
                 <button id="networkZoomReset" class="btn ghost" type="button" title="Reset zoom">100%</button>
+                <button id="networkLeft" class="btn ghost" type="button" title="Show left/originator side">Left</button>
                 <button id="networkCenter" class="btn ghost" type="button" title="Center relationship view">Center</button>
+                <button id="networkRight" class="btn ghost" type="button" title="Show right/beneficiary side">Right</button>
                 <button id="networkZoomIn" class="btn ghost" type="button" title="Zoom in">+</button>
               </div>
             </div>
@@ -467,10 +469,10 @@
 
   <footer>
     <img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo" />
-    <div><strong>FinIntel AML v2.6.1</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v2.6.2</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.6.1" defer></script>
+  <script src="app.js?v=2.6.2" defer></script>
 </body>
 </html>
