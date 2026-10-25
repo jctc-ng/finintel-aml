@@ -1,10 +1,10 @@
 {
-  "name":"FinIntel AML v3.0.1",
+  "name":"FinIntel AML v3.1",
   "short_name":"FinIntel",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",
   "background_color":"#f4f7fb",
   "theme_color":"#0d5c8f",
-  "description":"Financial intelligence and AML/CFT workbench with paginated alias resolution, data-quality drill-down, counterparty investigation profiles, relationship mapping and analyst-controlled resolutions."
+  "description":"Financial intelligence and AML/CFT workbench with NFIU-style intelligence report generation, analyst-controlled external database results, evidence-backed findings, counterparty resolution, data-quality review and relationship analysis."
 }
