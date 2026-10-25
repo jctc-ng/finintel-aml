@@ -2837,13 +2837,13 @@ setupAccountsRegister();
 
 
 const subjectImportFields=[
- ['irFullName','Full Name',['fullname','name','subjectname','customername']],
+ ['irFullName','Full Name',['fullname','name','subjectname','customername','accountname','names']],
  ['first','First Name',['firstname','first','givenname']],['middle','Middle Name',['middle','middlename','othernames']],['surname','Surname',['surname','lastname','familyname']],
- ['irDob','Date of Birth',['dob','dateofbirth','birthdate']],['irNationality','Nationality',['nationality','citizenship']],
- ['irMobile','Mobile Number(s)',['phone','phone2','mobile','mobilenumber','phonenumber','telephone']],
- ['irBvn','BVN',['bvn','bankverificationnumber']],['irNin','NIN',['nin','nationalidentitynumber','nationalidentificationnumber']],
+ ['irDob','Date of Birth',['dob','dateofbirth','birthdate','birth','dobddmmyyyy','dateofbirthddmmyyyy']],['irNationality','Nationality',['nationality','citizenship']],
+ ['irMobile','Mobile Number(s)',['phone','phone1','phone2','phone3','mobile','mobile1','mobile2','mobileno','mobilenumber','phonenumber','telephone','telephonenumber']],
+ ['irBvn','BVN',['bvn','bankverificationnumber']],['irNin','NIN',['nin','nationalidentitynumber','nationalidentificationnumber','nationalid']],
  ['irAddress','Address',['address','residentialaddress']],['irOccupation','Occupation',['occupation','profession']],
- ['irEmail','Email Address(es)',['email','emailaddress']],['irSocial','Social Media Handle(s)',['socialmedia','socialmediahandles']],
+ ['irEmail','Email Address(es)',['email','emailaddress','email1','email2','emails']],['irSocial','Social Media Handle(s)',['socialmedia','socialmediahandles']],
  ['irGender','Gender',['gender','sex']],['irOrigin','State of Origin',['origin','stateoforigin']],['irResidence','State of Residence',['residence','stateofresidence']],['irPassport','Passport Number',['passport','passportnumber']]
 ];
 let subjectImportSheets=[],subjectImportRows=[];
@@ -2866,24 +2866,35 @@ function subjectRowsFromGrid(grid,layout){
  return rows.slice(headerIndex+1).map(row=>Object.fromEntries(headers.map((h,i)=>[h||'Column '+(i+1),row[i]||'']))).filter(row=>Object.values(row).some(Boolean));
 }
 function subjectImportDate(value,order){
- const raw=String(value||'').trim();if(!raw)return '';
- let y,m,d;let match=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T].*)?$/);
- if(match){[,y,m,d]=match;}else{match=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2}|\d{4})(?:\s.*)?$/);if(!match)return null;[,d,m,y]=match;if(order==='mdy')[d,m]=[m,d];if(y.length===2)y=String(Number(y)<=Math.min(99,new Date().getFullYear()%100)?2000+Number(y):1900+Number(y));}
- const date=new Date(Date.UTC(Number(y),Number(m)-1,Number(d)));if(date.getUTCFullYear()!==Number(y)||date.getUTCMonth()!==Number(m)-1||date.getUTCDate()!==Number(d))return null;
- return String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+ const raw=String(value??'').trim().replace(/\u00a0/g,' ');if(!raw)return '';
+ const valid=(y,m,d)=>{y=Number(y);m=Number(m);d=Number(d);const date=new Date(Date.UTC(y,m-1,d));return y>=1900&&date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d?String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'):null;};
+ // Excel's 1900 date system, including its fictitious leap day.
+ if(/^\d{4,5}(?:\.\d+)?$/.test(raw)){const serial=Math.floor(Number(raw));if(serial===60)return null;const date=new Date(Date.UTC(1899,11,31)+(serial-(serial>60?1:0))*86400000);return valid(date.getUTCFullYear(),date.getUTCMonth()+1,date.getUTCDate());}
+ let match=raw.match(/^(\d{4})[\/.\-](\d{1,2})[\/.\-](\d{1,2})(?:[ T].*)?$/);
+ if(match)return valid(match[1],match[2],match[3]);
+ match=raw.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})(?:[ T].*)?$/);
+ if(match){let [,d,m,y]=match;if(order==='mdy')[d,m]=[m,d];if(y.length===2)y=String(Number(y)<=new Date().getFullYear()%100?2000+Number(y):1900+Number(y));return valid(y,m,d);}
+ const months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+ match=raw.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s-]+([a-z]+)[,\s-]+(\d{4})(?:\s.*)?$/i);
+ if(match){const month=months.indexOf(match[2].slice(0,3).toLowerCase())+1;return month?valid(match[3],month,match[1]):null;}
+ match=raw.match(/^([a-z]+)[\s-]+(\d{1,2})(?:st|nd|rd|th)?[,]?[\s-]+(\d{4})(?:\s.*)?$/i);
+ if(match){const month=months.indexOf(match[1].slice(0,3).toLowerCase())+1;return month?valid(match[3],month,match[2]):null;}
+ return null;
 }
 function subjectImportMappedValues(row,mappings,order){
  const out={};for(const {source,target} of mappings){if(!target)continue;const value=String(row[source]??'').trim();if(value)out[target]=out[target]?[...new Set([out[target],value])].join(' / '):value;}
  if(!out.irFullName){out.irFullName=[out.first,out.middle,out.surname].filter(Boolean).join(' ');}
  delete out.first;delete out.middle;delete out.surname;
- if(out.irDob){const date=subjectImportDate(out.irDob,order);if(date===null)throw Error('Date of birth could not be read. Check the date format or correct it in the source file.');out.irDob=date;}
+ const warnings=[];
+ if(out.irDob){const raw=out.irDob,date=subjectImportDate(raw,order);if(date===null){delete out.irDob;warnings.push('Date of birth was not imported ('+raw+'). Enter it manually; other mapped fields can still be populated.');}else out.irDob=date;}
+ Object.defineProperty(out,'warnings',{value:warnings,enumerable:false});
  return out;
 }
 function subjectCurrentMappings(){return Array.from($('subjectImportMapping').querySelectorAll('[data-subject-map]')).map(el=>({source:el.dataset.source,target:el.value}));}
 function renderSubjectImportReview(){
  const row=subjectImportRows[0];if(!row)return;
  try{const values=subjectImportMappedValues(row,subjectCurrentMappings(),$('subjectImportDateOrder').value);
- $('subjectImportReview').innerHTML='<h4>Values to populate</h4><div class="subject-import-review">'+Object.entries(values).filter(([key,value])=>value).map(([key,value])=>'<div><strong>'+esc(subjectImportFields.find(f=>f[0]===key)?.[1]||key)+'</strong><span>'+esc(value)+'</span></div>').join('')+'</div>';status('subjectImportStatus','');
+ $('subjectImportReview').innerHTML='<h4>Values to populate</h4><div class="subject-import-review">'+Object.entries(values).filter(([key,value])=>value).map(([key,value])=>'<div><strong>'+esc(subjectImportFields.find(f=>f[0]===key)?.[1]||key)+'</strong><span>'+esc(value)+'</span></div>').join('')+'</div>';status('subjectImportStatus',values.warnings.join(' '));
  }catch(err){$('subjectImportReview').innerHTML='';status('subjectImportStatus',err.message,true);}
 }
 function renderSubjectImportMapping(){
@@ -2920,8 +2931,9 @@ function setupSubjectProfileImport(){
  const row=subjectImportRows[0];if(!row)throw Error('Upload a single subject profile and review its mapping first.');const values=subjectImportMappedValues(row,subjectCurrentMappings(),$('subjectImportDateOrder').value);let count=0,skipped=0;
  for(const [id,value] of Object.entries(values)){const input=$(id);if(!input||!value)continue;if(input.value&&!$('subjectImportOverwrite').checked){skipped++;continue;}input.value=value;count++;}
  if(values.irFullName&&(!irField('irSubject')||$('subjectImportOverwrite').checked))$('irSubject').value=values.irFullName;
- renderIntelligenceReportPreview();status('subjectImportStatus',count+' fields populated. '+skipped+' existing values kept. Review the subject profile before exporting.');
+ renderIntelligenceReportPreview();status('subjectImportStatus',count+' fields populated. '+skipped+' existing values kept. '+values.warnings.join(' '));
  }catch(err){status('subjectImportStatus',err.message,true);}};
 }
 setupSubjectProfileImport();
+
 
