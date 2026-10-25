@@ -433,3 +433,72 @@ Workbook:
 → map Amount to Amount
 → assign Sheet1 and Sheet2 directions
 ```
+
+
+---
+
+## FinIntel AML v2.9 — Counterparty Investigation Profile
+
+FinIntel now supports a dedicated investigation profile for each analysed originator or beneficiary.
+
+### Open a counterparty profile
+
+A profile can be opened from:
+- a counterparty name in the **Top Originators** table;
+- a counterparty name in the **Top Beneficiaries** table;
+- the relationship graph by double-clicking a child node; or
+- selecting a graph child and choosing **Open Full Profile**.
+
+### Profile overview
+
+The profile consolidates the counterparty's observed activity with the subject and calculates:
+- related transaction count;
+- total inflow from the counterparty;
+- total outflow to the counterparty;
+- total observed transaction value;
+- average transaction value;
+- largest transaction;
+- first observed transaction date;
+- last observed transaction date;
+- whether the counterparty appears as an originator, beneficiary, or on both sides of flow.
+
+### Identity and linkage
+
+The profile also surfaces:
+- original name variants before analyst alias resolution;
+- account-like identifiers observed in related records;
+- phone numbers and email addresses;
+- cryptocurrency wallet or blockchain identifiers;
+- transaction hashes where available;
+- other entities extracted from narrations in related transactions;
+- entity classifications and extraction confidence.
+
+These values are observations from the imported data and Description Intelligence layer. They are not automatic identity determinations.
+
+### Transaction behaviour
+
+FinIntel profiles the counterparty's associated:
+- transaction meanings/categories;
+- payment channels;
+- record counts;
+- observed transaction values.
+
+### Transaction drill-down
+
+Every profile contains its underlying transaction records with:
+- date;
+- role/direction;
+- amount;
+- narration and extracted meaning;
+- identifiers;
+- source worksheet and source row.
+
+The transaction drill-down supports:
+- keyword search;
+- originator/inflow or beneficiary/outflow filtering;
+- pagination;
+- CSV export for the selected counterparty.
+
+### Analyst control
+
+Counterparty profiles are calculated locally from the currently analysed dataset. The feature does not automatically conclude that linked identifiers or extracted entities belong to the counterparty. Analysts remain responsible for verification, entity resolution and intelligence judgments.
