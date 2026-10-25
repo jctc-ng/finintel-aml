@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0d5c8f" />
-  <meta name="description" content="FinIntel AML v2.5 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
-  <title>FinIntel AML v2.5</title>
+  <meta name="description" content="FinIntel AML v2.5.1 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
+  <title>FinIntel AML v2.5.1</title>
   <link rel="manifest" href="manifest.webmanifest?v=2.4.2" />
-  <link rel="stylesheet" href="styles.css?v=2.5.0" />
+  <link rel="stylesheet" href="styles.css?v=2.5.1" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -310,6 +310,7 @@
               <span id="originatorTableCount" class="table-count-pill">0 shown</span>
             </div>
             <div id="originatorTable" class="table-wrap"></div>
+            <div id="originatorPagination" class="counterparty-pagination"></div>
           </article>
           <article class="card pad result-accent beneficiary-card">
             <p class="kicker outflow-kicker">COUNTERPARTIES • OUTFLOW</p>
@@ -335,6 +336,7 @@
               <span id="beneficiaryTableCount" class="table-count-pill">0 shown</span>
             </div>
             <div id="beneficiaryTable" class="table-wrap"></div>
+            <div id="beneficiaryPagination" class="counterparty-pagination"></div>
           </article>
         </section>
 
@@ -386,10 +388,8 @@
           <article class="card pad result-accent flow-card">
             <p class="kicker flow-kicker">FLOW OF FUNDS</p>
             <h3>Counterparty relationship view</h3>
-            <p class="network-help">Green = originators/inflows • Blue = beneficiaries/outflows • Gold = subject. Use the controls to focus the relationship view.</p>
+            <p class="network-help">Green = originators/inflows • Blue = beneficiaries/outflows • Gold = subject. Each node shows its own transaction date range beneath the amount.</p>
             <div class="network-toolbar">
-              <label>From<input id="networkDateFrom" type="date" /></label>
-              <label>To<input id="networkDateTo" type="date" /></label>
               <label>Parties per side
                 <input id="networkPartyCount" type="number" value="4" min="4" max="20" step="1" />
               </label>
@@ -460,10 +460,10 @@
 
   <footer>
     <img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo" />
-    <div><strong>FinIntel AML v2.5</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
+    <div><strong>FinIntel AML v2.5.1</strong><p>Structured fields and description intelligence identify indicators. Analysts make intelligence judgments.</p></div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.5.0" defer></script>
+  <script src="app.js?v=2.5.1" defer></script>
 </body>
 </html>
