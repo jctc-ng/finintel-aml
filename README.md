@@ -357,3 +357,79 @@ Version 2.3 also introduces the core field **Counterparty / Other Party** for tr
 ### Governance note
 
 Persistent alias mappings represent analyst judgments, not automated identity determinations. Analysts should validate that name variants actually refer to the same person or entity before consolidation, particularly where names are common or ambiguous.
+
+
+---
+
+## FinIntel AML v2.4 — Transaction Structure Mapping
+
+Transaction-party structure and amount structure are now independent choices.
+
+### Shared Originator / Beneficiary column
+
+If one source column contains the other party for both inflows and outflows, map it to:
+
+`Counterparty / Other Party`
+
+FinIntel then assigns the value according to the resolved transaction direction:
+
+- inflow → Originator;
+- outflow → Beneficiary.
+
+This works with every supported amount layout below.
+
+### Amount layout A — One Amount column
+
+Map the source money field to `Amount`.
+
+FinIntel can determine direction from:
+- a separate Direction / Inflow-Outflow column;
+- explicit plus/minus signs;
+- text within the same Amount cell such as `Inflow 5,000` or `Outflow 2,500`;
+- worksheet direction;
+- Description Intelligence.
+
+A positive number alone, with no row-level direction evidence, cannot reliably distinguish inflow from outflow.
+
+### Amount layout B — Separate Inflow and Outflow columns
+
+Map:
+- Inflow / Credit → `Credit Amount`;
+- Outflow / Debit → `Debit Amount`.
+
+A blank or zero in the opposite column is valid.
+
+### Amount layout C — Separate Inflow and Outflow sheets
+
+Map the common sheet money field to `Amount`. If the worksheets use different money-column headings, both source columns may be mapped to `Amount`.
+
+Then assign each worksheet as:
+- Inflow / Credit;
+- Outflow / Debit;
+- Auto-detect;
+- Ignore.
+
+The source worksheet is retained on every standardized transaction.
+
+### Examples
+
+```text
+Date | Counterparty | Amount | Inflow/Outflow
+→ Date | Counterparty / Other Party | Amount | Direction
+```
+
+```text
+Date | Counterparty | Inflow | Outflow
+→ Date | Counterparty / Other Party | Credit Amount | Debit Amount
+```
+
+```text
+Workbook:
+  Sheet1: Date | Counterparty | Amount
+  Sheet2: Date | Counterparty | Amount
+
+→ choose Separate Inflow and Outflow sheets
+→ map Counterparty to Counterparty / Other Party
+→ map Amount to Amount
+→ assign Sheet1 and Sheet2 directions
+```
