@@ -813,3 +813,103 @@ footer strong{color:#17384c;font-weight:850}
 #networkLeft,#networkCenter,#networkRight{
   white-space:nowrap;
 }
+
+/* FinIntel AML v2.7 — single child-node focus + graph export */
+.network-export-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  margin:10px 0 8px;
+}
+.network-export-row>div{display:flex;gap:8px;flex-wrap:wrap}
+.node-focus-panel{
+  margin:10px 0 12px;
+  padding:14px;
+  border:2px solid #b8952f;
+  border-radius:14px;
+  background:linear-gradient(180deg,#fffdf7,#fbf6e8);
+  box-shadow:0 8px 20px rgba(92,76,25,.08);
+}
+.node-focus-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+}
+.node-focus-role{
+  display:inline-block;
+  color:#725d17;
+  font-size:.76rem;
+  font-weight:950;
+  letter-spacing:.08em;
+}
+.node-focus-head h4{
+  margin:4px 0 0;
+  color:#12384e;
+  font-size:1.15rem;
+  font-weight:950;
+}
+.node-focus-metrics{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:9px;
+  margin-top:12px;
+}
+.node-focus-metrics div{
+  padding:10px 11px;
+  border:1px solid #e0d3a7;
+  border-radius:10px;
+  background:#fff;
+}
+.node-focus-metrics small{
+  display:block;
+  color:#5a6872;
+  font-size:.76rem;
+  font-weight:800;
+  margin-bottom:3px;
+}
+.node-focus-metrics strong{
+  display:block;
+  color:#16384d;
+  font-size:.94rem;
+  font-weight:950;
+}
+.node-focus-help{
+  margin:10px 0 0;
+  color:#415d6d!important;
+  font-size:.84rem;
+  font-weight:700;
+}
+.network-child-node{
+  cursor:pointer;
+}
+.network-child-node text,
+.network-child-node circle{
+  cursor:pointer;
+}
+.network-child-node:hover circle{
+  filter:drop-shadow(0 0 5px rgba(20,70,100,.25));
+}
+.network-child-node.selected-node circle{
+  stroke-width:8!important;
+  filter:drop-shadow(0 0 7px rgba(184,149,47,.45));
+}
+.network-child-node.selected-node text{
+  font-weight:950!important;
+}
+.network-svg line.selected-link{
+  stroke-width:5!important;
+  opacity:1!important;
+}
+#graphExportStatus{
+  min-height:auto;
+}
+@media(max-width:760px){
+  .node-focus-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .node-focus-head{flex-direction:column}
+}
+@media(max-width:460px){
+  .node-focus-metrics{grid-template-columns:minmax(0,1fr)}
+}
