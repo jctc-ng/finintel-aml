@@ -1224,10 +1224,11 @@ function nodeDateRange(x){
 function scrollNetworkTo(position){
   const view=$('networkView');if(!view)return;
   requestAnimationFrame(()=>{
+    const canvas=view.querySelector('.network-canvas');
     const maxX=Math.max(0,view.scrollWidth-view.clientWidth);
-    if(position==='left')view.scrollLeft=0;
-    else if(position==='right')view.scrollLeft=maxX;
-    else view.scrollLeft=maxX/2;
+    const key=position==='left'?'focusLeft':position==='right'?'focusRight':'focusCenter';
+    const target=canvas?Number(canvas.dataset[key]||0):0;
+    view.scrollLeft=Math.max(0,Math.min(maxX,target-(view.clientWidth/2)));
     view.scrollTop=Math.max(0,(view.scrollHeight-view.clientHeight)/2);
   });
 }
@@ -1255,16 +1256,20 @@ function initNetworkPan(){
   view.onpointerup=stop;view.onpointercancel=stop;view.onpointerleave=e=>{if(dragging&&e.buttons===0)stop(e);};
 }
 function setNetworkZoom(value){
+  const view=$('networkView');
+  const maxX=view?Math.max(0,view.scrollWidth-view.clientWidth):0;
+  const ratio=maxX?view.scrollLeft/maxX:.5;
+  const focus=ratio<.34?'left':ratio>.66?'right':'center';
   networkZoom=Math.max(.65,Math.min(2.25,value));
   if($('networkZoomReset'))$('networkZoomReset').textContent=Math.round(networkZoom*100)+'%';
-  if(state.analysis?.kind==='transaction'){renderNetwork(state.analysis);centerNetworkView();}
+  if(state.analysis?.kind==='transaction')renderNetwork(state.analysis,focus);
 }
 function networkYPositions(count,height){
   if(count<=1)return[height/2];
   const top=62,bottom=height-62,step=(bottom-top)/(count-1);
   return Array.from({length:count},(_,i)=>top+i*step);
 }
-function renderNetwork(a){
+function renderNetwork(a,focus='center'){
   const txs=a.records;
   const count=Math.max(4,Math.min(20,Number($('networkPartyCount')?.value)||4));
   if($('networkPartyCount'))$('networkPartyCount').value=count;
@@ -1273,10 +1278,10 @@ function renderNetwork(a){
   const n=Math.max(4,o.length,b.length);
   const height=Math.max(500,120+n*88);
   const width=1800;
-  const subjectX=900,originNodeX=555,benefitNodeX=1245;
-  const originTextX=70,benefitTextX=1300;
-  const originLineStart=originNodeX+30,originLineEnd=subjectX-72;
-  const benefitLineStart=subjectX+72,benefitLineEnd=benefitNodeX-30;
+  const subjectX=900,originNodeX=700,benefitNodeX=1100;
+  const originTextX=650,benefitTextX=1150;
+  const originLineStart=originNodeX+32,originLineEnd=subjectX-72;
+  const benefitLineStart=subjectX+72,benefitLineEnd=benefitNodeX-32;
   const subject=$('subjectName').value.trim()||'Subject',subjectY=height/2;
   const oy=networkYPositions(Math.max(1,o.length),height),by=networkYPositions(Math.max(1,b.length),height);
   if($('networkRangeStatus'))$('networkRangeStatus').textContent=txs.length.toLocaleString()+' transaction(s) • '+o.length+' originator(s) shown • '+b.length+' beneficiary/beneficiaries shown • 1,800 px relationship canvas • drag or use the horizontal scrollbar';
@@ -1288,23 +1293,26 @@ function renderNetwork(a){
 
   const scaledWidth=Math.round(width*networkZoom);
   const scaledHeight=Math.round(height*networkZoom);
-  const sideBuffer=Math.max(320,Math.round(360*networkZoom));
+  const sideBuffer=Math.max(420,Math.round(440*networkZoom));
   const canvasWidth=scaledWidth+(sideBuffer*2);
-  let s='<div class="network-canvas" style="width:'+canvasWidth+'px;min-width:'+canvasWidth+'px;padding-left:'+sideBuffer+'px;padding-right:'+sideBuffer+'px">'
+  const focusLeft=sideBuffer+Math.round((originNodeX/width)*scaledWidth);
+  const focusCenter=sideBuffer+Math.round((subjectX/width)*scaledWidth);
+  const focusRight=sideBuffer+Math.round((benefitNodeX/width)*scaledWidth);
+  let s='<div class="network-canvas" data-focus-left="'+focusLeft+'" data-focus-center="'+focusCenter+'" data-focus-right="'+focusRight+'" style="width:'+canvasWidth+'px;min-width:'+canvasWidth+'px;padding-left:'+sideBuffer+'px;padding-right:'+sideBuffer+'px">'
     +'<svg class="network-svg" width="'+scaledWidth+'" height="'+scaledHeight+'" viewBox="0 0 '+width+' '+height+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Originator and beneficiary relationship view">';
   o.forEach((x,i)=>{
     const y=oy[i],label=shortName(x.name,36),dates=nodeDateRange(x);
     s+='<line class="origin-link" x1="'+originLineStart+'" y1="'+y+'" x2="'+originLineEnd+'" y2="'+subjectY+'"/>'
       +'<circle class="origin" cx="'+originNodeX+'" cy="'+y+'" r="29"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
-      +'<text x="'+originTextX+'" y="'+(y-14)+'">'+esc(label)+'</text>'
-      +'<text class="money" x="'+originTextX+'" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
-      +'<text class="node-date" x="'+originTextX+'" y="'+(y+29)+'">'+esc(dates)+'</text>';
+      +'<text class="node-name origin-label" text-anchor="end" x="'+originTextX+'" y="'+(y-14)+'">'+esc(label)+'</text>'
+      +'<text class="money origin-label" text-anchor="end" x="'+originTextX+'" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
+      +'<text class="node-date origin-label" text-anchor="end" x="'+originTextX+'" y="'+(y+29)+'">'+esc(dates)+'</text>';
   });
   b.forEach((x,i)=>{
     const y=by[i],label=shortName(x.name,36),dates=nodeDateRange(x);
     s+='<line class="benefit-link" x1="'+benefitLineStart+'" y1="'+subjectY+'" x2="'+benefitLineEnd+'" y2="'+y+'"/>'
       +'<circle class="benefit" cx="'+benefitNodeX+'" cy="'+y+'" r="29"><title>'+esc(x.name)+' • '+esc(fmt(x.total,a.currency))+' • '+esc(dates)+'</title></circle>'
-      +'<text x="'+benefitTextX+'" y="'+(y-14)+'">'+esc(label)+'</text>'
+      +'<text class="node-name benefit-label" x="'+benefitTextX+'" y="'+(y-14)+'">'+esc(label)+'</text>'
       +'<text class="money" x="'+benefitTextX+'" y="'+(y+8)+'">'+esc(shortMoney(x.total,a.currency))+' • '+x.count+' tx</text>'
       +'<text class="node-date" x="'+benefitTextX+'" y="'+(y+29)+'">'+esc(dates)+'</text>';
   });
@@ -1313,7 +1321,7 @@ function renderNetwork(a){
     +'<text class="subject-sub" x="'+subjectX+'" y="'+(subjectY+20)+'" text-anchor="middle">SUBJECT</text></svg></div>';
   $('networkView').innerHTML=s;
   initNetworkPan();
-  centerNetworkView();
+  scrollNetworkTo(focus);
 }
 
 function maskedTop(profile){
@@ -1425,7 +1433,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6.2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6.3 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1518,7 +1526,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_3_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1550,4 +1558,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.2').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.3').then(r=>r.update()).catch(()=>{}));
