@@ -1064,6 +1064,88 @@ function buildDescriptionIntelligence(records){
   };
 }
 
+function isUnknownCounterpartyRecord(r,includeAcknowledged=false){
+  if(!r||!(r.direction==='inflow'||r.direction==='outflow'))return false;
+  if(!includeAcknowledged&&r.counterpartyResolutionIgnored)return false;
+  return r.direction==='inflow'?!String(r.originator||'').trim():!String(r.beneficiary||'').trim();
+}
+function resolutionCandidates(r){
+  const out=[],seen=new Set();
+  const add=(name,type='',confidence=0)=>{
+    const value=String(name||'').trim(),key=norm(value);
+    if(!key||seen.has(key))return;
+    seen.add(key);out.push({name:value,type:type||'entity',confidence:Number(confidence)||0});
+  };
+  (r.extracted?.entities||[]).forEach(e=>add(e.name,e.type,e.confidence));
+  if(r.extracted?.counterparty)add(r.extracted.counterparty,r.extracted.counterpartyType,r.extracted.counterpartyConfidence);
+  return out.sort((a,b)=>b.confidence-a.confidence||a.name.localeCompare(b.name));
+}
+function buildDataQuality(records){
+  const issues=[];
+  const add=(id,title,severity,description,rows)=>issues.push({id,title,severity,description,rows});
+
+  const missingDate=records.filter(r=>!String(r.dateRaw||'').trim());
+  const invalidDate=records.filter(r=>String(r.dateRaw||'').trim()&&!r.date);
+  const missingAmount=records.filter(r=>
+    !String(r.values?.amount??'').trim()&&!String(r.values?.debit??'').trim()&&!String(r.values?.credit??'').trim()
+  );
+  const zeroAmount=records.filter(r=>!missingAmount.includes(r)&&!(Number(r.amount)>0));
+  const bothDebitCredit=records.filter(r=>parseAmount(r.values?.debit)>0&&parseAmount(r.values?.credit)>0);
+  const unknownDirection=records.filter(r=>r.direction==='unknown');
+  const missingParty=records.filter(r=>isUnknownCounterpartyRecord(r,false));
+  const acknowledgedUnknown=records.filter(r=>isUnknownCounterpartyRecord(r,true)&&r.counterpartyResolutionIgnored);
+  const missingNarration=sourceForField('narration')?records.filter(r=>!String(r.narration||'').trim()):[];
+
+  const explicitDirection=r=>{
+    const d=norm(r.values?.direction).replace(/[^a-z]/g,'');
+    if(/^(credit|cr|inflow|deposit|incoming)$/.test(d))return'inflow';
+    if(/^(debit|dr|outflow|withdrawal|outgoing)$/.test(d))return'outflow';
+    return'';
+  };
+  const directionConflict=records.filter(r=>{
+    const e=explicitDirection(r);
+    return e&&r.sheetHint&&(r.sheetHint==='inflow'||r.sheetHint==='outflow')&&e!==r.sheetHint;
+  });
+
+  const duplicateMap=new Map();
+  records.forEach(r=>{
+    const key=[
+      norm(r.dateRaw),Number(r.amount)||0,r.direction,norm(r.originator),norm(r.beneficiary),
+      norm(r.narration),norm(r.account),norm(r.txid)
+    ].join('|');
+    if(!duplicateMap.has(key))duplicateMap.set(key,[]);
+    duplicateMap.get(key).push(r);
+  });
+  const duplicates=[...duplicateMap.values()].filter(g=>g.length>1).flat();
+
+  add('missing-counterparty','Missing counterparties','high','Classified inflow/outflow records where the other party remains unresolved.',missingParty);
+  add('unresolved-direction','Unresolved direction','high','Transactions that could not be reliably classified as inflow or outflow.',unknownDirection);
+  add('duplicate-transactions','Potential duplicate transactions','medium','Records sharing the same core transaction attributes. Review before removing or consolidating.',duplicates);
+  add('both-debit-credit','Debit and credit both populated','high','Rows where both debit and credit amounts are greater than zero.',bothDebitCredit);
+  add('invalid-date','Invalid dates','medium','Date values were present but could not be parsed into valid dates.',invalidDate);
+  add('missing-date','Missing dates','medium','No transaction date was supplied in the mapped date field.',missingDate);
+  add('missing-amount','Missing amounts','high','No mapped Amount, Debit or Credit value was supplied.',missingAmount);
+  add('zero-amount','Zero / unusable amounts','medium','A monetary field was present but produced no positive transaction amount.',zeroAmount);
+  add('direction-conflict','Direction evidence conflict','medium','Explicit direction conflicts with the assigned worksheet direction.',directionConflict);
+  if(sourceForField('narration'))add('missing-narration','Missing narrations','low','The narration/description field is mapped but blank for these records.',missingNarration);
+  add('acknowledged-unknown','Acknowledged unknown counterparties','info','Analyst reviewed these records and intentionally retained the counterparty as unknown.',acknowledgedUnknown);
+
+  const materialIssues=issues.filter(x=>x.severity!=='info');
+  const affected=new Set();
+  materialIssues.forEach(issue=>issue.rows.forEach(r=>affected.add(r.row+'|'+r.sheet)));
+  const clean=Math.max(0,records.length-affected.size);
+  const cleanRate=records.length?clean/records.length*100:100;
+  return{
+    issues,
+    affectedRecords:affected.size,
+    cleanRecords:clean,
+    cleanRate,
+    duplicateGroups:[...duplicateMap.values()].filter(g=>g.length>1).length,
+    resolutionsApplied:records.filter(r=>r.counterpartyResolutionApplied).length,
+    acknowledgedUnknown:acknowledgedUnknown.length
+  };
+}
+
 function buildSupplementalPatterns(records,currency,origins,benefits){
   const dated=records.filter(r=>r.date).sort((a,b)=>a.date-b.date);
   const turnover=sum(records,r=>r.amount);
@@ -1123,6 +1205,7 @@ function transactionAnalysis(records){
   const cryptoTx=records.filter(t=>cryptoRx.test(Object.values(t.values).join(' ')+' '+(t.extracted?.clean||''))),cryptoExposure=sum(cryptoTx,x=>x.amount),alerts=[];
   const descriptionIntel=buildDescriptionIntelligence(records);
   const supplemental=buildSupplementalPatterns(records,currency,origins,benefits);
+  const dataQuality=buildDataQuality(records);
   const add=(title,severity,score,detail,evidence)=>alerts.push({title,severity,score,detail,evidence});
   if(passRatio>=90&&totalIn)add('High pass-through activity','high',18,passRatio.toFixed(1)+'% of inflow was matched by total outflow.','Inflow '+fmt(totalIn,currency)+'; outflow '+fmt(totalOut,currency)+'.');
   else if(passRatio>=75&&totalIn)add('Elevated pass-through activity','medium',10,passRatio.toFixed(1)+'% of inflow was matched by outflow.','Review transaction purpose and retention pattern.');
@@ -1141,7 +1224,7 @@ function transactionAnalysis(records){
   if(supplemental.largestShare>=30&&records.length>=5)add('Single-transaction value concentration','medium',6,'The largest transaction represented '+supplemental.largestShare.toFixed(1)+'% of observed transaction value.','Largest transaction: '+fmt(supplemental.largest?.amount||0,currency)+'.');
   if(supplemental.peakDayCount>=15)add('High single-day transaction frequency','medium',6,'At least one day contained '+supplemental.peakDayCount+' transaction(s).','Review transaction velocity and business rationale for the peak day.');
   const riskScore=Math.min(100,sum(alerts,x=>x.score)),risk=riskScore>=60?'critical':riskScore>=40?'high':riskScore>=18?'medium':'low';
-  return{kind:'transaction',currency,records,txs:records,ins,outs,unknown,totalIn,totalOut,net:totalIn-totalOut,origins,benefits,rapid,structured,passRatio,concentration,both,cryptoTx,cryptoExposure,descriptionIntel,supplemental,alerts,riskScore,risk,first:dated[0]?.date||null,last:dated[dated.length-1]?.date||null,profiles:buildFieldProfiles(records)};
+  return{kind:'transaction',currency,records,txs:records,ins,outs,unknown,totalIn,totalOut,net:totalIn-totalOut,origins,benefits,rapid,structured,passRatio,concentration,both,cryptoTx,cryptoExposure,descriptionIntel,supplemental,dataQuality,alerts,riskScore,risk,first:dated[0]?.date||null,last:dated[dated.length-1]?.date||null,profiles:buildFieldProfiles(records)};
 }
 
 function universalAnalysis(records){
