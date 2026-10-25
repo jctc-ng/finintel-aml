@@ -689,3 +689,61 @@ footer strong{color:#17384c;font-weight:850}
   color:#ffd7dc!important;
   font-weight:800!important;
 }
+
+/* FinIntel AML v2.6 — supplementary indicators + draggable relationship canvas */
+.pattern-card:before{background:linear-gradient(180deg,#b8952f,#6557a5)}
+.pattern-kicker{color:#8a6f1f!important}
+.pattern-indicator-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-top:12px;
+}
+.pattern-indicator{
+  border:1px solid #d8e3ec;
+  border-left:5px solid #9db1bf;
+  background:#f9fbfd;
+  border-radius:12px;
+  padding:12px 13px;
+  min-height:112px;
+}
+.pattern-indicator.info{border-left-color:#176aa5;background:#eef7fc}
+.pattern-indicator.medium{border-left-color:#b87519;background:#fff7e9}
+.pattern-indicator.high{border-left-color:#b93b4d;background:#fff0f2}
+.pattern-title{
+  color:#29485b;
+  font-size:.78rem;
+  font-weight:900;
+  letter-spacing:.035em;
+  text-transform:uppercase;
+}
+.pattern-value{
+  color:#102f42;
+  font-size:1.25rem;
+  font-weight:950;
+  margin:5px 0 4px;
+}
+.pattern-detail{
+  color:#40586a;
+  font-size:.85rem;
+  font-weight:650;
+  line-height:1.35;
+}
+.network-view{
+  cursor:grab;
+  user-select:none;
+  -webkit-user-select:none;
+  max-height:720px;
+}
+.network-view.dragging{
+  cursor:grabbing!important;
+}
+.network-view.dragging *{
+  cursor:grabbing!important;
+}
+#networkCenter{
+  min-width:72px;
+}
+@media(max-width:720px){
+  .pattern-indicator-grid{grid-template-columns:minmax(0,1fr)}
+}
