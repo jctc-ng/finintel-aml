@@ -1571,6 +1571,154 @@ function rerenderCounterpartyTables(){
   renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
 }
 
+function unknownResolutionRows(){
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction')return[];
+  return a.records.filter(r=>isUnknownCounterpartyRecord(r,false));
+}
+function filteredUnknownRows(){
+  const q=norm($('unknownSearch')?.value||'');
+  const dir=$('unknownDirectionFilter')?.value||'all';
+  return unknownResolutionRows().filter(r=>{
+    if(dir!=='all'&&r.direction!==dir)return false;
+    if(!q)return true;
+    const candidates=resolutionCandidates(r).map(x=>x.name).join(' ');
+    const hay=[r.dateRaw,fmtDate(r.date),r.amount,r.direction,r.narration,r.sheet,r.row,candidates,r.extracted?.account,r.extracted?.phone,r.extracted?.email,r.extracted?.wallet].join(' ');
+    return norm(hay).includes(q);
+  });
+}
+function setUnknownSelected(key,selected){
+  if(!key)return;
+  if(selected)unknownSelection.set(key,key);
+  else unknownSelection.delete(key);
+}
+function renderUnknownPagination(total){
+  const el=$('unknownResolutionPagination');if(!el)return;
+  const pages=Math.max(1,Math.ceil(total/UNKNOWN_PAGE_SIZE));
+  unknownPage=Math.max(1,Math.min(unknownPage,pages));
+  const start=Math.max(1,unknownPage-2),end=Math.min(pages,unknownPage+2),buttons=[];
+  buttons.push('<button class="btn ghost unknown-page-btn" type="button" data-page="'+Math.max(1,unknownPage-1)+'" '+(unknownPage===1?'disabled':'')+'>Previous</button>');
+  for(let p=start;p<=end;p++)buttons.push('<button class="btn '+(p===unknownPage?'primary':'ghost')+' unknown-page-btn" type="button" data-page="'+p+'">'+p+'</button>');
+  buttons.push('<button class="btn ghost unknown-page-btn" type="button" data-page="'+Math.min(pages,unknownPage+1)+'" '+(unknownPage===pages?'disabled':'')+'>Next</button>');
+  el.innerHTML='<span class="page-summary">Page '+unknownPage+' of '+pages+' • '+total.toLocaleString()+' unresolved record'+(total===1?'':'s')+'</span><div class="page-buttons">'+buttons.join('')+'</div>';
+  $('.unknown-page-btn').forEach(btn=>btn.onclick=()=>{unknownPage=Number(btn.dataset.page)||1;renderUnknownResolution(state.analysis);});
+}
+function rerunAfterCounterpartyResolution(message){
+  try{
+    unknownSelection.clear();
+    state.standardized=standardize();
+    const a=transactionAnalysis(state.standardized);
+    renderAnalysis(a);
+    status('resolutionStatus',message);
+  }catch(e){
+    status('resolutionStatus',e.message||'Unable to rerun analysis after resolution.',true);
+  }
+}
+function applyResolutionToKeys(keys,name){
+  const value=String(name||'').trim();
+  if(!value)return 0;
+  let applied=0;
+  keys.forEach(key=>{
+    if(!key)return;
+    setCounterpartyResolution(key,{name:value,ignored:false,source:'analyst'});
+    applied++;
+  });
+  return applied;
+}
+function renderUnknownResolution(a){
+  if(!a||a.kind!=='transaction')return;
+  const all=unknownResolutionRows(),filtered=filteredUnknownRows();
+  const pages=Math.max(1,Math.ceil(filtered.length/UNKNOWN_PAGE_SIZE));
+  unknownPage=Math.max(1,Math.min(unknownPage,pages));
+  const start=(unknownPage-1)*UNKNOWN_PAGE_SIZE,page=filtered.slice(start,start+UNKNOWN_PAGE_SIZE);
+  const filteredKeys=filtered.map(r=>r.resolutionKey),selectedFiltered=filteredKeys.filter(k=>unknownSelection.has(k)).length;
+  $('unknownResolutionCount').textContent=all.length.toLocaleString()+' unresolved';
+  $('unknownFilteredCount').textContent=filtered.length.toLocaleString()+' match'+(filtered.length===1?'':'es')+(selectedFiltered?' • '+selectedFiltered+' selected':'');
+  const allSelected=filtered.length>0&&selectedFiltered===filtered.length;
+  const partial=selectedFiltered>0&&selectedFiltered<filtered.length;
+
+  $('unknownResolutionTable').innerHTML='<table><thead><tr>'
+    +'<th class="select-all-cell"><input id="unknownSelectAll" type="checkbox" title="Select all filtered unresolved records" '+(allSelected?'checked':'')+'></th>'
+    +'<th>Date</th><th>Direction</th><th class="num">Amount</th><th>Narration</th><th>FinIntel candidates</th><th>Source</th></tr></thead><tbody>'
+    +(page.map(r=>{
+      const candidates=resolutionCandidates(r);
+      const key=esc(r.resolutionKey);
+      const options=candidates.map(x=>'<option value="'+esc(x.name)+'">'+esc(x.name)+' • '+esc(x.type)+' • '+x.confidence+'%</option>').join('');
+      const candidateUi=candidates.length
+        ?'<div class="candidate-control"><select class="resolution-candidate" data-key="'+key+'">'+options+'</select><button class="btn ghost use-candidate-btn" type="button" data-key="'+key+'">Use</button></div>'
+        :'<span class="profile-empty">No reliable candidate extracted</span>';
+      return'<tr>'
+        +'<td><input class="unknown-select" type="checkbox" data-key="'+key+'" '+(unknownSelection.has(r.resolutionKey)?'checked':'')+'></td>'
+        +'<td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td>'
+        +'<td><span class="direction-badge '+esc(r.direction)+'">'+esc(r.direction)+'</span></td>'
+        +'<td class="num"><strong>'+esc(fmt(r.amount,a.currency))+'</strong></td>'
+        +'<td><div class="resolution-narration">'+esc(r.narration||r.extracted?.clean||'No narration mapped')+'</div>'+(r.extracted?.meaning?'<small>'+esc(r.extracted.meaning)+'</small>':'')+'</td>'
+        +'<td>'+candidateUi+'</td>'
+        +'<td>'+esc(r.sheet||'—')+'<br><small>Row '+r.row+'</small></td>'
+        +'</tr>';
+    }).join('')||'<tr><td colspan="7">No unresolved counterparties match the current filter.</td></tr>')
+    +'</tbody></table>';
+
+  const master=$('unknownSelectAll');
+  if(master){
+    master.indeterminate=partial;
+    master.onchange=()=>{
+      filteredKeys.forEach(k=>setUnknownSelected(k,master.checked));
+      renderUnknownResolution(a);
+    };
+  }
+  $('.unknown-select').forEach(box=>box.onchange=()=>{setUnknownSelected(box.dataset.key,box.checked);renderUnknownResolution(a);});
+  $('.use-candidate-btn').forEach(btn=>btn.onclick=()=>{
+    const select=document.querySelector('.resolution-candidate[data-key="'+CSS.escape(btn.dataset.key)+'"]');
+    const name=select?.value||'';
+    if(!name)return;
+    applyResolutionToKeys([btn.dataset.key],name);
+    rerunAfterCounterpartyResolution('Counterparty resolved to '+name+' and analysis rerun.');
+  });
+  renderUnknownPagination(filtered.length);
+}
+function renderDataQualityIssueDetail(a){
+  const dq=a?.dataQuality;if(!dq)return;
+  const issue=dq.issues.find(x=>x.id===dataQualityActiveIssue)||dq.issues[0];
+  if(!issue)return;
+  dataQualityActiveIssue=issue.id;
+  $('dataQualityIssueTitle').textContent=issue.title;
+  $('dataQualityIssueDescription').textContent=issue.description;
+  $('dataQualityIssueCount').textContent=issue.rows.length.toLocaleString()+' record'+(issue.rows.length===1?'':'s');
+  const rows=issue.rows.slice(0,300);
+  $('dataQualityIssueTable').innerHTML='<table><thead><tr><th>Source row</th><th>Date</th><th>Direction</th><th class="num">Amount</th><th>Counterparty</th><th>Narration</th><th>Source sheet</th></tr></thead><tbody>'
+    +(rows.map(r=>{
+      const cp=r.direction==='inflow'?(r.originator||'Unknown counterparty'):r.direction==='outflow'?(r.beneficiary||'Unknown counterparty'):'—';
+      return'<tr><td>'+r.row+'</td><td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td><td><span class="direction-badge '+esc(r.direction)+'">'+esc(r.direction)+'</span></td><td class="num">'+esc(fmt(r.amount,a.currency))+'</td><td>'+esc(cp)+'</td><td>'+esc(r.narration||'—')+'</td><td>'+esc(r.sheet||'—')+'</td></tr>';
+    }).join('')||'<tr><td colspan="7">No records are affected by this check.</td></tr>')
+    +'</tbody></table>'
+    +(issue.rows.length>300?'<div class="quality-limit-note">Showing the first 300 affected records. Export the standardised dataset for complete record-level review.</div>':'');
+}
+function renderDataQuality(a){
+  const dq=a?.dataQuality;if(!dq)return;
+  $('dataQualityScore').textContent=dq.cleanRate.toFixed(1)+'% without material flags';
+  const metrics=[
+    ['Records reviewed',a.records.length.toLocaleString(),'neutral'],
+    ['Without material flags',dq.cleanRecords.toLocaleString(),'good'],
+    ['Affected records',dq.affectedRecords.toLocaleString(),dq.affectedRecords?'warn':'good'],
+    ['Duplicate groups',dq.duplicateGroups.toLocaleString(),dq.duplicateGroups?'warn':'neutral'],
+    ['Analyst resolutions applied',dq.resolutionsApplied.toLocaleString(),'info'],
+    ['Acknowledged unknown',dq.acknowledgedUnknown.toLocaleString(),'info']
+  ];
+  $('dataQualityMetrics').innerHTML=metrics.map(x=>'<div class="quality-metric '+x[2]+'"><small>'+esc(x[0])+'</small><strong>'+esc(x[1])+'</strong></div>').join('');
+
+  if(!dataQualityActiveIssue||!dq.issues.some(x=>x.id===dataQualityActiveIssue)){
+    dataQualityActiveIssue=(dq.issues.find(x=>x.rows.length&&x.severity!=='info')||dq.issues[0])?.id||'';
+  }
+  $('dataQualityIssues').innerHTML=dq.issues.map(issue=>
+    '<button class="quality-issue '+esc(issue.severity)+(issue.id===dataQualityActiveIssue?' active':'')+'" type="button" data-issue="'+esc(issue.id)+'">'
+      +'<span>'+esc(issue.title)+'</span><strong>'+issue.rows.length.toLocaleString()+'</strong><small>'+esc(issue.description)+'</small>'
+    +'</button>'
+  ).join('');
+  $('.quality-issue').forEach(btn=>btn.onclick=()=>{dataQualityActiveIssue=btn.dataset.issue;renderDataQuality(a);});
+  renderDataQualityIssueDetail(a);
+}
+
 function renderSupplementalIndicators(a){
   const el=$('supplementalIndicators');if(!el)return;
   const items=a.supplemental?.items||[];
@@ -1965,6 +2113,8 @@ function renderAnalysis(a){
   if(a.kind==='transaction'){
     renderCounterparty('originatorTable',a.origins,a.totalIn,a.currency);
     renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
+    renderUnknownResolution(a);
+    renderDataQuality(a);
     renderDescriptionIntelligence(a);
     renderAlerts(a);renderSupplementalIndicators(a);renderNetwork(a);
   }
