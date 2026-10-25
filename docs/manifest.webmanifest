@@ -1,10 +1,10 @@
 {
-  "name":"FinIntel AML v2.5.3.2",
+  "name":"FinIntel AML v2.6",
   "short_name":"FinIntel",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",
-  "background_color":"#06121b",
-  "theme_color":"#071722",
-  "description":"Financial intelligence and AML/CFT workbench with universal schema, multi-sheet ingestion and description intelligence and entity extraction, persistent analyst alias mapping and universal transaction-structure mapping."
+  "background_color":"#f4f7fb",
+  "theme_color":"#0d5c8f",
+  "description":"Financial intelligence and AML/CFT workbench with universal schema, multi-sheet ingestion, description intelligence, persistent analyst entity resolution, supplementary analytical indicators and interactive relationship mapping."
 }
