@@ -143,6 +143,9 @@ const state={
   rawRows:[],columns:[],sourceName:'',sourceType:'',sheets:[],
   datasetType:'transaction',
   sourceMapping:{},
+  amountLayout:'auto',
+  partyLayout:'auto',
+  sheetDirections:{},
   standardized:[],
   analysis:null,
   customFields:loadJSON(STORE.custom,[]),
@@ -248,6 +251,85 @@ function exportAliasLibrary(){
     aliases:state.aliasMap
   },null,2),'application/json');
   status('aliasStatus','Persistent alias library exported.');
+}
+
+function suggestedAmountLayout(){
+  const mapped=Object.values(state.sourceMapping).filter(Boolean);
+  if(mapped.includes('credit')||mapped.includes('debit'))return'split';
+  if(state.sheets.length>1&&state.sheets.some(s=>s.directionHint))return'sheets';
+  return'single';
+}
+function suggestedPartyLayout(){
+  const mapped=Object.values(state.sourceMapping).filter(Boolean);
+  if(mapped.includes('counterparty'))return'shared';
+  if(mapped.includes('originator')||mapped.includes('beneficiary'))return'separate';
+  return'auto';
+}
+function effectiveAmountLayout(){
+  return state.amountLayout==='auto'?suggestedAmountLayout():state.amountLayout;
+}
+function effectivePartyLayout(){
+  return state.partyLayout==='auto'?suggestedPartyLayout():state.partyLayout;
+}
+function renderTransactionStructure(){
+  const panel=$('transactionStructurePanel');
+  if(!panel)return;
+  panel.hidden=state.datasetType!=='transaction';
+  if(panel.hidden)return;
+  $('amountLayout').value=state.amountLayout;
+  $('partyLayout').value=state.partyLayout;
+
+  const amount=effectiveAmountLayout(),party=effectivePartyLayout();
+  const amountText=amount==='single'
+    ?'<strong>One Amount column:</strong> map the source money column to <b>Amount</b>. Direction may come from +/− signs, text such as “Inflow 5000 / Outflow 2000”, a Direction column, Description, or sheet assignment.'
+    :amount==='split'
+      ?'<strong>Separate money columns:</strong> map the inflow/credit column to <b>Credit Amount</b> and the outflow/debit column to <b>Debit Amount</b>. Blank or zero on the opposite side is valid.'
+      :'<strong>Separate sheets:</strong> map the common money column to <b>Amount</b> (or map different sheet-specific amount columns to Amount), then assign each worksheet as Inflow, Outflow, Auto, or Ignore below.';
+  const partyText=party==='shared'
+    ?'<strong>One counterparty column:</strong> map it to <b>Counterparty / Other Party</b>. On inflows it becomes the Originator; on outflows it becomes the Beneficiary.'
+    :party==='separate'
+      ?'<strong>Separate party columns:</strong> map sender to <b>Originator / Sender</b> and receiver to <b>Beneficiary / Receiver</b>.'
+      :'<strong>Counterparty:</strong> FinIntel will use whichever party fields you map and Description Intelligence as fallback.';
+  $('structureGuide').innerHTML=amountText+'<br><br>'+partyText;
+  $('structureStatusPill').textContent=(amount==='single'?'One Amount':amount==='split'?'Two Amount Columns':'Separate Sheets')+' • '+(party==='shared'?'Shared Counterparty':party==='separate'?'Separate Parties':'Auto Parties');
+
+  const sheetPanel=$('sheetDirectionPanel');
+  sheetPanel.hidden=amount!=='sheets';
+  if(amount==='sheets'){
+    $('sheetDirectionRows').innerHTML=state.sheets.map(s=>{
+      const selected=state.sheetDirections[s.name]||'auto';
+      return '<div class="sheet-direction-row"><div class="sheet-direction-name">'+esc(s.name)+'<small>'+s.rows.toLocaleString()+' rows'+(s.directionHint?' • detected '+s.directionHint:' • direction not detected')+'</small></div>'
+        +'<select class="sheet-direction-select" data-sheet="'+esc(s.name)+'">'
+        +'<option value="auto" '+(selected==='auto'?'selected':'')+'>Auto-detect</option>'
+        +'<option value="inflow" '+(selected==='inflow'?'selected':'')+'>Inflow / Credit sheet</option>'
+        +'<option value="outflow" '+(selected==='outflow'?'selected':'')+'>Outflow / Debit sheet</option>'
+        +'<option value="ignore" '+(selected==='ignore'?'selected':'')+'>Ignore this sheet</option></select></div>';
+    }).join('');
+    $('.sheet-direction-select').forEach(sel=>sel.addEventListener('change',()=>{
+      state.sheetDirections[sel.dataset.sheet]=sel.value;
+      renderTransactionStructure();
+    }));
+  }
+}
+function detectTextDirectionInAmount(v){
+  const s=String(v??'').toLowerCase();
+  if(/\b(inflow|credit|credited|cr|incoming|received|deposit)\b/.test(s))return'inflow';
+  if(/\b(outflow|debit|debited|dr|outgoing|sent|withdrawal|payment)\b/.test(s))return'outflow';
+  return'';
+}
+function mappedAmountSources(fieldId){
+  return Object.entries(state.sourceMapping).filter(([,fid])=>fid===fieldId).map(([source])=>source);
+}
+function hasSingleAmountDirectionEvidence(){
+  const directionMapped=Object.values(state.sourceMapping).includes('direction');
+  const narrationMapped=Object.values(state.sourceMapping).includes('narration');
+  if(directionMapped||narrationMapped)return true;
+  if(state.sheets.some(s=>(state.sheetDirections[s.name]&&state.sheetDirections[s.name]!=='auto')||s.directionHint))return true;
+  const sources=mappedAmountSources('amount');
+  return state.rawRows.slice(0,100).some(r=>sources.some(src=>{
+    const v=String(r[src]??'');
+    return /^\s*[+-]/.test(v)||/^\s*\(.*\)\s*$/.test(v)||!!detectTextDirectionInAmount(v);
+  }));
 }
 
 function setLoaderProgress(percent,phase,detail=''){
@@ -362,6 +444,9 @@ function loadRows(rows,name,type,sheets=[]){
   state.sheets=sheets.length?sheets:[{name:type||'Dataset',rows:rows.length,directionHint:''}];
   state.sourceName=name;state.sourceType=type;state.datasetType=$('datasetType').value;
   state.sourceMapping=defaultMapping();
+  state.sheetDirections=Object.fromEntries(state.sheets.map(s=>[s.name,s.directionHint||'auto']));
+  state.amountLayout=suggestedAmountLayout();
+  state.partyLayout=suggestedPartyLayout();
   $('datasetEmpty').hidden=true;$('datasetInfo').hidden=false;
   $('rowCount').textContent=rows.length.toLocaleString();
   $('columnCount').textContent=state.columns.length.toLocaleString();
@@ -421,6 +506,7 @@ function refreshMappingUI(){
   }));
   renderCustomFieldList();
   renderTemplateSelect();
+  renderTransactionStructure();
 }
 
 function renderCustomFieldList(){
@@ -459,7 +545,7 @@ function saveTemplate(){
   if(!name){status('templateStatus','Enter a template name.',true);return;}
   if(!mappingCount()){status('templateStatus','Map at least one field before saving a template.',true);return;}
   const existing=state.templates.find(t=>norm(t.name)===norm(name));
-  const item={id:existing?.id||('tpl_'+Date.now().toString(36)),name,datasetType:state.datasetType,signature:signature(),columns:[...state.columns],mapping:{...state.sourceMapping},updatedAt:new Date().toISOString()};
+  const item={id:existing?.id||('tpl_'+Date.now().toString(36)),name,datasetType:state.datasetType,signature:signature(),columns:[...state.columns],mapping:{...state.sourceMapping},amountLayout:state.amountLayout,partyLayout:state.partyLayout,sheetDirections:{...state.sheetDirections},updatedAt:new Date().toISOString()};
   if(existing)state.templates=state.templates.map(t=>t.id===existing.id?item:t);else state.templates.push(item);
   saveJSON(STORE.templates,state.templates);renderTemplateSelect();$('templateSelect').value=item.id;status('templateStatus','Template saved in this browser: '+name+'.');
 }
@@ -470,6 +556,9 @@ function applyTemplate(){
   const next={};
   state.columns.forEach(c=>next[c]=(t.mapping[c]&&fieldById(t.mapping[c]))?t.mapping[c]:'');
   state.sourceMapping=next;
+  state.amountLayout=t.amountLayout||state.amountLayout||'auto';
+  state.partyLayout=t.partyLayout||state.partyLayout||'auto';
+  if(t.sheetDirections)state.sheetDirections={...state.sheetDirections,...t.sheetDirections};
   if(t.datasetType!==state.datasetType)status('templateStatus','Template mapping applied. Note: it was saved for '+(DATASET_LABELS[t.datasetType]||t.datasetType)+'.');
   else status('templateStatus','Template applied: '+t.name+'.');
   refreshMappingUI();$('templateSelect').value=t.id;
@@ -480,10 +569,27 @@ function validateMapping(){
   if(!mapped.length)return'Map at least one source column to a FinIntel field.';
   if(state.datasetType==='transaction'){
     if(!mapped.includes('date'))return'Transaction analysis requires Transaction Date.';
-    const hasValue=mapped.includes('amount')||mapped.includes('debit')||mapped.includes('credit');
-    if(!hasValue)return'Map Amount, Inflow/Credit, Outflow/Debit, or a combination of those amount fields.';
-    const hasDirectionSource=mapped.includes('direction')||mapped.includes('debit')||mapped.includes('credit')||mapped.includes('narration')||state.sheets.some(s=>s.directionHint);
-    if(mapped.includes('amount')&&!hasDirectionSource)return'With a single Amount column, also map Description/Direction or use signed amounts / direction-specific sheets so FinIntel can determine inflow and outflow.';
+    const amountLayout=effectiveAmountLayout(),partyLayout=effectivePartyLayout();
+
+    if(amountLayout==='single'){
+      if(!mapped.includes('amount'))return'For “One Amount column”, map the money column to Amount.';
+      if(!hasSingleAmountDirectionEvidence())return'The Amount column is mapped, but FinIntel has no reliable way to distinguish inflow from outflow. Map a Direction or Description column, use +/− or Inflow/Outflow text in Amount, or choose separate sheets.';
+    }
+    if(amountLayout==='split'){
+      if(!mapped.includes('credit')||!mapped.includes('debit'))return'For separate Inflow/Outflow columns, map the inflow column to Credit Amount and the outflow column to Debit Amount.';
+    }
+    if(amountLayout==='sheets'){
+      if(state.sheets.length<2)return'“Separate sheets” requires an Excel workbook with two or more non-empty sheets.';
+      if(!mapped.includes('amount'))return'For separate Inflow/Outflow sheets, map the sheet amount column(s) to Amount.';
+      const unresolved=state.sheets.filter(s=>{
+        const chosen=state.sheetDirections[s.name]||'auto';
+        return chosen==='auto'&&!s.directionHint;
+      });
+      if(unresolved.length)return'Assign the direction for these worksheet(s): '+unresolved.map(s=>s.name).join(', ')+'.';
+    }
+
+    if(partyLayout==='shared'&&!mapped.includes('counterparty'))return'For one shared Originator/Beneficiary column, map that source column to Counterparty / Other Party.';
+    if(partyLayout==='separate'&&!mapped.includes('originator')&&!mapped.includes('beneficiary')&&!mapped.includes('narration'))return'For separate party columns, map Originator and/or Beneficiary. Description may also be used as fallback.';
   }
   return'';
 }
@@ -506,6 +612,7 @@ function parseAmountInfo(v){
     return{amount:Math.abs(v),signed:v,signHint:v<0?'outflow':'',explicitSign:v<0};
   }
   const original=String(v).trim();
+  const textDirection=detectTextDirectionInAmount(original);
   const paren=/^\(.*\)$/.test(original);
   const explicitPlus=/^\s*\+/.test(original);
   const explicitMinus=/^\s*-/.test(original)||paren;
@@ -513,7 +620,7 @@ function parseAmountInfo(v){
   const n=Number(cleaned);
   if(!Number.isFinite(n))return{amount:0,signed:0,signHint:'',explicitSign:false};
   const signed=paren?-Math.abs(n):n;
-  return{amount:Math.abs(signed),signed,signHint:explicitMinus||signed<0?'outflow':explicitPlus?'inflow':'',explicitSign:explicitMinus||explicitPlus};
+  return{amount:Math.abs(signed),signed,signHint:textDirection||(explicitMinus||signed<0?'outflow':explicitPlus?'inflow':''),explicitSign:explicitMinus||explicitPlus||!!textDirection};
 }
 function parseAmount(v){return parseAmountInfo(v).amount;}
 function parseDate(v){
@@ -729,7 +836,9 @@ function standardize(){
     const narration=String(values.narration??'').trim();
     const extracted=extractDescriptionMeaning(narration);
     const sheet=String(raw.__finintel_sheet??'');
-    const sheetHint=String(raw.__finintel_sheet_direction??'');
+    const sheetChoice=state.sheetDirections[sheet]||'auto';
+    if(sheetChoice==='ignore')return null;
+    const sheetHint=sheetChoice==='auto'?String(raw.__finintel_sheet_direction??''):sheetChoice;
     const flow=state.datasetType==='transaction'?direction(values.direction,explicitOriginator,explicitBeneficiary,subject,debit,credit,amountInfo,sheetHint,extracted):'n/a';
     let originator=explicitOriginator,beneficiary=explicitBeneficiary;
     let counterpartyFromDescription=false;
@@ -752,7 +861,7 @@ function standardize(){
       aliasAppliedOriginator:!!originalOriginator&&norm(originalOriginator)!==norm(originator),
       aliasAppliedBeneficiary:!!originalBeneficiary&&norm(originalBeneficiary)!==norm(beneficiary)
     };
-  });
+  }).filter(Boolean);
 }
 
 const sum=(a,f=x=>x)=>a.reduce((n,x)=>n+(Number(f(x))||0),0);
@@ -1062,7 +1171,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.3 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.4 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1084,8 +1193,11 @@ $('fileInput').addEventListener('change',async e=>{
 });
 $('datasetType').addEventListener('change',()=>{
   state.datasetType=$('datasetType').value;
-  if(state.rawRows.length){state.sourceMapping=defaultMapping();refreshMappingUI();}
+  if(state.rawRows.length){state.sourceMapping=defaultMapping();state.amountLayout=suggestedAmountLayout();state.partyLayout=suggestedPartyLayout();refreshMappingUI();}
+  else renderTransactionStructure();
 });
+$('amountLayout').addEventListener('change',()=>{state.amountLayout=$('amountLayout').value;renderTransactionStructure();});
+$('partyLayout').addEventListener('change',()=>{state.partyLayout=$('partyLayout').value;renderTransactionStructure();});
 $('loadSampleBtn').onclick=()=>{
   $('datasetType').value='transaction';state.datasetType='transaction';
   try{
@@ -1140,7 +1252,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_3_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_4_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1168,4 +1280,5 @@ $$('.step').forEach(b=>b.onclick=()=>{
 renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.3').then(r=>r.update()).catch(()=>{}));
+renderTransactionStructure();
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.4').then(r=>r.update()).catch(()=>{}));
