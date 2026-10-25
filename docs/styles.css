@@ -1035,3 +1035,204 @@ footer strong{color:#17384c;font-weight:850}
   font-size:13px!important;
   font-weight:900!important;
 }
+
+/* FinIntel AML v2.9 — Counterparty Investigation Profile */
+.counterparty-profile-link{
+  appearance:none;
+  border:0;
+  padding:0;
+  margin:0;
+  background:transparent;
+  color:#123f56;
+  font:inherit;
+  font-weight:950;
+  text-align:left;
+  cursor:pointer;
+  text-decoration:underline;
+  text-decoration-color:#9db9ca;
+  text-underline-offset:3px;
+}
+.counterparty-profile-link:hover{
+  color:#0b6b45;
+  text-decoration-color:#0b6b45;
+}
+.counterparty-profile-dialog{
+  width:min(1180px,96vw);
+  max-width:none;
+  max-height:94vh;
+  padding:0;
+  border:1px solid #b9cad7;
+  border-radius:18px;
+  overflow:hidden;
+  background:#f7fafc;
+}
+.counterparty-profile-dialog::backdrop{
+  background:rgba(13,35,49,.62);
+}
+.profile-dialog-shell{
+  max-height:94vh;
+  overflow:auto;
+  padding:20px;
+}
+.profile-dialog-head{
+  position:sticky;
+  top:-20px;
+  z-index:20;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+  margin:-20px -20px 18px;
+  padding:18px 20px 16px;
+  border-bottom:1px solid #d5e0e8;
+  background:rgba(255,255,255,.97);
+  backdrop-filter:blur(8px);
+}
+.profile-name-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.profile-name-row h2{
+  margin:3px 0 0;
+  color:#102f42;
+  font-size:1.55rem;
+  font-weight:950;
+}
+.profile-role-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:5px 9px;
+  border-radius:999px;
+  border:1px solid #c8d7e2;
+  background:#f3f7fa;
+  color:#365567;
+  font-size:.76rem;
+  font-weight:950;
+}
+.profile-role-badge.inflow{background:var(--nfiu-green-soft);color:var(--nfiu-green);border-color:#a8d3be}
+.profile-role-badge.outflow{background:var(--nfiu-blue-soft);color:var(--nfiu-blue);border-color:#acd0e4}
+.profile-role-badge.both{background:var(--nfiu-gold-soft);color:#765e18;border-color:#dac681}
+.profile-metric-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  margin-bottom:16px;
+}
+.profile-metric{
+  min-height:86px;
+  padding:12px 13px;
+  border:1px solid #d8e3eb;
+  border-top:4px solid #9cafbc;
+  border-radius:12px;
+  background:#fff;
+}
+.profile-metric.inflow{border-top-color:var(--nfiu-green);background:#fbfffd}
+.profile-metric.outflow{border-top-color:var(--nfiu-blue);background:#fbfdff}
+.profile-metric.gold{border-top-color:var(--nfiu-gold);background:#fffdf7}
+.profile-metric.alert{border-top-color:var(--nfiu-amber);background:#fffaf2}
+.profile-metric small{
+  display:block;
+  color:#4b6576;
+  font-size:.78rem;
+  font-weight:800;
+  margin-bottom:6px;
+}
+.profile-metric strong{
+  color:#102f42;
+  font-size:1.05rem;
+  font-weight:950;
+  line-height:1.25;
+  overflow-wrap:anywhere;
+}
+.profile-section{
+  margin-top:14px;
+  padding:16px;
+  border:1px solid #d6e1e9;
+  border-radius:14px;
+  background:#fff;
+}
+.profile-section h3{margin-top:3px}
+.profile-linkage-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+.profile-linkage-grid>div{
+  min-height:110px;
+  padding:12px;
+  border:1px solid #e0e7ed;
+  border-radius:11px;
+  background:#f9fbfd;
+}
+.profile-linkage-grid h4{
+  margin:0 0 9px;
+  color:#173d52;
+  font-size:.9rem;
+  font-weight:900;
+}
+.profile-chip-list{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.profile-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  max-width:100%;
+  padding:5px 8px;
+  border:1px solid #cbdbe5;
+  border-radius:999px;
+  background:#fff;
+  color:#24475c;
+  font-size:.78rem;
+  font-weight:750;
+  overflow-wrap:anywhere;
+}
+.profile-chip small{color:#647b89;font-weight:900}
+.profile-empty{color:#607787;font-size:.82rem;font-weight:700}
+.profile-toolbar{
+  display:grid;
+  grid-template-columns:minmax(240px,1fr) minmax(170px,.35fr) auto;
+  gap:9px;
+  margin:10px 0 12px;
+}
+.profile-toolbar input,.profile-toolbar select{
+  width:100%;
+  min-width:0;
+  padding:10px 11px;
+  border:1px solid #aec0cd;
+  border-radius:10px;
+  background:#fff;
+  color:#102f42;
+  font-weight:650;
+}
+.profile-transaction-table td{
+  vertical-align:top;
+}
+.profile-transaction-table .direction-badge{
+  min-width:120px;
+  white-space:normal;
+  text-align:center;
+}
+.profile-footer-note{
+  margin-top:14px;
+  padding:11px 13px;
+  border-left:5px solid var(--nfiu-gold);
+  border-radius:9px;
+  background:#fffaf0;
+  color:#425e70;
+  font-size:.84rem;
+  font-weight:650;
+}
+@media(max-width:900px){
+  .profile-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .profile-linkage-grid{grid-template-columns:minmax(0,1fr)}
+  .profile-toolbar{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:520px){
+  .profile-metric-grid{grid-template-columns:minmax(0,1fr)}
+  .profile-dialog-head{flex-direction:column}
+}
