@@ -516,9 +516,10 @@ function findMatchingTemplate(){
   return state.templates.find(t=>t.signature===sig&&t.datasetType===state.datasetType)||null;
 }
 
-function loadRows(rows,name,type,sheets=[]){
+function loadRows(rows,name,type,sheets=[],navigate=true){
   if(!rows.length)throw new Error('No data rows were found.');
   resetIntelligenceReportBuilder();
+  state.analysis=null;state.standardized=[];
   setLoaderProgress(92,'Preparing mapping','Standardising headers and detecting likely fields…');
   state.rawRows=rows;
   state.columns=Array.from(new Set(rows.flatMap(r=>Object.keys(r)))).filter(c=>!c.startsWith('__finintel_'));
@@ -543,7 +544,7 @@ function loadRows(rows,name,type,sheets=[]){
     $('templateSelect').value=t.id;
     status('templateStatus','Matching saved template found: '+t.name+'. Click Apply to use it.');
   }else status('templateStatus','');
-  setTimeout(()=>setStep(2),180);
+  if(navigate){if(typeof markCaseDirty==='function')markCaseDirty();setTimeout(()=>setStep(2),180);}
 }
 
 function optionHtml(selected){
@@ -2414,7 +2415,7 @@ function irCounterpartyRelationshipHtml(graphData=''){
   const src=graphData||'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(exportGraphSvgMarkup());
   return '<section style="text-align:center;break-inside:avoid;page-break-inside:avoid;margin:20px 0"><h2 style="text-align:center;text-transform:none">Counterparty relationship view</h2><img src="'+esc(src)+'" alt="Counterparty relationship graph with the subject at the centre" style="display:block;width:100%;max-width:100%;height:auto;margin:12px auto"></section>';
 }
-function intelligenceReportBodyHtml(graphData=''){
+function intelligenceReportBodyHtml(graphData='',logoData=''){
   const a=state.analysis;
   if(!a||a.kind!=='transaction')return'';
   const background=irField('irBackground')||'[Analyst input required: state the reporting trigger/background.]';
@@ -2423,7 +2424,7 @@ function intelligenceReportBodyHtml(graphData=''){
   const inference=irField('irInference')||'[Analyst inference required.]';
   const recommendation=irField('irRecommendation')||'This intelligence report is forwarded to you for further detailed investigation.';
   const reportDate=irField('irReportDate')?irDate(irField('irReportDate')):irDate(new Date());
-  const logoUrl=new URL('assets/nfiu-logo.jpg?v=20261025b',window.location.href).href;
+  const logoUrl=logoData||new URL('assets/nfiu-logo.jpg?v=20261025b',window.location.href).href;
   const header='<div class="ir-header"><img src="'+esc(logoUrl)+'" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Any information contained in this report is sensitive, and is not to be disseminated outside your organization without express approval from the Nigerian Financial Intelligence Unit</div><h2 class="ir-main-title">INTELLIGENCE REPORT</h2></div>'
     +'<table class="ir-meta"><tbody><tr><th>Agency:</th><td>'+esc(irField('irAgency')||'—')+'</td><th>Date:</th><td>'+esc(reportDate)+'</td></tr><tr><th>Address:</th><td>'+esc(irField('irAgencyAddress')||'—')+'</td><th>NFIU Case #:</th><td>'+esc(irField('irCaseNumber')||'—')+'</td></tr><tr><th>To:</th><td colspan="3">'+esc(irField('irRecipient')||'—')+'</td></tr><tr><th>Subject:</th><td colspan="3"><strong>'+esc(irField('irSubject')||$('subjectName')?.value?.trim()||'—')+'</strong></td></tr></tbody></table>';
   return header
@@ -2444,11 +2445,11 @@ function intelligenceReportBodyHtml(graphData=''){
     +'<div class="ir-signature"><strong>DCEO NFIU</strong><strong>Date: '+esc(reportDate)+'</strong></div>'
     +irAppendicesHtml(a);
 }
-function intelligenceReportDocumentHtml(graphData=''){
+function intelligenceReportDocumentHtml(graphData='',logoData=''){
   const title=esc((irField('irCaseNumber')||'NFIU Intelligence Report')+' - '+(irField('irSubject')||'Subject'));
   return'<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'
     +'@page{size:A4;margin:16mm 15mm 22mm}*{box-sizing:border-box}body{font-family:"Courier New",Courier,monospace;color:#111;font-size:10.5pt;line-height:1.22;margin:0}.ir-doc{max-width:190mm;margin:0 auto}.ir-header{text-align:center}.ir-header img{width:78px;height:78px;object-fit:contain}.ir-header h1{font-size:14pt;margin:4px 0}.ir-warning{border:1.5px solid #111;padding:5px 8px;font-weight:700;font-size:9.5pt}.ir-main-title{font-size:14pt;text-decoration:none;margin:10px 0 5px}.ir-meta,.ir-profile-table,table{width:100%;border-collapse:collapse}.ir-meta th,.ir-meta td,.ir-profile-table th,.ir-profile-table td,table th,table td{border:1px solid #555;padding:4px 5px;text-align:left;vertical-align:top}.ir-meta th{width:18%;font-weight:800}.ir-doc h2{font-size:12pt;text-transform:uppercase;text-decoration:underline;margin:14px 0 4px}.ir-doc h3{font-size:11pt;margin:7px 0 2px}.ir-doc p{margin:3px 0 7px;text-align:justify}.ir-bullets{margin:5px 0 10px;padding-left:22px}.ir-bullets li{margin:3px 0;text-align:justify}.ir-subject-photo{width:30mm;padding:3px!important}.ir-subject-photo img{width:28mm;max-height:38mm;object-fit:cover}.ir-pre{white-space:pre-wrap;margin:4px 0 9px}.ir-note{margin-top:16px!important}.ir-signature{display:flex;justify-content:space-between;border-top:1px solid #111;margin-top:22px;padding-top:5px}.ir-draft-note{padding:6px;border-left:4px solid #c48a18;background:#fff8df}.ir-page-break{break-before:page;page-break-before:always}.ir-small-note{font-size:8.5pt}.ir-print-footer{position:fixed;bottom:-14mm;left:0;right:0;text-align:center;color:#b72727;font-size:7.5pt;font-weight:700}.ir-draft-banner{border:2px solid #b87519;background:#fff5e7;padding:7px;text-align:center;font-weight:800;margin-bottom:10px}@media print{.ir-draft-banner{display:block}}'
-    +'</style></head><body><div class="ir-doc"><div class="ir-draft-banner">DRAFT – ANALYST REVIEW REQUIRED BEFORE DISSEMINATION</div>'+intelligenceReportBodyHtml(graphData)+'</div><div class="ir-print-footer">Unauthorized disclosure of information contained herein is strictly prohibited and against the Official Secrets Act and Section 18 of the Nigerian Financial Intelligence Unit Act, 2018</div></body></html>';
+    +'</style></head><body><div class="ir-doc"><div class="ir-draft-banner">DRAFT – ANALYST REVIEW REQUIRED BEFORE DISSEMINATION</div>'+intelligenceReportBodyHtml(graphData,logoData)+'</div><div class="ir-print-footer">Unauthorized disclosure of information contained herein is strictly prohibited and against the Official Secrets Act and Section 18 of the Nigerian Financial Intelligence Unit Act, 2018</div></body></html>';
 }
 function renderIrEvidenceSummary(a){
   const el=$('irEvidenceSummary');if(!el||!a||a.kind!=='transaction')return;
@@ -2476,24 +2477,24 @@ async function saveIntelligenceReportWord(){
   }catch(error){status('irExportStatus','Unable to export DOCX report: '+error.message,true);return;}
   status('irExportStatus','DOCX intelligence report saved with embedded images. Review the draft before dissemination.');
 }
-function saveIntelligenceReportPdf(){
+async function saveIntelligenceReportPdf(){
   const a=state.analysis;
   if(!a||a.kind!=='transaction'){status('irExportStatus','No transaction analysis is available.',true);return;}
   try{
+    status('irExportStatus','Embedding images for print / PDF…');
+    const graph=await exportGraphPngData();
+    const response=await fetch(new URL('assets/nfiu-logo.jpg?v=20261025b',window.location.href));
+    if(!response.ok)throw Error('The cached logo is unavailable. Reconnect once to prepare the offline files.');
+    const logo=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Could not read the logo.'));response.blob().then(blob=>reader.readAsDataURL(blob),reject);});
     const old=$('irPrintFrame');if(old)old.remove();
-    const frame=document.createElement('iframe');
-    frame.id='irPrintFrame';
-    frame.setAttribute('aria-hidden','true');
-    frame.style.position='fixed';frame.style.right='0';frame.style.bottom='0';frame.style.width='1px';frame.style.height='1px';frame.style.border='0';frame.style.opacity='0';
-    document.body.appendChild(frame);
-    const doc=frame.contentDocument||frame.contentWindow.document;
-    doc.open();doc.write(intelligenceReportDocumentHtml());doc.close();
-    setTimeout(()=>{
-      try{frame.contentWindow.focus();frame.contentWindow.print();status('irExportStatus','Print dialog opened. Choose “Save as PDF” after reviewing the draft.');}
-      catch(e){status('irExportStatus','Could not open the print dialog. Use the browser Print command.',true);}
-      setTimeout(()=>frame.remove(),3000);
-    },500);
-  }catch(e){status('irExportStatus',e.message||'Unable to prepare PDF view.',true);}
+    const frame=document.createElement('iframe');frame.id='irPrintFrame';frame.setAttribute('aria-hidden','true');
+    frame.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0';document.body.appendChild(frame);
+    const doc=frame.contentDocument;doc.open();doc.write(intelligenceReportDocumentHtml(graph,logo));doc.close();
+    await Promise.all(Array.from(doc.images).map(image=>image.decode()));
+    frame.contentWindow.addEventListener('afterprint',()=>setTimeout(()=>frame.remove(),500),{once:true});
+    frame.contentWindow.focus();frame.contentWindow.print();
+    status('irExportStatus','Print dialog opened. Choose “Save as PDF”. All report images are embedded.');
+  }catch(error){status('irExportStatus',error.message||'Unable to prepare PDF view.',true);}
 }
 function saveIrAppendixCsv(){
   const a=state.analysis;
@@ -2588,7 +2589,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1.6 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.2.0 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2771,7 +2772,7 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.6').then(r=>r.update()).catch(()=>{}));
+
 
 // Accounts are case inputs; importing a register never changes transaction evidence.
 const accountFields=[['holder','Account holder'],['number','Account number'],['bank','Bank / institution'],['type','Account type'],['currency','Currency'],['opened','Opening date'],['status','Account status'],['bvn','BVN / customer ID'],['balance','Balance'],['balanceDate','Balance date'],['relationship','Relationship to subject'],['source','Information source'],['received','Date received'],['coverage','Statement coverage'],['supplied','Statement supplied (yes/no)'],['analysed','Statement analysed (yes/no; analyst verified)'],['remarks','Analyst remarks']].map(([id,label])=>({id,label,visible:['holder','number','bank','status'].includes(id)}));
@@ -2937,6 +2938,7 @@ function setupSubjectProfileImport(){
  }catch(err){status('subjectImportStatus',err.message,true);}};
 }
 setupSubjectProfileImport();
+
 
 
 

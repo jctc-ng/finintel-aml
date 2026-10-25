@@ -1,14 +1,24 @@
 {
-  "name":"FinIntel AML v3.1.6",
-  "short_name":"FinIntel",
-  "start_url":"./",
-  "scope":"./",
-  "display":"standalone",
-  "background_color":"#f4f7fb",
-  "theme_color":"#0d5c8f",
-  "description":"Financial intelligence and AML/CFT workbench with a full-width NFIU-style Intelligence Report Builder, evidence-backed financial narratives, analyst-controlled external database results, counterparty resolution and data-quality review."
+  "name": "FinIntel AML v3.2.0",
+  "short_name": "FinIntel",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#0d5c8f",
+  "description": "Financial intelligence analysis, local Excel import, portable cases and embedded-image DOCX reports. Works online and offline after initial installation.",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
 }
-
-
-
-
