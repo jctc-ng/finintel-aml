@@ -2300,25 +2300,52 @@ function irExternalSection(title,status,textValue){
   return'<h2>'+esc(title.toUpperCase())+'</h2><p>'+esc(body).replace(/\n/g,'<br>')+'</p>';
 }
 function irGeneratedFindings(a){
-  const out=[];
-  out.push('Total classified inflow during the period under review was '+fmt(a.totalIn,a.currency)+' ('+amountInWords(a.totalIn,a.currency)+').');
-  out.push('Total classified outflow during the period under review was '+fmt(a.totalOut,a.currency)+' ('+amountInWords(a.totalOut,a.currency)+').');
-  out.push(a.origins.length.toLocaleString()+' distinct originator(s) and '+a.benefits.length.toLocaleString()+' distinct beneficiary/beneficiaries were identified.');
-  if(a.origins[0])out.push('The largest originator by observed value was '+a.origins[0].name+', which transferred '+fmt(a.origins[0].total,a.currency)+' to the subject across '+countInWords(a.origins[0].count,'transaction')+'.');
-  if(a.benefits[0])out.push('The largest beneficiary by observed value was '+a.benefits[0].name+', which received '+fmt(a.benefits[0].total,a.currency)+' from the subject across '+countInWords(a.benefits[0].count,'transaction')+'.');
-  if(a.both.length)out.push(a.both.length+' counterparty name(s) appeared on both the inflow and outflow sides of the analysed transactions.');
-  if(a.rapid.length)out.push(a.rapid.length+' rapid-movement match(es) met the analyst-configured FinIntel parameters and require contextual review.');
-  if(a.cryptoTx.length)out.push(a.cryptoTx.length+' transaction(s), with observed value of '+fmt(a.cryptoExposure,a.currency)+', contained cryptocurrency/VASP textual indicators.');
-  if(a.dataQuality?.resolutionsApplied)out.push(a.dataQuality.resolutionsApplied+' transaction(s) used analyst-confirmed counterparty resolutions before aggregation.');
-  if(a.dataQuality?.acknowledgedUnknown)out.push(a.dataQuality.acknowledgedUnknown+' counterparty record(s) were reviewed and intentionally retained as unknown.');
+  const out=[],records=a.records||[],money=value=>fmt(value,a.currency),pct=(value,total)=>total?(value/total*100).toFixed(1)+'%':'0.0%';
+  const ins=a.ins||records.filter(r=>r.direction==='inflow'),outs=a.outs||records.filter(r=>r.direction==='outflow');
+  const origins=(a.origins||[]).filter(p=>norm(p.name)!=='unknown counterparty'),benefits=(a.benefits||[]).filter(p=>norm(p.name)!=='unknown counterparty');
+  const unknownParty=records.filter(r=>(r.direction==='inflow'&&!String(r.originator||'').trim())||(r.direction==='outflow'&&!String(r.beneficiary||'').trim()));
+  out.push(records.length.toLocaleString()+' transaction record(s) were examined'+(a.first&&a.last?' between '+irDate(a.first)+' and '+irDate(a.last):'')+'.');
+  out.push('Total classified inflow was '+money(a.totalIn)+' ('+amountInWords(a.totalIn,a.currency)+') across '+countInWords(ins.length,'transaction')+'.');
+  out.push('Total classified outflow was '+money(a.totalOut)+' ('+amountInWords(a.totalOut,a.currency)+') across '+countInWords(outs.length,'transaction')+'.');
+  out.push('The difference between classified inflow and outflow was '+money(a.totalIn-a.totalOut)+'. This is net transaction movement, not a closing account balance.');
+  out.push(origins.length+' identified originator name(s) and '+benefits.length+' identified beneficiary name(s) were recorded after the applied entity-resolution decisions. Unknown counterparty groups are excluded from these name counts.');
+  if(unknownParty.length)out.push(unknownParty.length+' classified transaction(s), totalling '+money(sum(unknownParty,r=>r.amount))+', had no identified counterparty. These values remain included in the relevant inflow or outflow totals.');
+  for(const [parties,total,label,verb] of [[origins,a.totalIn,'originator','contributed'],[benefits,a.totalOut,'beneficiary','received']]){
+    if(!parties.length)continue;
+    const top=parties[0];out.push('The largest identified '+label+' was '+top.name+', which '+verb+' '+money(top.total)+' across '+countInWords(top.count,'transaction')+', representing '+pct(top.total,total)+' of classified '+(label==='originator'?'inflow':'outflow')+'.');
+    out.push('The top '+Math.min(5,parties.length)+' identified '+label+' name(s) accounted for '+pct(sum(parties.slice(0,5),p=>p.total),total)+' of classified '+(label==='originator'?'inflow':'outflow')+'.');
+  }
+  if(a.totalIn)out.push('Aggregate outflow was equivalent to '+pct(a.totalOut,a.totalIn)+' of aggregate inflow. This ratio does not establish that particular receipts funded particular payments.');
+  if(a.both?.length)out.push(a.both.length+' counterparty name(s) appeared on both sides of the flow'+(a.both.length?': '+a.both.slice(0,5).map(p=>p.name).join('; ')+(a.both.length>5?'; and others':''):'')+'. This does not by itself establish circular fund movement.');
+  const s=a.supplemental||{};
+  if(s.largest)out.push('The largest single observed transaction was '+money(s.largest.amount)+(s.largest.date?' on '+irDate(s.largest.date):'')+' ('+(s.largest.direction||'unresolved direction')+').');
+  const days=new Map();for(const r of records){if(!r.date)continue;const key=irDate(r.date);const day=days.get(key)||{date:r.date,count:0,value:0};day.count++;day.value+=r.amount||0;days.set(key,day);}
+  const peak=[...days.values()].sort((x,y)=>y.count-x.count||y.value-x.value)[0];
+  if(peak)out.push('The highest daily transaction count was '+peak.count+' on '+irDate(peak.date)+', with aggregate observed record value of '+money(peak.value)+'.');
+  if(s.sameDayFlowDays)out.push(s.sameDayFlowDays+' calendar day(s) contained both classified inflows and outflows. Same-day activity alone does not establish a direct transfer chain.');
+  if(s.roundCount)out.push(s.roundCount+' transaction(s) ('+Number(s.roundRatio||0).toFixed(1)+'% of examined records) were exact multiples of 10,000 currency units. Round amounts alone do not establish suspicious activity.');
+  if(s.weekendCount){const weekend=records.filter(r=>r.date&&[0,6].includes(r.date.getDay()));out.push(s.weekendCount+' transaction(s), with aggregate observed record value of '+money(sum(weekend,r=>r.amount))+', occurred on Saturdays or Sundays.');}
+  if(s.maxGapDays)out.push('The longest interval between successive dated records was '+s.maxGapDays.toFixed(1)+' day(s). This concerns the supplied records and does not prove account dormancy.');
+  if(a.rapid?.length){const minutes=a.rapid.map(x=>Number(x.minutes)).filter(Number.isFinite);out.push(a.rapid.length+' temporal inflow/outflow match(es) met the rapid-movement scenario'+(minutes.length?'; the shortest matched interval was '+Math.min(...minutes).toFixed(1)+' minute(s)':'')+'. Matches can overlap and do not prove that the same funds were transferred onward.');}
+  const structured=new Set((a.structured||[]).flat());
+  if(structured.size)out.push(structured.size+' distinct transaction record(s) met the repeated-amount scenario around the analyst reference '+money(Number(irField('structuringReference'))||0)+', within the configured '+(Number(irField('structuringBand'))||10)+'% band and seven-day windows. This reference is an analytical setting, not a statutory reporting threshold.');
+  if(a.cryptoTx?.length)out.push(a.cryptoTx.length+' transaction(s), totalling '+money(a.cryptoExposure)+', contained cryptocurrency/VASP-related text. This is narration/field-based screening, not confirmation of blockchain transfers or exchange ownership.');
+  const d=a.descriptionIntel||{};
+  if(d.parsed)out.push('Description Intelligence examined '+d.parsed+' narration(s); probable counterparty extraction was used as fallback on '+(d.fallbackUsed||0)+' record(s). Extracted names and meanings require verification against the source records.');
+  if(d.channels?.length)out.push('The leading extracted transaction channels were '+d.channels.slice(0,5).map(c=>c.name+' ('+c.count+' record(s))').join('; ')+'. Channel labels are derived from available transaction descriptions.');
+  const q=a.dataQuality;
+  if(q){const material=q.issues.filter(issue=>issue.severity!=='info'&&issue.rows.length);if(q.affectedRecords)out.push(q.affectedRecords+' record(s) had one or more material data-quality flags. Flag counts can overlap. '+material.map(issue=>issue.title+': '+issue.rows.length).join('; ')+'. These limitations should be resolved or disclosed before relying on the affected records.');
+    if(q.resolutionsApplied)out.push(q.resolutionsApplied+' transaction(s) used analyst-confirmed counterparty resolutions.');
+    if(q.acknowledgedUnknown)out.push(q.acknowledgedUnknown+' counterparty record(s) were reviewed and deliberately retained as unknown.');}
+  if(a.alerts?.length)out.push('The configured screening rules triggered the following review indicators: '+[...new Set(a.alerts.map(alert=>alert.title))].join('; ')+'. These are screening results requiring analyst assessment, not findings of an offence.');
   return out;
 }
 function irDraftInference(a){
   const subject=irField('irSubject')||$('subjectName')?.value?.trim()||'the subject';
   const period=a.first&&a.last?' between '+irDate(a.first)+' and '+irDate(a.last):' during the period under review';
   const patterns=[];
-  if(a.passRatio>=75)patterns.push('a high proportion of incoming value was subsequently matched by outgoing value');
-  if(a.rapid.length)patterns.push('rapid onward movement of funds was identified under the configured analytical parameters');
+  if(a.passRatio>=75)patterns.push('aggregate outflow was high relative to aggregate inflow');
+  if(a.rapid.length)patterns.push('temporal inflow/outflow matches met the configured rapid-movement parameters');
   if(a.both.length)patterns.push('some counterparties appeared on both sides of the flow');
   if(a.cryptoTx.length)patterns.push('crypto/VASP-related textual exposure was observed');
   if(!patterns.length)patterns.push('the account received and transferred funds involving multiple counterparties');
@@ -2459,7 +2486,7 @@ function intelligenceReportBodyHtml(graphData='',logoData=''){
   const logoUrl=logoData||new URL('assets/nfiu-logo.jpg?v=20261025b',window.location.href).href;
   const header='<div class="ir-header"><img src="'+esc(logoUrl)+'" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Any information contained in this report is sensitive, and is not to be disseminated outside your organization without express approval from the Nigerian Financial Intelligence Unit</div><h2 class="ir-main-title">INTELLIGENCE REPORT</h2></div>'
     +'<table class="ir-meta"><tbody><tr><th>Agency:</th><td>'+esc(irField('irAgency')||'—')+'</td><th>Date:</th><td>'+esc(reportDate)+'</td></tr><tr><th>Address:</th><td>'+esc(irField('irAgencyAddress')||'—')+'</td><th>NFIU Case #:</th><td>'+esc(irField('irCaseNumber')||'—')+'</td></tr><tr><th>To:</th><td colspan="3">'+esc(irField('irRecipient')||'—')+'</td></tr><tr><th>Subject:</th><td colspan="3"><strong>'+esc(irField('irSubject')||$('subjectName')?.value?.trim()||'—')+'</strong></td></tr></tbody></table>';
-  return '<p class="ir-small-note" style="text-align:right">Generated with FinIntel v3.2.3</p>'+header
+  return '<p class="ir-small-note" style="text-align:right">Generated with FinIntel v3.2.4</p>'+header
     +'<h2>ABSTRACT</h2><p>'+esc(abstract).replace(/\n/g,'<br>')+'</p>'
     +'<h2>NARRATIVE</h2><h3>Background</h3><p>'+esc(background).replace(/\n/g,'<br>')+'</p>'
     +irProfileHtml()
@@ -2621,7 +2648,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.2.3 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.2.4 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2746,6 +2773,7 @@ $('profileTransactionSearch').addEventListener('input',()=>{profilePage=1;render
 $('profileDirectionFilter').addEventListener('change',()=>{profilePage=1;renderProfileTransactions();});
 $('exportProfileCsv').onclick=exportCounterpartyProfileCsv;
 $('generateIrDraftBtn').onclick=generateIntelligenceReportDraft;
+$('refreshIrFindingsBtn').onclick=()=>{const a=state.analysis;if(!a||a.kind!=='transaction')return;$('irFindings').value=irGeneratedFindings(a).map(x=>'• '+x).join('\n');renderIntelligenceReportPreview();if(typeof markCaseDirty==='function')markCaseDirty();status('irExportStatus','Findings refreshed. Review the observations and screening indicators before export.');};
 $('refreshIrPreviewBtn').onclick=()=>{renderIntelligenceReportPreview();status('irExportStatus','Preview refreshed from the current analyst inputs.');};
 $('saveIrWordBtn').onclick=saveIntelligenceReportWord;
 $('saveIrPdfBtn').onclick=saveIntelligenceReportPdf;
@@ -2972,6 +3000,7 @@ function setupSubjectProfileImport(){
  }catch(err){status('subjectImportStatus',err.message,true);}};
 }
 setupSubjectProfileImport();
+
 
 
 
