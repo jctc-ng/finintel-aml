@@ -146,6 +146,7 @@ let networkSelectedNode=null;
 let profilePartyName='';
 let profilePage=1;
 const counterpartyPage={originator:1,beneficiary:1};
+const counterpartySelection=new Map();
 const COUNTERPARTY_PAGE_SIZE=10;
 const PROFILE_PAGE_SIZE=10;
 
@@ -202,12 +203,27 @@ function persistAliases(){
   renderAliasLibrary();
 }
 function selectedCounterpartyNames(){
-  return $$('.counterparty-select:checked').map(x=>x.dataset.name).filter(Boolean);
+  return Array.from(counterpartySelection.values());
+}
+function setCounterpartySelected(name,selected){
+  const value=String(name||'').trim(),key=norm(value);
+  if(!key)return;
+  if(selected)counterpartySelection.set(key,value);
+  else counterpartySelection.delete(key);
+}
+function isCounterpartySelected(name){
+  return counterpartySelection.has(norm(name));
 }
 function clearAliasSelection(){
-  $$('.counterparty-select:checked').forEach(x=>x.checked=false);
+  counterpartySelection.clear();
+  document.querySelectorAll('.counterparty-select,.counterparty-select-all').forEach(x=>{
+    x.checked=false;
+    x.indeterminate=false;
+  });
   if($('aliasCanonicalName'))$('aliasCanonicalName').value='';
+  if(state.analysis?.kind==='transaction')rerenderCounterpartyTables();
 }
+
 function renderAliasLibrary(){
   const table=$('aliasLibraryTable'),pill=$('aliasLibraryCount');
   if(!table||!pill)return;
@@ -1375,17 +1391,51 @@ function renderCounterparty(id,rows,total,currency){
   counterpartyPage[p]=Math.max(1,Math.min(counterpartyPage[p]||1,totalPages));
   const start=(counterpartyPage[p]-1)*COUNTERPARTY_PAGE_SIZE;
   const pageRows=filtered.slice(start,start+COUNTERPARTY_PAGE_SIZE);
-  if($(p+'TableCount'))$(p+'TableCount').textContent=filtered.length.toLocaleString()+' match'+(filtered.length===1?'':'es')+' / '+rows.length.toLocaleString();
-  $(id).innerHTML='<table><thead><tr><th></th><th>#</th><th>Counterparty</th><th class="num">Count</th><th class="num">Total</th><th class="num">Share</th></tr></thead><tbody>'
+  const filteredNames=filtered.map(r=>r.name);
+  const selectedFiltered=filteredNames.filter(isCounterpartySelected).length;
+
+  if($(p+'TableCount')){
+    $(p+'TableCount').textContent=filtered.length.toLocaleString()+' match'+(filtered.length===1?'':'es')
+      +' / '+rows.length.toLocaleString()
+      +(selectedFiltered?' • '+selectedFiltered.toLocaleString()+' selected':'');
+  }
+
+  const allFilteredSelected=filtered.length>0&&selectedFiltered===filtered.length;
+  const someFilteredSelected=selectedFiltered>0&&selectedFiltered<filtered.length;
+
+  $(id).innerHTML='<table><thead><tr>'
+    +'<th class="select-all-cell"><input class="counterparty-select-all" type="checkbox" data-prefix="'+p+'" aria-label="Select all '+p+' matches" title="Select all filtered/search matches" '+(allFilteredSelected?'checked':'')+'></th>'
+    +'<th>#</th><th>Counterparty</th><th class="num">Count</th><th class="num">Total</th><th class="num">Share</th></tr></thead><tbody>'
     +(pageRows.map((r,i)=>{
       const saved=aliasEntry(r.name);
       const hit=(norm($(p+'Search')?.value||'')&&norm(r.name).includes(norm($(p+'Search')?.value||'')))?' counterparty-highlight':'';
-      return '<tr class="'+hit.trim()+'"><td><input class="counterparty-select" type="checkbox" data-name="'+esc(r.name)+'" aria-label="Select '+esc(r.name)+' for alias mapping"></td><td>'+(start+i+1)+'</td><td class="counterparty-name-cell"><label><span><button class="counterparty-profile-link" type="button" data-counterparty="'+esc(r.name)+'">'+esc(r.name)+'</button>'+(saved?'<span class="alias-mapped-note">Saved mapping → '+esc(saved.canonical)+'</span>':'')+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></span></label></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+r.share.toFixed(1)+'%</td></tr>';
+      return '<tr class="'+hit.trim()+'"><td><input class="counterparty-select" type="checkbox" data-name="'+esc(r.name)+'" '+(isCounterpartySelected(r.name)?'checked':'')+' aria-label="Select '+esc(r.name)+' for alias mapping"></td><td>'+(start+i+1)+'</td><td class="counterparty-name-cell"><label><span><button class="counterparty-profile-link" type="button" data-counterparty="'+esc(r.name)+'">'+esc(r.name)+'</button>'+(saved?'<span class="alias-mapped-note">Saved mapping → '+esc(saved.canonical)+'</span>':'')+'<div class="bar"><span style="width:'+Math.min(100,r.total/max*100)+'%"></span></div></span></label></td><td class="num">'+r.count+'</td><td class="num">'+esc(fmt(r.total,currency))+'</td><td class="num">'+r.share.toFixed(1)+'%</td></tr>';
     }).join('')||'<tr><td colspan="6">No counterparties match the current filter.</td></tr>')
     +'</tbody></table>';
+
+  const master=document.querySelector('#'+id+' .counterparty-select-all');
+  if(master){
+    master.indeterminate=someFilteredSelected;
+    master.onchange=()=>{
+      filteredNames.forEach(name=>setCounterpartySelected(name,master.checked));
+      rerenderCounterpartyTables();
+    };
+  }
+
+  document.querySelectorAll('#'+id+' .counterparty-select').forEach(box=>{
+    box.onchange=()=>{
+      setCounterpartySelected(box.dataset.name,box.checked);
+      rerenderCounterpartyTables();
+    };
+  });
+
   renderCounterpartyPagination(p,filtered.length);
-  $$('#'+id+' .counterparty-profile-link').forEach(btn=>btn.onclick=e=>{
-    e.preventDefault();e.stopPropagation();openCounterpartyProfile(btn.dataset.counterparty);
+  document.querySelectorAll('#'+id+' .counterparty-profile-link').forEach(btn=>{
+    btn.onclick=e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      openCounterpartyProfile(btn.dataset.counterparty);
+    };
   });
 }
 function rerenderCounterpartyTables(){
@@ -1824,7 +1874,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.9.2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.9.3 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1884,6 +1934,7 @@ $('confirmMappingBtn').onclick=()=>{
 $('backToImport').onclick=()=>setStep(1);
 $('backToMapping').onclick=()=>setStep(2);
 $('runAnalysisBtn').onclick=()=>{
+  counterpartySelection.clear();
   const err=validateMapping();if(err){status('configStatus',err,true);setStep(2);return;}
   status('configStatus');setStep(4);$('analysisProgress').textContent='Standardising mapped core and custom fields…';
   setTimeout(()=>{
@@ -1925,7 +1976,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_9_2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_9_3_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1935,9 +1986,9 @@ $('clearAliasLibraryBtn').onclick=()=>{
   if(!window.confirm('Clear all saved entity alias mappings from this browser?'))return;
   state.aliasMap={};persistAliases();status('aliasStatus','Persistent alias library cleared. Rerun analysis to restore the unmerged names.');
 };
-$('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];setStep(1);};
+$('newAnalysisBtn').onclick=()=>{state.analysis=null;state.standardized=[];counterpartySelection.clear();setStep(1);};
 $('clearAllBtn').onclick=()=>{
-  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=NETWORK_DEFAULT_ZOOM;networkFocus='center';networkSelectedNode=null;
+  state.rawRows=[];state.columns=[];state.sheets=[];state.sourceMapping={};state.standardized=[];state.analysis=null;networkZoom=NETWORK_DEFAULT_ZOOM;networkFocus='center';networkSelectedNode=null;counterpartySelection.clear();
   counterpartyPage.originator=1;counterpartyPage.beneficiary=1;
   $('fileInput').value='';$('datasetInfo').hidden=true;$('datasetEmpty').hidden=false;status('importStatus');resetLoaderProgress();
   if($('networkPartyCount'))$('networkPartyCount').value='4';if($('networkZoomReset'))$('networkZoomReset').textContent='65%';
@@ -1957,4 +2008,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.9.2').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.9.3').then(r=>r.update()).catch(()=>{}));
