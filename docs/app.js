@@ -143,8 +143,11 @@ const NETWORK_DEFAULT_ZOOM=.65;
 let networkZoom=NETWORK_DEFAULT_ZOOM;
 let networkFocus='center';
 let networkSelectedNode=null;
+let profilePartyName='';
+let profilePage=1;
 const counterpartyPage={originator:1,beneficiary:1};
 const COUNTERPARTY_PAGE_SIZE=10;
+const PROFILE_PAGE_SIZE=10;
 
 const state={
   rawRows:[],columns:[],sourceName:'',sourceType:'',sheets:[],
@@ -1121,6 +1124,166 @@ function renderMetrics(a){
     return'metric-gold';
   };
   $('metricCards').innerHTML=m.map(x=>'<article class="card metric '+metricClass(x[0],x[1])+'"><div class="value">'+esc(x[1])+'</div><div class="label">'+esc(x[0])+'</div></article>').join('');
+}
+
+function profilePartyRecords(name){
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction')return[];
+  const key=norm(name);
+  return a.records.filter(r=>
+    (r.direction==='inflow'&&norm(r.originator)===key)||
+    (r.direction==='outflow'&&norm(r.beneficiary)===key)
+  );
+}
+function countedValues(values){
+  const m=new Map();
+  values.flat().filter(v=>String(v??'').trim()).forEach(v=>{
+    const value=String(v).trim(),k=norm(value);
+    if(!m.has(k))m.set(k,{value,count:0});
+    m.get(k).count++;
+  });
+  return [...m.values()].sort((a,b)=>b.count-a.count||a.value.localeCompare(b.value));
+}
+function profileIdentifiers(records){
+  return{
+    aliases:countedValues(records.map(r=>{
+      const arr=[];
+      if(r.direction==='inflow'&&norm(r.originator)===norm(profilePartyName))arr.push(r.originalOriginator||r.originator);
+      if(r.direction==='outflow'&&norm(r.beneficiary)===norm(profilePartyName))arr.push(r.originalBeneficiary||r.beneficiary);
+      return arr;
+    })),
+    accounts:countedValues(records.map(r=>[r.extracted?.account||'',r.values?.account||''])),
+    contacts:countedValues(records.map(r=>[r.extracted?.phone||'',r.extracted?.email||'',r.values?.phone||'',r.values?.email||''])),
+    wallets:countedValues(records.map(r=>[r.extracted?.wallet||'',r.values?.wallet||'',r.txid||'']))
+  };
+}
+function profileLinkedEntities(records,name){
+  const m=new Map(),keyName=norm(name);
+  records.forEach(r=>(r.extracted?.entities||[]).forEach(e=>{
+    if(!e?.name||norm(e.name)===keyName)return;
+    const k=norm(e.name);
+    if(!m.has(k))m.set(k,{name:e.name,type:e.type||'entity',count:0,maxConfidence:0});
+    const x=m.get(k);x.count++;x.maxConfidence=Math.max(x.maxConfidence,Number(e.confidence)||0);
+  }));
+  return [...m.values()].sort((a,b)=>b.count-a.count||b.maxConfidence-a.maxConfidence);
+}
+function profileBehaviour(records){
+  const m=new Map();
+  const add=(kind,value,amount)=>{
+    if(!value)return;
+    const k=kind+'|'+norm(value);
+    if(!m.has(k))m.set(k,{kind,value,count:0,total:0});
+    const x=m.get(k);x.count++;x.total+=Number(amount)||0;
+  };
+  records.forEach(r=>{
+    add('Meaning',r.extracted?.category,r.amount);
+    add('Channel',r.extracted?.channel,r.amount);
+  });
+  return [...m.values()].sort((a,b)=>b.count-a.count||b.total-a.total);
+}
+function profileChipHtml(items,empty='None observed'){
+  if(!items.length)return'<span class="profile-empty">'+esc(empty)+'</span>';
+  return items.slice(0,30).map(x=>'<span class="profile-chip">'+esc(x.value)+(x.count>1?' <small>×'+x.count+'</small>':'')+'</span>').join('');
+}
+function profileFilteredRecords(){
+  const records=profilePartyRecords(profilePartyName);
+  const q=norm($('profileTransactionSearch')?.value||'');
+  const dir=$('profileDirectionFilter')?.value||'all';
+  return records.filter(r=>{
+    if(dir!=='all'&&r.direction!==dir)return false;
+    if(!q)return true;
+    const hay=[
+      r.dateRaw,fmtDate(r.date),r.amount,r.direction,r.originator,r.beneficiary,r.narration,r.sheet,
+      r.extracted?.category,r.extracted?.channel,r.extracted?.account,r.extracted?.phone,
+      r.extracted?.email,r.extracted?.wallet,r.txid,Object.values(r.values||{}).join(' ')
+    ].join(' ');
+    return norm(hay).includes(q);
+  }).sort((a,b)=>(b.date?.getTime?.()||0)-(a.date?.getTime?.()||0)||b.row-a.row);
+}
+function renderProfilePagination(total){
+  const el=$('profilePagination');if(!el)return;
+  const pages=Math.max(1,Math.ceil(total/PROFILE_PAGE_SIZE));
+  profilePage=Math.max(1,Math.min(profilePage,pages));
+  const start=Math.max(1,profilePage-2),end=Math.min(pages,profilePage+2),buttons=[];
+  buttons.push('<button class="btn ghost profile-page-btn" type="button" data-page="'+Math.max(1,profilePage-1)+'" '+(profilePage===1?'disabled':'')+'>Previous</button>');
+  for(let p=start;p<=end;p++)buttons.push('<button class="btn '+(p===profilePage?'primary':'ghost')+' profile-page-btn" type="button" data-page="'+p+'">'+p+'</button>');
+  buttons.push('<button class="btn ghost profile-page-btn" type="button" data-page="'+Math.min(pages,profilePage+1)+'" '+(profilePage===pages?'disabled':'')+'>Next</button>');
+  el.innerHTML='<span class="page-summary">Page '+profilePage+' of '+pages+' • '+total.toLocaleString()+' record'+(total===1?'':'s')+'</span><div class="page-buttons">'+buttons.join('')+'</div>';
+  $('.profile-page-btn').forEach(btn=>btn.onclick=()=>{profilePage=Number(btn.dataset.page)||1;renderProfileTransactions();});
+}
+function renderProfileTransactions(){
+  const a=state.analysis;if(!a||a.kind!=='transaction')return;
+  const rows=profileFilteredRecords(),start=(profilePage-1)*PROFILE_PAGE_SIZE,page=rows.slice(start,start+PROFILE_PAGE_SIZE);
+  $('profileTransactionCount').textContent=rows.length.toLocaleString()+' record'+(rows.length===1?'':'s');
+  $('profileTransactionTable').innerHTML='<table><thead><tr><th>Date</th><th>Role</th><th class="num">Amount</th><th>Narration / Meaning</th><th>Identifiers</th><th>Source</th></tr></thead><tbody>'
+    +(page.map(r=>{
+      const role=r.direction==='inflow'?'Originator / Inflow':'Beneficiary / Outflow';
+      const ids=[r.extracted?.account,r.extracted?.phone,r.extracted?.email,r.extracted?.wallet,r.txid].filter(Boolean);
+      return'<tr><td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td><td><span class="direction-badge '+esc(r.direction)+'">'+esc(role)+'</span></td><td class="num"><strong>'+esc(fmt(r.amount,a.currency))+'</strong></td><td>'+esc(r.narration||r.extracted?.meaning||'—')+(r.extracted?.category?'<br><small>'+esc(r.extracted.category)+(r.extracted.channel?' • '+esc(r.extracted.channel):'')+'</small>':'')+'</td><td>'+esc(ids.join(' • ')||'—')+'</td><td>'+esc(r.sheet||'—')+'<br><small>Row '+r.row+'</small></td></tr>';
+    }).join('')||'<tr><td colspan="6">No transactions match the current profile filter.</td></tr>')
+    +'</tbody></table>';
+  renderProfilePagination(rows.length);
+}
+function renderCounterpartyProfile(){
+  const a=state.analysis;if(!a||a.kind!=='transaction'||!profilePartyName)return;
+  const records=profilePartyRecords(profilePartyName);
+  if(!records.length)return;
+  const ins=records.filter(r=>r.direction==='inflow'),outs=records.filter(r=>r.direction==='outflow');
+  const inTotal=sum(ins,r=>r.amount),outTotal=sum(outs,r=>r.amount),total=inTotal+outTotal;
+  const largest=records.reduce((m,r)=>!m||r.amount>m.amount?r:m,null);
+  const dated=records.filter(r=>r.date).sort((x,y)=>x.date-y.date);
+  const role=ins.length&&outs.length?'Both sides':ins.length?'Originator / Inflow':'Beneficiary / Outflow';
+  $('profileCounterpartyName').textContent=profilePartyName;
+  $('profileRoleBadge').textContent=role;
+  $('profileRoleBadge').className='profile-role-badge '+(ins.length&&outs.length?'both':ins.length?'inflow':'outflow');
+  $('profileSubtitle').textContent=records.length.toLocaleString()+' related transaction'+(records.length===1?'':'s')+' • '+(dated.length?(fmtDate(dated[0].date)+' to '+fmtDate(dated[dated.length-1].date)):'dates unavailable');
+
+  const metrics=[
+    ['Related transactions',records.length.toLocaleString(),'neutral'],
+    ['Inflow from party',fmt(inTotal,a.currency),'inflow'],
+    ['Outflow to party',fmt(outTotal,a.currency),'outflow'],
+    ['Total observed value',fmt(total,a.currency),'gold'],
+    ['Average transaction',fmt(records.length?total/records.length:0,a.currency),'neutral'],
+    ['Largest transaction',largest?fmt(largest.amount,a.currency):'—','alert'],
+    ['First activity',dated[0]?fmtDate(dated[0].date):'—','neutral'],
+    ['Last activity',dated.length?fmtDate(dated[dated.length-1].date):'—','neutral']
+  ];
+  $('profileMetricGrid').innerHTML=metrics.map(x=>'<div class="profile-metric '+x[2]+'"><small>'+esc(x[0])+'</small><strong>'+esc(x[1])+'</strong></div>').join('');
+
+  const ids=profileIdentifiers(records);
+  $('profileAliasVariants').innerHTML=profileChipHtml(ids.aliases,'No alternate names observed');
+  $('profileAccounts').innerHTML=profileChipHtml(ids.accounts,'No account/ID extracted');
+  $('profileContacts').innerHTML=profileChipHtml(ids.contacts,'No phone/email extracted');
+  $('profileWallets').innerHTML=profileChipHtml(ids.wallets,'No wallet/blockchain identifier extracted');
+
+  const behaviour=profileBehaviour(records);
+  $('profileBehaviourTable').innerHTML='<table><thead><tr><th>Type</th><th>Observed value</th><th class="num">Records</th><th class="num">Value</th></tr></thead><tbody>'
+    +(behaviour.slice(0,20).map(x=>'<tr><td>'+esc(x.kind)+'</td><td>'+esc(x.value)+'</td><td class="num">'+x.count+'</td><td class="num">'+esc(fmt(x.total,a.currency))+'</td></tr>').join('')||'<tr><td colspan="4">No behaviour classifications available.</td></tr>')+'</tbody></table>';
+
+  const linked=profileLinkedEntities(records,profilePartyName);
+  $('profileLinkedEntities').innerHTML='<table><thead><tr><th>Entity</th><th>Classification</th><th class="num">Records</th><th class="num">Max confidence</th></tr></thead><tbody>'
+    +(linked.slice(0,20).map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.type)+'</td><td class="num">'+x.count+'</td><td class="num">'+x.maxConfidence+'%</td></tr>').join('')||'<tr><td colspan="4">No additional extracted entities observed.</td></tr>')+'</tbody></table>';
+
+  renderProfileTransactions();
+}
+function openCounterpartyProfile(name){
+  if(!name||!state.analysis||state.analysis.kind!=='transaction')return;
+  profilePartyName=name;profilePage=1;
+  if($('profileTransactionSearch'))$('profileTransactionSearch').value='';
+  if($('profileDirectionFilter'))$('profileDirectionFilter').value='all';
+  renderCounterpartyProfile();
+  const d=$('counterpartyProfileDialog');
+  if(d&&!d.open)d.showModal();
+}
+function exportCounterpartyProfileCsv(){
+  const a=state.analysis;if(!a||a.kind!=='transaction'||!profilePartyName)return;
+  const rows=profilePartyRecords(profilePartyName);
+  const head=['Date','Direction','Role','Amount','Originator','Beneficiary','Narration','Meaning','Channel','Account/ID','Phone','Email','Wallet','TXID','Sheet','Source Row'];
+  const body=rows.map(r=>[
+    fmtDate(r.date)||r.dateRaw,r.direction,r.direction==='inflow'?'Originator':'Beneficiary',r.amount,r.originator,r.beneficiary,r.narration,
+    r.extracted?.category||'',r.extracted?.channel||'',r.extracted?.account||'',r.extracted?.phone||'',r.extracted?.email||'',r.extracted?.wallet||'',r.txid||'',r.sheet||'',r.row
+  ].map(csvEscape).join(','));
+  download('finintel_counterparty_'+slug(profilePartyName)+'.csv',[head.map(csvEscape).join(','),...body].join('\n'),'text/csv');
 }
 
 function renderDescriptionIntelligence(a){
