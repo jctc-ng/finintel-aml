@@ -1,10 +1,10 @@
 {
-  "name":"FinIntel AML v2.8",
+  "name":"FinIntel AML v2.8.1",
   "short_name":"FinIntel",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",
   "background_color":"#f4f7fb",
   "theme_color":"#0d5c8f",
-  "description":"Financial intelligence and AML/CFT workbench with a centered fit-by-default relationship map, stable zoom, drag-to-pan, child-node focus and graph export."
+  "description":"Financial intelligence and AML/CFT workbench with centered relationship mapping, stable zoom, drag-to-pan and tightly aligned counterparty labels."
 }
