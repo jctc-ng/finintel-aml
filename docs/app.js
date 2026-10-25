@@ -2118,6 +2118,348 @@ function renderRecords(){
     +'</tbody></table>';
 }
 
+
+let irSubjectPhotoData='';
+
+function ordinalNumber(n){
+  n=Number(n)||0;
+  const mod100=n%100;
+  if(mod100>=11&&mod100<=13)return n+'th';
+  const suffix={1:'st',2:'nd',3:'rd'}[n%10]||'th';
+  return n+suffix;
+}
+function irDate(d){
+  if(!d)return'';
+  const x=d instanceof Date?d:parseDate(d);
+  if(!x)return String(d||'');
+  return ordinalNumber(x.getDate())+' '+new Intl.DateTimeFormat('en-GB',{month:'long',year:'numeric'}).format(x);
+}
+function irTodayInput(){
+  const d=new Date(),pad=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+function wordsBelow1000(n){
+  const ones=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  const tens=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  n=Math.floor(Number(n)||0);
+  if(n<20)return ones[n];
+  if(n<100)return tens[Math.floor(n/10)]+(n%10?'-'+ones[n%10]:'');
+  return ones[Math.floor(n/100)]+' hundred'+(n%100?' and '+wordsBelow1000(n%100):'');
+}
+function integerToWords(n){
+  n=Math.floor(Math.abs(Number(n)||0));
+  if(n===0)return'zero';
+  const scales=[
+    [1e12,'trillion'],
+    [1e9,'billion'],
+    [1e6,'million'],
+    [1e3,'thousand']
+  ];
+  const parts=[];
+  for(const [value,label] of scales){
+    if(n>=value){
+      const q=Math.floor(n/value);
+      parts.push(integerToWords(q)+' '+label);
+      n%=value;
+    }
+  }
+  if(n)parts.push(wordsBelow1000(n));
+  return parts.join(', ');
+}
+function amountInWords(value,currency='NGN'){
+  const n=Math.abs(Number(value)||0),whole=Math.floor(n),minor=Math.round((n-whole)*100);
+  if(String(currency||'').toUpperCase()==='NGN'){
+    let text=integerToWords(whole)+' naira';
+    if(minor)text+=' and '+integerToWords(minor)+' kobo';
+    else text+=' only';
+    return text;
+  }
+  return integerToWords(whole)+(minor?' and '+integerToWords(minor)+' hundredths':'')+' '+String(currency||'currency').toUpperCase();
+}
+function countInWords(n,label='transaction'){
+  n=Number(n)||0;
+  return n.toLocaleString()+' ('+integerToWords(n)+') '+label+(n===1?'':'s');
+}
+function irField(id){
+  return $(id)?.value?.trim?.()||'';
+}
+function irSetIfBlank(id,value){
+  const el=$(id);if(el&&!el.value&&value!==undefined&&value!==null)el.value=String(value);
+}
+function firstMappedValue(fieldId){
+  const rows=state.standardized||[];
+  for(const r of rows){
+    const v=String(r.values?.[fieldId]??'').trim();
+    if(v)return v;
+  }
+  return'';
+}
+function uniqueObservedAccounts(a){
+  const seen=new Map();
+  (a?.records||[]).forEach(r=>{
+    const value=String(r.account||r.values?.account||r.values?.wallet||'').trim();
+    if(!value)return;
+    const key=norm(value);
+    if(!seen.has(key))seen.set(key,{value,count:0});
+    seen.get(key).count++;
+  });
+  return[...seen.values()].sort((x,y)=>y.count-x.count||x.value.localeCompare(y.value));
+}
+function populateIntelligenceReportBuilder(a){
+  if(!a||a.kind!=='transaction')return;
+  irSetIfBlank('irReportDate',irTodayInput());
+  const subject=$('subjectName')?.value?.trim()||firstMappedValue('name')||'';
+  irSetIfBlank('irSubject',subject);
+  irSetIfBlank('irFullName',subject);
+  irSetIfBlank('irDob',firstMappedValue('dob'));
+  irSetIfBlank('irNationality',firstMappedValue('country'));
+  irSetIfBlank('irMobile',firstMappedValue('phone'));
+  irSetIfBlank('irBvn',firstMappedValue('bvn'));
+  irSetIfBlank('irNin',firstMappedValue('nin'));
+  irSetIfBlank('irAddress',firstMappedValue('address'));
+  irSetIfBlank('irOccupation',firstMappedValue('occupation'));
+  irSetIfBlank('irEmail',firstMappedValue('email'));
+  const accounts=uniqueObservedAccounts(a);
+  if(accounts.length===1)irSetIfBlank('irAccountNumber',accounts[0].value);
+  if(accounts.length)irSetIfBlank('irLinkedAccountsCount',accounts.length);
+  if(!$('irAttachments')?.value){
+    const items=[];
+    if(accounts.length)items.push('Appendix I – Accounts / account identifiers observed in the analysed dataset.');
+    items.push('Appendix II – Significant transaction analysis generated from FinIntel.');
+    $('irAttachments').value=items.join('\n');
+  }
+  renderIrEvidenceSummary(a);
+}
+function counterpartyRecordsForIr(a,role,name){
+  const key=norm(name);
+  return a.records.filter(r=>role==='originator'
+    ?r.direction==='inflow'&&norm(r.originator)===key
+    :r.direction==='outflow'&&norm(r.beneficiary)===key);
+}
+function dominantMode(records){
+  const m=new Map();
+  records.forEach(r=>{
+    const value=String(r.extracted?.channel||r.values?.channel||'').trim();
+    if(!value)return;
+    const key=norm(value);
+    if(!m.has(key))m.set(key,{value,count:0});
+    m.get(key).count++;
+  });
+  return[...m.values()].sort((a,b)=>b.count-a.count)[0]?.value||'';
+}
+function irCounterpartySentence(a,role,item){
+  const records=counterpartyRecordsForIr(a,role,item.name);
+  const dates=records.filter(r=>r.date).map(r=>r.date).sort((x,y)=>x-y);
+  const first=dates[0],last=dates[dates.length-1];
+  const subject='the subject';
+  const amount=fmt(item.total,a.currency)+' ('+amountInWords(item.total,a.currency)+')';
+  const count=countInWords(item.count,'transaction');
+  const mode=dominantMode(records);
+  let sentence='';
+  if(first&&last&&first.toDateString()===last.toDateString()){
+    sentence='On '+irDate(first)+', '+subject+(role==='originator'?' received ':' transferred ')+'the total sum of '+amount+(role==='originator'?' from ':' to ')+item.name+' in '+count+'.';
+  }else if(first&&last){
+    sentence='Between '+irDate(first)+' and '+irDate(last)+', '+subject+(role==='originator'?' received ':' transferred ')+'the total sum of '+amount+(role==='originator'?' from ':' to ')+item.name+' in '+count+'.';
+  }else{
+    sentence='The '+subject+(role==='originator'?' received ':' transferred ')+'the total sum of '+amount+(role==='originator'?' from ':' to ')+item.name+' in '+count+'.';
+  }
+  if(mode)sentence+=' The related transactions were predominantly identified through '+mode+'.';
+  return sentence;
+}
+function irExternalSection(title,status,textValue){
+  if(status==='exclude')return'';
+  let body='';
+  if(status==='record-found')body=textValue||'[Analyst input required: enter the database result.]';
+  else if(status==='no-record')body='No record found from the '+title.toLowerCase()+'.';
+  else body='[Analyst review required: '+title+' has not been queried or no result has been supplied.]';
+  return'<h2>'+esc(title.toUpperCase())+'</h2><p>'+esc(body).replace(/\n/g,'<br>')+'</p>';
+}
+function irGeneratedFindings(a){
+  const out=[];
+  out.push('Total classified inflow during the period under review was '+fmt(a.totalIn,a.currency)+' ('+amountInWords(a.totalIn,a.currency)+').');
+  out.push('Total classified outflow during the period under review was '+fmt(a.totalOut,a.currency)+' ('+amountInWords(a.totalOut,a.currency)+').');
+  out.push(a.origins.length.toLocaleString()+' distinct originator(s) and '+a.benefits.length.toLocaleString()+' distinct beneficiary/beneficiaries were identified.');
+  if(a.origins[0])out.push('The largest originator by observed value was '+a.origins[0].name+', which transferred '+fmt(a.origins[0].total,a.currency)+' to the subject across '+countInWords(a.origins[0].count,'transaction')+'.');
+  if(a.benefits[0])out.push('The largest beneficiary by observed value was '+a.benefits[0].name+', which received '+fmt(a.benefits[0].total,a.currency)+' from the subject across '+countInWords(a.benefits[0].count,'transaction')+'.');
+  if(a.both.length)out.push(a.both.length+' counterparty name(s) appeared on both the inflow and outflow sides of the analysed transactions.');
+  if(a.rapid.length)out.push(a.rapid.length+' rapid-movement match(es) met the analyst-configured FinIntel parameters and require contextual review.');
+  if(a.cryptoTx.length)out.push(a.cryptoTx.length+' transaction(s), with observed value of '+fmt(a.cryptoExposure,a.currency)+', contained cryptocurrency/VASP textual indicators.');
+  if(a.dataQuality?.resolutionsApplied)out.push(a.dataQuality.resolutionsApplied+' transaction(s) used analyst-confirmed counterparty resolutions before aggregation.');
+  if(a.dataQuality?.acknowledgedUnknown)out.push(a.dataQuality.acknowledgedUnknown+' counterparty record(s) were reviewed and intentionally retained as unknown.');
+  return out;
+}
+function irDraftInference(a){
+  const subject=irField('irSubject')||$('subjectName')?.value?.trim()||'the subject';
+  const period=a.first&&a.last?' between '+irDate(a.first)+' and '+irDate(a.last):' during the period under review';
+  const patterns=[];
+  if(a.passRatio>=75)patterns.push('a high proportion of incoming value was subsequently matched by outgoing value');
+  if(a.rapid.length)patterns.push('rapid onward movement of funds was identified under the configured analytical parameters');
+  if(a.both.length)patterns.push('some counterparties appeared on both sides of the flow');
+  if(a.cryptoTx.length)patterns.push('crypto/VASP-related textual exposure was observed');
+  if(!patterns.length)patterns.push('the account received and transferred funds involving multiple counterparties');
+  return 'Based on the financial transactions analysed, '+subject+"'s account activity"+period+' shows that '+patterns.join(', and ')+'. The purpose and legitimacy of these transactions should be assessed against KYC/CDD information, source of funds/wealth, transaction purpose and corroborative intelligence before any conclusion regarding a predicate offence is reached.';
+}
+function generateIntelligenceReportDraft(){
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction'){status('irExportStatus','Run a transaction analysis before generating the intelligence report.',true);return;}
+  populateIntelligenceReportBuilder(a);
+  const subject=irField('irSubject')||$('subjectName')?.value?.trim()||'the subject';
+  const period=a.first&&a.last?' for the period '+irDate(a.first)+' to '+irDate(a.last):'';
+  const pattern=[];
+  if(a.passRatio>=75)pattern.push('elevated movement of funds through the account');
+  if(a.rapid.length)pattern.push('rapid onward movement of funds');
+  if(a.origins.length>=10)pattern.push('funding from multiple third-party originators');
+  if(a.cryptoTx.length)pattern.push('transactions containing crypto/VASP indicators');
+  const abstract='Based on financial information reviewed by the Nigerian Financial Intelligence Unit (NFIU), FinIntel analysed '+a.records.length.toLocaleString()+' transaction record(s) associated with '+subject+period+'. The analysis identified total classified inflow of '+fmt(a.totalIn,a.currency)+' and total classified outflow of '+fmt(a.totalOut,a.currency)+'. '+(pattern.length?'Significant observations included '+pattern.join(', ')+'. ':'')+'A detailed breakdown of the financial analysis and analyst-supplied database results is presented in the narrative below.';
+  $('irAbstract').value=abstract;
+  $('irFindings').value=irGeneratedFindings(a).map(x=>'• '+x).join('\n');
+  if(!$('irInference').value.trim())$('irInference').value=irDraftInference(a);
+  renderIntelligenceReportPreview();
+  $('irBuilderStatusPill').textContent='Draft generated • analyst review required';
+  status('irExportStatus','Draft generated from the current FinIntel analysis. Review all sections before export.');
+}
+function irFinancialDatabaseHtml(a){
+  const subject=esc(irField('irSubject')||$('subjectName')?.value?.trim()||'the subject');
+  const bank=irField('irBankName'),account=irField('irAccountNumber'),opening=irField('irAccountOpenDate');
+  const str=irField('irStrCount'),ctr=irField('irCtrCount'),linked=irField('irLinkedAccountsCount'),balance=irField('irCurrentBalance');
+  const context=[];
+  if(linked!=='')context.push('NFIU database information supplied by the analyst indicates '+esc(linked)+' linked account(s) for the subject/entity.');
+  if(str!=='')context.push(esc(str)+' previous suspicious transaction report(s) (STRs) were recorded as supplied by the analyst.');
+  if(ctr!=='')context.push(esc(ctr)+' currency transaction report(s) (CTRs) were recorded as supplied by the analyst.');
+  if(account||bank||opening){
+    let line='The account under review';
+    if(account)line+=' is '+esc(account);
+    if(bank)line+=(account?' with ':' is maintained with ')+esc(bank);
+    if(opening)line+=' and was opened on '+esc(irDate(opening));
+    context.push(line+'.');
+  }
+  const period=a.first&&a.last?' from '+esc(irDate(a.first))+' to '+esc(irDate(a.last)):'';
+  const topN=Math.max(1,Math.min(20,Number(irField('irTopPartyCount'))||10));
+  const origins=a.origins.filter(x=>norm(x.name)!=='unknown counterparty').slice(0,topN);
+  const benefits=a.benefits.filter(x=>norm(x.name)!=='unknown counterparty').slice(0,topN);
+  const deposits='<h3>Deposits/Depositors</h3><p>Total inflow within the period under review is <strong>'+esc(fmt(a.totalIn,a.currency))+'</strong> ('+esc(amountInWords(a.totalIn,a.currency))+').</p>'
+    +(origins.length?'<ul class="ir-bullets">'+origins.map(x=>'<li>'+esc(irCounterpartySentence(a,'originator',x))+'</li>').join('')+'</ul>':'<p>No classified originator was available for narrative reporting.</p>');
+  const withdrawals='<h3>Withdrawals/Beneficiaries</h3><p>Total outflow within the period under review is <strong>'+esc(fmt(a.totalOut,a.currency))+'</strong> ('+esc(amountInWords(a.totalOut,a.currency))+').</p>'
+    +(benefits.length?'<ul class="ir-bullets">'+benefits.map(x=>'<li>'+esc(irCounterpartySentence(a,'beneficiary',x))+'</li>').join('')+'</ul>':'<p>No classified beneficiary was available for narrative reporting.</p>')
+    +(balance?'<p>Current balance supplied by the analyst: <strong>'+esc(balance)+'</strong>.</p>':'');
+  return'<h2>FINANCIAL DATABASE</h2>'
+    +(context.length?'<ul class="ir-bullets">'+context.map(x=>'<li>'+x+'</li>').join('')+'</ul>':'<p class="ir-draft-note">No analyst-supplied STR/CTR/account-opening context has been entered.</p>')
+    +'<p>Further analysis of '+subject+"'s financial transactions"+period+' reveals the following significant and relevant transactions:</p>'
+    +deposits+withdrawals;
+}
+function irProfileHtml(){
+  const rows=[
+    ['Full Name',irField('irFullName')||irField('irSubject')],
+    ['Date of Birth',irField('irDob')?irDate(irField('irDob')):''],
+    ['Nationality',irField('irNationality')],
+    ['Mobile Number',irField('irMobile')],
+    ['BVN',irField('irBvn')],
+    ['NIN',irField('irNin')],
+    ['Address',irField('irAddress')],
+    ['Occupation',irField('irOccupation')],
+    ['Email',irField('irEmail')],
+    ['Social Media Handle(s)',irField('irSocial')]
+  ].filter(x=>x[1]);
+  const img=irSubjectPhotoData?'<td class="ir-subject-photo" rowspan="'+Math.max(1,rows.length)+'"><img src="'+irSubjectPhotoData+'" alt="Subject photograph"></td>':'';
+  return rows.length?'<table class="ir-profile-table"><tbody>'+rows.map((x,i)=>'<tr>'+(i===0?img:'')+'<th>'+esc(x[0])+'</th><td>'+esc(x[1])+'</td></tr>').join('')+'</tbody></table>':'<p class="ir-draft-note">Subject profile has not been supplied.</p>';
+}
+function irAttachmentsHtml(){
+  const lines=irField('irAttachments').split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  return lines.length?'<h2>ATTACHMENT</h2><ul class="ir-bullets">'+lines.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'';
+}
+function irAppendicesHtml(a){
+  const accounts=uniqueObservedAccounts(a);
+  const accountHtml=accounts.length?'<div class="ir-page-break"><h2>APPENDIX I – ACCOUNTS / IDENTIFIERS OBSERVED</h2><table><thead><tr><th>S/N</th><th>Account / Identifier</th><th>Records</th></tr></thead><tbody>'+accounts.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(x.value)+'</td><td>'+x.count+'</td></tr>').join('')+'</tbody></table></div>':'';
+  const top=[...a.records].filter(r=>r.amount>0).sort((x,y)=>y.amount-x.amount).slice(0,50);
+  const txHtml='<div class="ir-page-break"><h2>APPENDIX II – SIGNIFICANT TRANSACTION ANALYSIS</h2><table><thead><tr><th>S/N</th><th>Transaction Date</th><th>Amount</th><th>Source/Originator</th><th>Mode of Transaction</th><th>Beneficiary</th></tr></thead><tbody>'
+    +top.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(fmtDate(r.date)||r.dateRaw||'—')+'</td><td>'+esc(fmt(r.amount,a.currency))+'</td><td>'+esc(r.originator||'—')+'</td><td>'+esc(r.extracted?.channel||r.values?.channel||r.extracted?.category||'—')+'</td><td>'+esc(r.beneficiary||'—')+'</td></tr>').join('')
+    +'</tbody></table><p class="ir-small-note">This appendix contains up to the 50 highest-value transactions in the analysed dataset. The standardised CSV should be retained for complete record-level analysis.</p></div>';
+  return accountHtml+txHtml;
+}
+function intelligenceReportBodyHtml(){
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction')return'';
+  const background=irField('irBackground')||'[Analyst input required: state the reporting trigger/background.]';
+  const abstract=irField('irAbstract')||'[Generate and review the abstract.]';
+  const findings=irField('irFindings')||'[Generate and review factual findings.]';
+  const inference=irField('irInference')||'[Analyst inference required.]';
+  const recommendation=irField('irRecommendation')||'This intelligence report is forwarded to you for further detailed investigation.';
+  const reportDate=irField('irReportDate')?irDate(irField('irReportDate')):irDate(new Date());
+  const header='<div class="ir-header"><img src="assets/nfiu-logo.jpg?v=20261025b" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Any information contained in this report is sensitive, and is not to be disseminated outside your organization without express approval from the Nigerian Financial Intelligence Unit</div><h2 class="ir-main-title">INTELLIGENCE REPORT</h2></div>'
+    +'<table class="ir-meta"><tbody><tr><th>Agency:</th><td>'+esc(irField('irAgency')||'—')+'</td><th>Date:</th><td>'+esc(reportDate)+'</td></tr><tr><th>Address:</th><td>'+esc(irField('irAgencyAddress')||'—')+'</td><th>NFIU Case #:</th><td>'+esc(irField('irCaseNumber')||'—')+'</td></tr><tr><th>To:</th><td colspan="3">'+esc(irField('irRecipient')||'—')+'</td></tr><tr><th>Subject:</th><td colspan="3"><strong>'+esc(irField('irSubject')||$('subjectName')?.value?.trim()||'—')+'</strong></td></tr></tbody></table>';
+  return header
+    +'<h2>ABSTRACT</h2><p>'+esc(abstract).replace(/\n/g,'<br>')+'</p>'
+    +'<h2>NARRATIVE</h2><h3>Background</h3><p>'+esc(background).replace(/\n/g,'<br>')+'</p>'
+    +irProfileHtml()
+    +irFinancialDatabaseHtml(a)
+    +irExternalSection('Law Enforcement Database',$('irLawStatus').value,irField('irLawText'))
+    +irExternalSection('Regulatory Authority Database',$('irRegStatus').value,irField('irRegText'))
+    +irExternalSection('Commercial Database',$('irCommercialStatus').value,irField('irCommercialText'))
+    +irExternalSection('Open Source',$('irOsintStatus').value,irField('irOsintText'))
+    +'<h2>FINDINGS</h2><div class="ir-pre">'+esc(findings)+'</div>'
+    +'<h2>INFERENCE</h2><p>'+esc(inference).replace(/\n/g,'<br>')+'</p>'
+    +'<h2>RECOMMENDATION</h2><p>'+esc(recommendation).replace(/\n/g,'<br>')+'</p>'
+    +irAttachmentsHtml()
+    +'<p class="ir-note"><strong>NOTE:</strong> Where additional information is required, please quote NFIU reference number, name of subject above, and provide details of status of investigation. Kindly note that NFIU will periodically require feedback on status of case.</p>'
+    +'<div class="ir-signature"><strong>DCEO NFIU</strong><strong>Date: '+esc(reportDate)+'</strong></div>'
+    +irAppendicesHtml(a);
+}
+function intelligenceReportDocumentHtml(){
+  const title=esc((irField('irCaseNumber')||'NFIU Intelligence Report')+' - '+(irField('irSubject')||'Subject'));
+  return'<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'
+    +'@page{size:A4;margin:16mm 15mm 22mm}*{box-sizing:border-box}body{font-family:"Courier New",Courier,monospace;color:#111;font-size:10.5pt;line-height:1.22;margin:0}.ir-doc{max-width:190mm;margin:0 auto}.ir-header{text-align:center}.ir-header img{width:78px;height:78px;object-fit:contain}.ir-header h1{font-size:14pt;margin:4px 0}.ir-warning{border:1.5px solid #111;padding:5px 8px;font-weight:700;font-size:9.5pt}.ir-main-title{font-size:14pt;text-decoration:none;margin:10px 0 5px}.ir-meta,.ir-profile-table,table{width:100%;border-collapse:collapse}.ir-meta th,.ir-meta td,.ir-profile-table th,.ir-profile-table td,table th,table td{border:1px solid #555;padding:4px 5px;text-align:left;vertical-align:top}.ir-meta th{width:18%;font-weight:800}.ir-doc h2{font-size:12pt;text-transform:uppercase;text-decoration:underline;margin:14px 0 4px}.ir-doc h3{font-size:11pt;margin:7px 0 2px}.ir-doc p{margin:3px 0 7px;text-align:justify}.ir-bullets{margin:5px 0 10px;padding-left:22px}.ir-bullets li{margin:3px 0;text-align:justify}.ir-subject-photo{width:30mm;padding:3px!important}.ir-subject-photo img{width:28mm;max-height:38mm;object-fit:cover}.ir-pre{white-space:pre-wrap;margin:4px 0 9px}.ir-note{margin-top:16px!important}.ir-signature{display:flex;justify-content:space-between;border-top:1px solid #111;margin-top:22px;padding-top:5px}.ir-draft-note{padding:6px;border-left:4px solid #c48a18;background:#fff8df}.ir-page-break{break-before:page;page-break-before:always}.ir-small-note{font-size:8.5pt}.ir-print-footer{position:fixed;bottom:-14mm;left:0;right:0;text-align:center;color:#b72727;font-size:7.5pt;font-weight:700}.ir-draft-banner{border:2px solid #b87519;background:#fff5e7;padding:7px;text-align:center;font-weight:800;margin-bottom:10px}@media print{.ir-draft-banner{display:block}}'
+    +'</style></head><body><div class="ir-doc"><div class="ir-draft-banner">DRAFT – ANALYST REVIEW REQUIRED BEFORE DISSEMINATION</div>'+intelligenceReportBodyHtml()+'</div><div class="ir-print-footer">Unauthorized disclosure of information contained herein is strictly prohibited and against the Official Secrets Act and Section 18 of the Nigerian Financial Intelligence Unit Act, 2018</div></body></html>';
+}
+function renderIrEvidenceSummary(a){
+  const el=$('irEvidenceSummary');if(!el||!a||a.kind!=='transaction')return;
+  const top=[...a.origins.slice(0,5).map(x=>({...x,role:'originator'})),...a.benefits.slice(0,5).map(x=>({...x,role:'beneficiary'}))].filter(x=>norm(x.name)!=='unknown counterparty');
+  el.innerHTML='<div class="ir-evidence-head"><strong>Evidence-backed counterparty facts</strong><span>'+top.length+' key relationship(s)</span></div>'
+    +(top.length?'<div class="ir-evidence-grid">'+top.map(x=>'<button class="ir-evidence-item" type="button" data-role="'+x.role+'" data-name="'+esc(x.name)+'"><small>'+(x.role==='originator'?'ORIGINATOR':'BENEFICIARY')+'</small><strong>'+esc(x.name)+'</strong><span>'+esc(fmt(x.total,a.currency))+' • '+x.count+' tx</span><em>'+esc(nodeDateRange(x))+' • View evidence</em></button>').join('')+'</div>':'<p class="muted">No classified counterparty evidence is available.</p>');
+  $('.ir-evidence-item').forEach(btn=>btn.onclick=()=>openCounterpartyProfile(btn.dataset.name));
+}
+function renderIntelligenceReportPreview(){
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction')return;
+  const preview=$('irReportPreview');if(!preview)return;
+  preview.innerHTML='<div class="ir-preview-paper">'+intelligenceReportBodyHtml()+'</div>';
+  renderIrEvidenceSummary(a);
+}
+function saveIntelligenceReportWord(){
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction'){status('irExportStatus','No transaction analysis is available.',true);return;}
+  renderIntelligenceReportPreview();
+  const file=((irField('irCaseNumber')||'NFIU_IR')+'_'+(irField('irSubject')||'Subject')).replace(/[^a-z0-9._-]+/gi,'_');
+  download(file+'.doc',intelligenceReportDocumentHtml(),'application/msword');
+  status('irExportStatus','Word-compatible intelligence report saved. Review the draft before dissemination.');
+}
+function saveIntelligenceReportPdf(){
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction'){status('irExportStatus','No transaction analysis is available.',true);return;}
+  try{
+    const old=$('irPrintFrame');if(old)old.remove();
+    const frame=document.createElement('iframe');
+    frame.id='irPrintFrame';
+    frame.setAttribute('aria-hidden','true');
+    frame.style.position='fixed';frame.style.right='0';frame.style.bottom='0';frame.style.width='1px';frame.style.height='1px';frame.style.border='0';frame.style.opacity='0';
+    document.body.appendChild(frame);
+    const doc=frame.contentDocument||frame.contentWindow.document;
+    doc.open();doc.write(intelligenceReportDocumentHtml());doc.close();
+    setTimeout(()=>{
+      try{frame.contentWindow.focus();frame.contentWindow.print();status('irExportStatus','Print dialog opened. Choose “Save as PDF” after reviewing the draft.');}
+      catch(e){status('irExportStatus','Could not open the print dialog. Use the browser Print command.',true);}
+      setTimeout(()=>frame.remove(),3000);
+    },500);
+  }catch(e){status('irExportStatus',e.message||'Unable to prepare PDF view.',true);}
+}
+function saveIrAppendixCsv(){
+  const a=state.analysis;
+  if(!a||a.kind!=='transaction')return;
+  const head=['Source Row','Date','Amount','Direction','Source/Originator','Mode','Beneficiary','Narration','Source Sheet'];
+  const rows=a.records.map(r=>[r.row,fmtDate(r.date)||r.dateRaw||'',r.amount,r.direction,r.originator||'',r.extracted?.channel||r.values?.channel||r.extracted?.category||'',r.beneficiary||'',r.narration||'',r.sheet||''].map(csvEscape).join(','));
+  const file=((irField('irCaseNumber')||'NFIU_IR')+'_Appendix_Transactions').replace(/[^a-z0-9._-]+/gi,'_');
+  download(file+'.csv',[head.map(csvEscape).join(','),...rows].join('\n'),'text/csv');
+}
+
 function makeDraft(a){
   const name=$('caseName').value.trim()||'Financial Intelligence Analysis',subject=$('subjectName').value.trim()||'the subject';
   if(a.kind!=='transaction'){
@@ -2165,6 +2507,7 @@ function renderAnalysis(a){
     renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
     renderUnknownResolution(a);
     renderDataQuality(a);
+    populateIntelligenceReportBuilder(a);
     renderDescriptionIntelligence(a);
     renderAlerts(a);renderSupplementalIndicators(a);renderNetwork(a);
   }
@@ -2201,7 +2544,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.0.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -2332,7 +2675,7 @@ $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v3_0_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v3_1_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -2364,4 +2707,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.0.1').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=3.1.0').then(r=>r.update()).catch(()=>{}));
