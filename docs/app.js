@@ -999,6 +999,52 @@ function buildDescriptionIntelligence(records){
   };
 }
 
+function buildSupplementalPatterns(records,currency,origins,benefits){
+  const dated=records.filter(r=>r.date).sort((a,b)=>a.date-b.date);
+  const turnover=sum(records,r=>r.amount);
+  const largest=records.reduce((m,r)=>!m||r.amount>m.amount?r:m,null);
+  const largestShare=turnover&&largest?largest.amount/turnover*100:0;
+  const round=records.filter(r=>r.amount>=10000&&Math.abs(r.amount%10000)<0.001);
+  const roundRatio=records.length?round.length/records.length*100:0;
+  const weekend=dated.filter(r=>r.date.getDay()===0||r.date.getDay()===6);
+  const weekendValue=sum(weekend,r=>r.amount);
+  const dayMap=new Map();
+  for(const r of dated){
+    const key=r.date.getFullYear()+'-'+String(r.date.getMonth()+1).padStart(2,'0')+'-'+String(r.date.getDate()).padStart(2,'0');
+    if(!dayMap.has(key))dayMap.set(key,{date:new Date(r.date.getFullYear(),r.date.getMonth(),r.date.getDate()),count:0,total:0,in:0,out:0});
+    const d=dayMap.get(key);d.count++;d.total+=r.amount;
+    if(r.direction==='inflow')d.in+=r.amount;
+    if(r.direction==='outflow')d.out+=r.amount;
+  }
+  const days=[...dayMap.values()];
+  const peak=days.reduce((m,d)=>!m||d.count>m.count||(d.count===m.count&&d.total>m.total)?d:m,null);
+  const sameDay=days.filter(d=>d.in>0&&d.out>0);
+  let maxGapDays=0,gapStart=null,gapEnd=null;
+  for(let i=1;i<dated.length;i++){
+    const gap=(dated[i].date-dated[i-1].date)/86400000;
+    if(gap>maxGapDays){maxGapDays=gap;gapStart=dated[i-1].date;gapEnd=dated[i].date;}
+  }
+  const topOrigin=origins[0]||null,topBenefit=benefits[0]||null;
+  const originShare=topOrigin&&sum(origins,x=>x.total)?topOrigin.total/sum(origins,x=>x.total)*100:0;
+  const benefitShare=topBenefit&&sum(benefits,x=>x.total)?topBenefit.total/sum(benefits,x=>x.total)*100:0;
+  const topSide=originShare>=benefitShare
+    ?{name:topOrigin?.name||'—',share:originShare,role:'originator'}
+    :{name:topBenefit?.name||'—',share:benefitShare,role:'beneficiary'};
+  const items=[
+    {title:'Largest single transaction',value:largest?fmt(largest.amount,currency):'—',detail:largest?((largest.direction||'unknown')+' • '+fmtDate(largest.date)):'No transaction value available',tone:largestShare>=30?'high':'neutral'},
+    {title:'Peak activity day',value:peak?peak.count+' tx':'—',detail:peak?(fmtDate(peak.date)+' • '+fmt(peak.total,currency)+' observed value'):'Date data unavailable',tone:peak&&peak.count>=15?'medium':'neutral'},
+    {title:'Same-day inflow / outflow',value:sameDay.length+' day'+(sameDay.length===1?'':'s'),detail:sameDay.length?'Days containing both incoming and outgoing transactions':'No day contained both classified directions',tone:sameDay.length>=3?'medium':'neutral'},
+    {title:'Round-number concentration',value:roundRatio.toFixed(1)+'%',detail:round.length+' of '+records.length+' transaction(s) were exact multiples of 10,000 currency units',tone:roundRatio>=50&&round.length>=5?'medium':'neutral'},
+    {title:'Weekend activity',value:weekend.length+' tx',detail:weekend.length?fmt(weekendValue,currency)+' observed on Saturdays/Sundays':'No dated weekend transactions observed',tone:weekend.length?'info':'neutral'},
+    {title:'Longest inactivity gap',value:maxGapDays?maxGapDays.toFixed(1)+' days':'—',detail:maxGapDays?(fmtDate(gapStart)+' → '+fmtDate(gapEnd)):'Insufficient dated transactions',tone:maxGapDays>=30?'info':'neutral'},
+    {title:'Largest counterparty share',value:topSide.share.toFixed(1)+'%',detail:topSide.name+' • '+topSide.role,tone:topSide.share>=50?'medium':'neutral'}
+  ];
+  return{
+    items,largest,largestShare,roundCount:round.length,roundRatio,weekendCount:weekend.length,
+    sameDayFlowDays:sameDay.length,peakDayCount:peak?.count||0,maxGapDays,topCounterpartyShare:topSide.share
+  };
+}
+
 function transactionAnalysis(records){
   const currency=($('currencyCode').value.trim()||'NGN').toUpperCase();
   const ins=records.filter(t=>t.direction==='inflow'),outs=records.filter(t=>t.direction==='outflow'),unknown=records.filter(t=>t.direction==='unknown');
@@ -1011,6 +1057,7 @@ function transactionAnalysis(records){
   const cryptoRx=/\b(crypto|bitcoin|btc|ethereum|eth|usdt|usdc|binance|bybit|kucoin|okx|coinbase|wallet|vasp|virtual asset)\b/i;
   const cryptoTx=records.filter(t=>cryptoRx.test(Object.values(t.values).join(' ')+' '+(t.extracted?.clean||''))),cryptoExposure=sum(cryptoTx,x=>x.amount),alerts=[];
   const descriptionIntel=buildDescriptionIntelligence(records);
+  const supplemental=buildSupplementalPatterns(records,currency,origins,benefits);
   const add=(title,severity,score,detail,evidence)=>alerts.push({title,severity,score,detail,evidence});
   if(passRatio>=90&&totalIn)add('High pass-through activity','high',18,passRatio.toFixed(1)+'% of inflow was matched by total outflow.','Inflow '+fmt(totalIn,currency)+'; outflow '+fmt(totalOut,currency)+'.');
   else if(passRatio>=75&&totalIn)add('Elevated pass-through activity','medium',10,passRatio.toFixed(1)+'% of inflow was matched by outflow.','Review transaction purpose and retention pattern.');
@@ -1024,8 +1071,12 @@ function transactionAnalysis(records){
   if(both.length)add('Counterparties on both sides of flow','medium',8,both.length+' counterparty name(s) appeared as both originator and beneficiary.','Examples: '+both.slice(0,3).map(x=>x.name).join(', ')+'.');
   if(cryptoExposure)add('Crypto / VASP-related exposure detected','medium',10,cryptoTx.length+' transaction(s) contained crypto/VASP textual indicators.','Observed value '+fmt(cryptoExposure,currency)+'. Text-based screening only.');
   if(unknown.length)add('Unresolved transaction direction','low',3,unknown.length+' transaction(s) could not be classified as inflow or outflow.','Review mapping and subject identifier.');
+  if(supplemental.sameDayFlowDays>=3)add('Repeated same-day inflow/outflow activity','medium',8,supplemental.sameDayFlowDays+' separate day(s) contained both classified inflow and outflow.','Review whether same-day onward movement is consistent with the account purpose.');
+  if(supplemental.roundRatio>=50&&supplemental.roundCount>=5)add('High round-number transaction concentration','low',4,supplemental.roundRatio.toFixed(1)+'% of transactions were exact multiples of 10,000 currency units.','Round-number activity is contextual and should be compared with expected transaction behaviour.');
+  if(supplemental.largestShare>=30&&records.length>=5)add('Single-transaction value concentration','medium',6,'The largest transaction represented '+supplemental.largestShare.toFixed(1)+'% of observed transaction value.','Largest transaction: '+fmt(supplemental.largest?.amount||0,currency)+'.');
+  if(supplemental.peakDayCount>=15)add('High single-day transaction frequency','medium',6,'At least one day contained '+supplemental.peakDayCount+' transaction(s).','Review transaction velocity and business rationale for the peak day.');
   const riskScore=Math.min(100,sum(alerts,x=>x.score)),risk=riskScore>=60?'critical':riskScore>=40?'high':riskScore>=18?'medium':'low';
-  return{kind:'transaction',currency,records,txs:records,ins,outs,unknown,totalIn,totalOut,net:totalIn-totalOut,origins,benefits,rapid,structured,passRatio,concentration,both,cryptoTx,cryptoExposure,descriptionIntel,alerts,riskScore,risk,first:dated[0]?.date||null,last:dated[dated.length-1]?.date||null,profiles:buildFieldProfiles(records)};
+  return{kind:'transaction',currency,records,txs:records,ins,outs,unknown,totalIn,totalOut,net:totalIn-totalOut,origins,benefits,rapid,structured,passRatio,concentration,both,cryptoTx,cryptoExposure,descriptionIntel,supplemental,alerts,riskScore,risk,first:dated[0]?.date||null,last:dated[dated.length-1]?.date||null,profiles:buildFieldProfiles(records)};
 }
 
 function universalAnalysis(records){
@@ -1149,6 +1200,13 @@ function rerenderCounterpartyTables(){
   renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
 }
 
+function renderSupplementalIndicators(a){
+  const el=$('supplementalIndicators');if(!el)return;
+  const items=a.supplemental?.items||[];
+  el.innerHTML=items.length?items.map(x=>'<div class="pattern-indicator '+esc(x.tone||'neutral')+'"><div class="pattern-title">'+esc(x.title)+'</div><div class="pattern-value">'+esc(x.value)+'</div><div class="pattern-detail">'+esc(x.detail)+'</div></div>').join('')
+    :'<div class="pattern-indicator neutral"><div class="pattern-title">No supplementary pattern data</div><div class="pattern-detail">The dataset did not contain enough classified transaction information.</div></div>';
+}
+
 function renderAlerts(a){
   $('alertsList').innerHTML=a.alerts.length?a.alerts.map(x=>'<div class="alert '+esc(x.severity)+'"><div class="alert-head"><strong>'+esc(x.title)+'</strong><small>'+esc(x.severity.toUpperCase())+'</small></div><p>'+esc(x.detail)+'</p><small>'+esc(x.evidence||'')+'</small></div>').join('')
     :'<div class="alert low"><div class="alert-head"><strong>No material rule-based indicators detected</strong><small>LOW</small></div><p>Continue case-specific review and verification.</p></div>';
@@ -1163,10 +1221,39 @@ function nodeDateRange(x){
   }
   return 'Date unavailable';
 }
+function centerNetworkView(){
+  const view=$('networkView');if(!view)return;
+  requestAnimationFrame(()=>{
+    view.scrollLeft=Math.max(0,(view.scrollWidth-view.clientWidth)/2);
+    view.scrollTop=Math.max(0,(view.scrollHeight-view.clientHeight)/2);
+  });
+}
+function initNetworkPan(){
+  const view=$('networkView');if(!view)return;
+  let dragging=false,startX=0,startY=0,startLeft=0,startTop=0;
+  view.onpointerdown=e=>{
+    if(e.button!==0)return;
+    dragging=true;startX=e.clientX;startY=e.clientY;startLeft=view.scrollLeft;startTop=view.scrollTop;
+    view.classList.add('dragging');
+    try{view.setPointerCapture(e.pointerId);}catch{}
+    e.preventDefault();
+  };
+  view.onpointermove=e=>{
+    if(!dragging)return;
+    view.scrollLeft=startLeft-(e.clientX-startX);
+    view.scrollTop=startTop-(e.clientY-startY);
+  };
+  const stop=e=>{
+    if(!dragging)return;
+    dragging=false;view.classList.remove('dragging');
+    try{view.releasePointerCapture(e.pointerId);}catch{}
+  };
+  view.onpointerup=stop;view.onpointercancel=stop;view.onpointerleave=e=>{if(dragging&&e.buttons===0)stop(e);};
+}
 function setNetworkZoom(value){
   networkZoom=Math.max(.65,Math.min(2.25,value));
   if($('networkZoomReset'))$('networkZoomReset').textContent=Math.round(networkZoom*100)+'%';
-  if(state.analysis?.kind==='transaction')renderNetwork(state.analysis);
+  if(state.analysis?.kind==='transaction'){renderNetwork(state.analysis);centerNetworkView();}
 }
 function networkYPositions(count,height){
   if(count<=1)return[height/2];
@@ -1209,6 +1296,8 @@ function renderNetwork(a){
     +'<text class="subject-label" x="600" y="'+(subjectY-3)+'" text-anchor="middle">'+esc(shortName(subject,20))+'</text>'
     +'<text class="subject-sub" x="600" y="'+(subjectY+20)+'" text-anchor="middle">SUBJECT</text></svg>';
   $('networkView').innerHTML=s;
+  initNetworkPan();
+  centerNetworkView();
 }
 
 function maskedTop(profile){
@@ -1286,7 +1375,7 @@ function renderAnalysis(a){
     renderCounterparty('originatorTable',a.origins,a.totalIn,a.currency);
     renderCounterparty('beneficiaryTable',a.benefits,a.totalOut,a.currency);
     renderDescriptionIntelligence(a);
-    renderAlerts(a);renderNetwork(a);
+    renderAlerts(a);renderSupplementalIndicators(a);renderNetwork(a);
   }
   renderProfiles(a);renderRecords();renderAliasLibrary();
   $('draftSummary').value=makeDraft(a);
@@ -1320,7 +1409,7 @@ function reportHtml(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.5.2 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v2.6 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -1405,12 +1494,13 @@ $('networkPartyCount').addEventListener('change',()=>{if(state.analysis?.kind===
 $('networkZoomOut').onclick=()=>setNetworkZoom(networkZoom-.15);
 $('networkZoomIn').onclick=()=>setNetworkZoom(networkZoom+.15);
 $('networkZoomReset').onclick=()=>setNetworkZoom(1);
+$('networkCenter').onclick=centerNetworkView;
 $('exportCsvBtn').onclick=exportCSV;
 $('copySummaryBtn').onclick=async()=>{
   try{await navigator.clipboard.writeText($('draftSummary').value);status('reportStatus','Analytical summary copied.');}
   catch{status('reportStatus','Copy failed. Select the text manually.',true);}
 };
-$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_5_2_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
+$('downloadReportBtn').onclick=()=>{download('finintel_aml_v2_6_report.html',reportHtml(),'text/html');status('reportStatus','HTML report downloaded.');};
 $('saveAliasBtn').onclick=saveSelectedAliases;
 $('rerunAliasBtn').onclick=rerunWithAliases;
 $('clearAliasSelectionBtn').onclick=clearAliasSelection;
@@ -1442,4 +1532,4 @@ renderCustomFieldList();
 renderTemplateSelect();
 renderAliasLibrary();
 renderTransactionStructure();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.5.2').then(r=>r.update()).catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=2.6.0').then(r=>r.update()).catch(()=>{}));
