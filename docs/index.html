@@ -7,7 +7,7 @@
   <meta name="description" content="FinIntel AML v3.4.1 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
   <title>FinIntel AML v3.4.1</title>
   <link rel="manifest" href="manifest.webmanifest?v=3.4.1" />
-  <link rel="stylesheet" href="styles.css?v=3.4.1-currency1" />
+  <link rel="stylesheet" href="styles.css?v=3.4.1-guide1" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -244,15 +244,20 @@
             <label>Case / Analysis name<input id="caseName" type="text" value="New Financial Intelligence Analysis" /></label>
             <label>Subject name / identifier<input id="subjectName" type="text" placeholder="e.g. Subject Account / Pius Obi" /></label>
             <label>Default currency (when no Currency column is mapped)<input id="currencyCode" type="text" value="NGN" maxlength="5" placeholder="NGN, USD, EUR, GBP…" /></label>
-            <label>Rapid movement window (hours)<input id="rapidHours" type="number" value="24" min="1" max="168" /></label>
-            <label>Rapid movement ratio (%)<input id="rapidRatio" type="number" value="80" min="1" max="100" /></label>
-            <label>Structuring reference amount<input id="structuringReference" type="number" value="10000000" min="0" /></label>
-            <label>Reference band (%)<input id="structuringBand" type="number" value="10" min="1" max="50" /></label>
-            <label>Minimum repeated transactions<input id="structuringCount" type="number" value="3" min="2" max="50" /></label>
+            <label>Rapid movement window (hours)<input id="rapidHours" type="number" value="24" min="1" max="168" aria-describedby="rapidHoursGuide" /><small id="rapidHoursGuide" class="muted">24 hours looks back at inflows received during the 24 hours before each outgoing transaction.</small></label>
+            <label>Rapid movement ratio (%)<input id="rapidRatio" type="number" value="80" min="1" max="100" aria-describedby="rapidRatioGuide" /><small id="rapidRatioGuide" class="muted">80% flags an outgoing amount of at least 80% of the inflows in that look-back window.</small></label>
+            <label>Structuring reference amount<input id="structuringReference" type="number" value="10000000" min="0" aria-describedby="structuringReferenceGuide" /><small id="structuringReferenceGuide" class="muted">An amount you choose for near-reference screening, in the default currency. Set 0 to disable.</small></label>
+            <label>Reference band (%)<input id="structuringBand" type="number" value="10" min="1" max="50" aria-describedby="structuringBandGuide" /><small id="structuringBandGuide" class="muted">10% includes amounts from 90% up to 100% of the reference amount.</small></label>
+            <label>Minimum repeated transactions<input id="structuringCount" type="number" value="3" min="2" max="50" aria-describedby="structuringCountGuide" /><small id="structuringCountGuide" class="muted">The minimum number of qualifying transactions within a seven-day window.</small></label>
           </div>
           <div id="transactionConfigNotice" class="notice">
-            <strong>Transaction scenario parameters</strong>
-            <p>The reference amount is analyst-configured and is not presented as a legal or regulatory threshold.</p>
+            <details>
+              <summary><strong>How these analysis settings work</strong></summary>
+              <p><strong>Rapid movement example:</strong> With a 24-hour window and an 80% ratio, an outgoing transaction of 800,000 meets the setting if the preceding inflows in that window total 1,000,000. Each outgoing transaction is checked separately; windows may overlap. This does not establish that the same funds were transferred.</p>
+              <p><strong>Repeated-amount example:</strong> A reference of 10,000,000 and a 10% band includes transactions from 9,000,000 to 10,000,000, including both limits. With a minimum of 3, amounts of 9,200,000, 9,500,000 and 9,800,000 within seven days meet the setting. Both inflows and outflows can qualify.</p>
+              <p><strong>Currency:</strong> Amounts are screened separately for each currency. The initial reference applies to the default currency; use “Repeated-amount reference for this currency” in the results to set a reference for another currency. A reference of 0 disables this check for that currency.</p>
+              <p>These are analyst-configured screening indicators, not proof of wrongdoing. The reference amount is not an automatic legal or regulatory threshold. Review the source transactions and context before drawing conclusions.</p>
+            </details>
           </div>
         </article>
 
@@ -774,7 +779,7 @@
   <script src="docx-export.js?v=3.4.1" defer></script>
   <script src="app.js?v=3.4.1" defer></script>
   <script src="case-workspace.js?v=3.4.1" defer></script>
-  <script src="offline.js?v=3.4.1-currency1" defer></script>
+  <script src="offline.js?v=3.4.1-guide1" defer></script>
 </body>
 </html>
 
