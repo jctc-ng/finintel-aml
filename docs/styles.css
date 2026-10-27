@@ -1714,3 +1714,10 @@ footer strong{color:#17384c;font-weight:850}
 #currencyWorkspace #analysisCurrency option{background:#fff;color:#183b51;font-weight:400}
 #currencyWorkspace #applyCurrencyReference{min-height:46px}
 @media(max-width:650px){#currencyWorkspace .form-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Readable analysis settings guide */
+#transactionConfigNotice{background:#f0f6fb;border:1px solid #b9cddd;border-left:4px solid #237bb2;padding:16px 20px;color:#183b51}
+#transactionConfigNotice summary{color:#154b70;font-size:1rem;font-weight:700;line-height:1.5;cursor:pointer;padding:4px 0}
+#transactionConfigNotice summary:focus-visible{outline:3px solid #237bb2;outline-offset:5px;border-radius:4px}
+#transactionConfigNotice p{color:#263f50;font-size:1rem;font-weight:400;line-height:1.7;margin:14px 0 0}
+#transactionConfigNotice p strong{color:#183b51;font-weight:700}
