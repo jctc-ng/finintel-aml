@@ -1767,3 +1767,15 @@ footer strong{color:#17384c;font-weight:850}
 #exchangeWorkbookReview details>summary{padding:12px 0;font-weight:700;cursor:pointer;color:#173b51}
 @media(max-width:700px){.crypto-page-tools{grid-template-columns:minmax(0,1fr) 140px}.crypto-page-export{grid-column:1/-1}.crypto-page-nav{align-items:flex-start;flex-direction:column}}
 @media(max-width:420px){.crypto-page-tools{grid-template-columns:minmax(0,1fr)}}
+
+#cryptoBehaviourPanel>summary{font-size:1.15rem;font-weight:800;cursor:pointer;color:#173b51;padding:4px 0}
+#cryptoBehaviourPanel p{color:#2c4b60;line-height:1.7}
+#cryptoBehaviourPanel .cb-guide{padding:14px 18px;background:#f0f6fb;border:1px solid #c3d6e4;border-radius:10px;margin:16px 0}
+#cryptoBehaviourPanel .cb-guide summary{font-weight:700;color:#154b70;cursor:pointer}
+.cb-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0}
+.cb-settings label,.cb-select-label{display:flex;flex-direction:column;gap:8px;font-size:.9rem;font-weight:700;color:#183b51;min-width:0}
+.cb-settings input,.cb-select-label select{width:100%;min-width:0;min-height:46px;padding:10px 12px;border:1px solid #b9cddd;border-radius:9px;background:#fff;color:#183b51;font:inherit;font-weight:400}
+.cb-select-label{margin:20px 0}.cb-settings input:focus-visible,.cb-select-label select:focus-visible{outline:3px solid #237bb244;outline-offset:2px}
+#cryptoBehaviourPanel button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:700px){.cb-settings{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:450px){.cb-settings{grid-template-columns:minmax(0,1fr)}}
