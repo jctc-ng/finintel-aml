@@ -2,8 +2,8 @@
 let offlineRegistration=null,installPrompt=null;
 async function refreshOfflineStatus(){
  const el=document.getElementById('offlineStatus');if(!el)return;
- const cache=await caches.open('finintel-aml-v3.4.0');
- const ready=await Promise.all(['./index.html','./vendor/xlsx.full.min.js?v=0.18.5','./case-workspace.js?v=3.4.0','./docx-export.js?v=3.4.0'].map(path=>cache.match(path)));
+ const cache=await caches.open('finintel-aml-v3.4.1');
+ const ready=await Promise.all(['./index.html','./vendor/xlsx.full.min.js?v=0.18.5','./case-workspace.js?v=3.4.1','./docx-export.js?v=3.4.1'].map(path=>cache.match(path)));
  const prepared=ready.every(Boolean)&&!!navigator.serviceWorker.controller;
  el.textContent=prepared?(navigator.onLine?'Online · Ready for offline use':'Offline · Ready to work'):(navigator.onLine?'Online · Preparing offline files…':'Offline · Setup incomplete');
  el.dataset.ready=String(prepared);
@@ -45,6 +45,7 @@ if('serviceWorker' in navigator&&'caches' in window){
   }catch(error){info.textContent='Offline setup failed. Reconnect and reload to try again.';}
  });
 }else{document.getElementById('offlineStatus').textContent='Offline installation unavailable in this browser';}
+
 
 
 
