@@ -7,7 +7,7 @@
   <meta name="description" content="FinIntel AML v3.4.1 — configurable financial intelligence and AML/CFT analysis workbench with description intelligence." />
   <title>FinIntel AML v3.4.1</title>
   <link rel="manifest" href="manifest.webmanifest?v=3.4.1" />
-  <link rel="stylesheet" href="styles.css?v=3.4.1-guide2" />
+  <link rel="stylesheet" href="styles.css?v=3.4.1-guide3" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
@@ -253,6 +253,13 @@
           <div id="transactionConfigNotice" class="notice">
             <details>
               <summary><strong>How these settings work</strong></summary>
+              <dl class="settings-definitions">
+                <dt>Rapid movement window (hours)</dt><dd>How far back to look for inflows before each outgoing transaction. For example, 24 means the preceding 24 hours.</dd>
+                <dt>Rapid movement ratio (%)</dt><dd>The minimum outgoing amount as a percentage of the inflows in that window. For example, 80% means an outgoing amount of at least 80% of those inflows.</dd>
+                <dt>Structuring reference amount</dt><dd>The amount you choose for near-reference screening in the default currency. Set it to 0 to disable this check.</dd>
+                <dt>Reference band (%)</dt><dd>The range below the reference amount to include. A 10% band includes amounts from 90% to 100% of the reference, including both limits.</dd>
+                <dt>Minimum repeated transactions</dt><dd>The minimum number of transactions in that range within a seven-day window.</dd>
+              </dl>
               <p><strong>Rapid movement example:</strong> With a 24-hour window and an 80% ratio, an outgoing transaction of 800,000 meets the setting if the preceding inflows in that window total 1,000,000. Each outgoing transaction is checked separately; windows may overlap. This does not establish that the same funds were transferred.</p>
               <p><strong>Repeated-amount example:</strong> A reference of 10,000,000 and a 10% band includes transactions from 9,000,000 to 10,000,000, including both limits. With a minimum of 3, amounts of 9,200,000, 9,500,000 and 9,800,000 within seven days meet the setting. Both inflows and outflows can qualify.</p>
               <p><strong>Currency:</strong> Amounts are screened separately for each currency. The initial reference applies to the default currency; use “Repeated-amount reference for this currency” in the results to set a reference for another currency. A reference of 0 disables this check for that currency.</p>
@@ -779,7 +786,7 @@
   <script src="docx-export.js?v=3.4.1" defer></script>
   <script src="app.js?v=3.4.1" defer></script>
   <script src="case-workspace.js?v=3.4.1" defer></script>
-  <script src="offline.js?v=3.4.1-guide2" defer></script>
+  <script src="offline.js?v=3.4.1-guide3" defer></script>
 </body>
 </html>
 

@@ -1721,3 +1721,7 @@ footer strong{color:#17384c;font-weight:850}
 #transactionConfigNotice summary:focus-visible{outline:3px solid #237bb2;outline-offset:5px;border-radius:4px}
 #transactionConfigNotice p{color:#263f50;font-size:1rem;font-weight:400;line-height:1.7;margin:14px 0 0}
 #transactionConfigNotice p strong{color:#183b51;font-weight:700}
+
+#transactionConfigNotice .settings-definitions{margin:18px 0;color:#263f50;font-size:1rem;line-height:1.7}
+#transactionConfigNotice .settings-definitions dt{margin-top:14px;color:#183b51;font-weight:700}
+#transactionConfigNotice .settings-definitions dd{margin:3px 0 0;color:#263f50;font-weight:400}
