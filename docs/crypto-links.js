@@ -27,7 +27,7 @@ function cryptoLinkCanvas(a,m){
    const addr=n.address.length>36?n.address.slice(0,19)+'…'+n.address.slice(-13):n.address;text(addr,x+12,y+26,20);text(n.rows.length+' transactions · '+cryptoQuantitySum(n.rows)+' '+m.asset,x+12,y+55,18);
   });
  }
- text('Amounts are asset quantities. P2P orders are linked to history and are not additional blockchain transfers.',30,965,18);return canvas;
+ text('Amounts are asset quantities. P2P orders are shown separately from blockchain transfers.',30,965,18);return canvas;
 }
 function cryptoLinkImages(a){let html='';for(const mode of ['chain','p2p'])for(const g of cryptoLinkGroups(a,mode)){const first=cryptoLinkModel(a,mode,g.key);for(let page=0;page<first.pages;page++){const m=cryptoLinkModel(a,mode,g.key,page);html+='<div style="text-align:center;page-break-inside:avoid"><h3>'+esc((mode==='chain'?'Blockchain':'P2P')+' relationships — '+g.asset+' / '+g.network+' — '+(page+1)+'/'+m.pages)+'</h3><img alt="Crypto relationship graph" src="'+cryptoLinkCanvas(a,m).toDataURL('image/png')+'" style="width:100%;height:auto"></div>';}}return html;}
 function renderCryptoLinks(a){

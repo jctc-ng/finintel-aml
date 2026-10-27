@@ -11,7 +11,7 @@ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['History'],head,...dat
 XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['P2P'],['Order no.','Buyer UID','Seller UID','Quantity','Coin','Currency','Order type','Price'],['c','456','123','0.2','USDT','NGN','sell','1500']]),'P2P');
 XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['UID','123','ip_address','Device'],['Full Name','Synthetic Subject','192.0.2.1','Test device'],['Nationality','Nigeria']]),'Bio');
 await page.locator('#fileInput').setInputFiles({name:'synthetic-exchange.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(XLSX.write(wb,{type:'buffer',bookType:'xlsx'}))});
-await page.waitForSelector('#step2:not([hidden])');
+await page.waitForSelector('.crypto-import-dialog');await page.locator('#ciContinue').click();await page.waitForSelector('#step2:not([hidden])');
 assert.equal(await page.locator('#datasetType').inputValue(),'crypto');
 assert.equal(await page.evaluate(()=>state.rawRows.length),4);
 await page.locator('#confirmMappingBtn').click();await page.locator('#runAnalysisBtn').click();await page.waitForSelector('#step5:not([hidden])');
