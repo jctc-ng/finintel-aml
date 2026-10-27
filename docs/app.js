@@ -169,7 +169,7 @@ const state={
   partyLayout:'auto',
   sheetDirections:{},
   standardized:[],
-  analysis:null,preferredCurrency:'',currencyReferences:{},cleaning:{enabled:false,uppercase:false,requireReview:true,events:[]},
+  analysis:null,preferredCurrency:'',currencyReferences:{},
   customFields:loadJSON(STORE.custom,[]),
   templates:loadJSON(STORE.templates,[]),
   aliasMap:loadObject(STORE.aliases,{}),
@@ -521,7 +521,7 @@ function findMatchingTemplate(){
 function loadRows(rows,name,type,sheets=[],navigate=true){
   if(!rows.length)throw new Error('No data rows were found.');
   resetIntelligenceReportBuilder();
-  state.analysis=null;state.standardized=[];state.preferredCurrency='';state.currencyReferences={};state.cleaning={enabled:false,uppercase:false,requireReview:true,events:[]};if(typeof cleaningSelection!=='undefined'){cleaningSelection.clear();cleaningPage=1;}
+  state.analysis=null;state.standardized=[];state.preferredCurrency='';state.currencyReferences={};
   setLoaderProgress(92,'Preparing mapping','Standardising headers and detecting likely fields…');
   state.rawRows=rows;
   state.columns=Array.from(new Set(rows.flatMap(r=>Object.keys(r)))).filter(c=>!c.startsWith('__finintel_'));
@@ -941,8 +941,6 @@ function standardize(){
       if(flow==='outflow'&&!beneficiary){beneficiary=extracted.counterparty;counterpartyFromDescription=true;}
     }
 
-    const descriptionCandidateHeld=!!(state.cleaning?.enabled&&state.cleaning.requireReview&&counterpartyFromDescription);
-    if(descriptionCandidateHeld){if(flow==='inflow')originator='';if(flow==='outflow')beneficiary='';}
     const dateRaw=String(values.date??'');
     const resolutionKey=resolutionKeyParts(state.sourceName,sheet,i+2,dateRaw,amount,flow,narration);
     const resolution=getCounterpartyResolutionByKey(resolutionKey);
@@ -952,19 +950,18 @@ function standardize(){
       if(resolution.ignored){
         counterpartyResolutionIgnored=true;
       }else if(resolution.name){
-        if(flow==='inflow'&&(!originator||resolution.force)){originator=String(resolution.name).trim();counterpartyResolutionApplied=true;}
-        if(flow==='outflow'&&(!beneficiary||resolution.force)){beneficiary=String(resolution.name).trim();counterpartyResolutionApplied=true;}
+        if(flow==='inflow'&&!originator){originator=String(resolution.name).trim();counterpartyResolutionApplied=true;}
+        if(flow==='outflow'&&!beneficiary){beneficiary=String(resolution.name).trim();counterpartyResolutionApplied=true;}
       }
     }
 
     const originalOriginator=originator,originalBeneficiary=beneficiary;
     originator=resolveAlias(originator);
     beneficiary=resolveAlias(beneficiary);
-    if(state.cleaning?.enabled){originator=cleanPartyName(originator);beneficiary=cleanPartyName(beneficiary);}
     return{
       row:i+2,values,raw,date:parseDate(values.date),dateRaw,amount,direction:flow,
       originator,beneficiary,narration,account:String(values.account??values.wallet??'').trim(),
-      txid:String(values.txid??'').trim(),sheet,sheetHint,extracted,counterpartyFromDescription,descriptionCandidateHeld,
+      txid:String(values.txid??'').trim(),sheet,sheetHint,extracted,counterpartyFromDescription,
       resolutionKey,counterpartyResolutionApplied,counterpartyResolutionIgnored,
       resolutionName:resolution?.name||'',resolutionUpdatedAt:resolution?.updatedAt||'',
       preResolutionOriginator,preResolutionBeneficiary,
@@ -1081,7 +1078,7 @@ function aggregateExtractedEntities(records){
 function buildDescriptionIntelligence(records){
   const parsed=records.filter(r=>r.narration);
   const withCounterparty=records.filter(r=>r.extracted?.counterparty);
-  const fallbackUsed=records.filter(r=>r.counterpartyFromDescription&&!r.descriptionCandidateHeld);
+  const fallbackUsed=records.filter(r=>r.counterpartyFromDescription);
   const identifiers=records.filter(r=>r.extracted&&(r.extracted.account||r.extracted.phone||r.extracted.email||r.extracted.wallet));
   const entities=aggregateExtractedEntities(records);
   return{
@@ -2353,7 +2350,6 @@ function irGeneratedFindingsSingle(a){
     if(q.resolutionsApplied)out.push(q.resolutionsApplied+' transaction(s) used analyst-confirmed counterparty resolutions.');
     if(q.acknowledgedUnknown)out.push(q.acknowledgedUnknown+' counterparty record(s) were reviewed and deliberately retained as unknown.');}
   if(a.alerts?.length)out.push('The configured screening rules triggered the following review indicators: '+[...new Set(a.alerts.map(alert=>alert.title))].join('; ')+'. These are screening results requiring analyst assessment, not findings of an offence.');
-  if(state.cleaning?.enabled)out.push('Safe name formatting was applied while preserving the original source fields, transaction amounts and currency labels. No transaction record was removed or consolidated by the cleaning workspace.');
   return out;
 }
 function irDraftInference(a){
@@ -2519,7 +2515,7 @@ function intelligenceReportBodyHtml(graphData='',logoData=''){
   const logoUrl=logoData||new URL('assets/nfiu-logo.jpg?v=20261025b',window.location.href).href;
   const header='<div class="ir-header"><img src="'+esc(logoUrl)+'" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Any information contained in this report is sensitive, and is not to be disseminated outside your organization without express approval from the Nigerian Financial Intelligence Unit</div><h2 class="ir-main-title">INTELLIGENCE REPORT</h2></div>'
     +'<table class="ir-meta"><tbody><tr><th>Agency:</th><td>'+esc(irField('irAgency')||'—')+'</td><th>Date:</th><td>'+esc(reportDate)+'</td></tr><tr><th>Address:</th><td>'+esc(irField('irAgencyAddress')||'—')+'</td><th>NFIU Case #:</th><td>'+esc(irField('irCaseNumber')||'—')+'</td></tr><tr><th>To:</th><td colspan="3">'+esc(irField('irRecipient')||'—')+'</td></tr><tr><th>Subject:</th><td colspan="3"><strong>'+esc(irField('irSubject')||$('subjectName')?.value?.trim()||'—')+'</strong></td></tr></tbody></table>';
-  return '<p class="ir-small-note" style="text-align:right">Generated with FinIntel v3.5.0</p>'+header
+  return '<p class="ir-small-note" style="text-align:right">Generated with FinIntel v3.5.1</p>'+header
     +'<h2>ABSTRACT</h2><p>'+esc(abstract).replace(/\n/g,'<br>')+'</p>'
     +'<h2>NARRATIVE</h2><h3>Background</h3><p>'+esc(background).replace(/\n/g,'<br>')+'</p>'
     +irProfileHtml()
@@ -2639,7 +2635,6 @@ function renderAnalysis(a){
   if(a.kind==='transaction'){badge.className='risk-badge '+a.risk;badge.textContent=a.risk.toUpperCase()+' • '+a.riskScore+'/100 • '+a.currency;}
   else{badge.className='risk-badge low';badge.textContent=a.kind==='crypto'?'CRYPTO RECORD ANALYSIS':'DATA PROFILE';}
   if(a.currency==='UNSPECIFIED'){badge.className='risk-badge low';badge.textContent='CURRENCY REVIEW REQUIRED';}
-  renderCleaningWorkspace(a);
   renderCurrencyWorkspace(a);
   renderMetrics(a);
   $('transactionResults').hidden=a.kind!=='transaction'||a.currency==='UNSPECIFIED';
@@ -2693,7 +2688,7 @@ function reportHtmlSingle(){
       +(Object.keys(state.aliasMap).length?'<p><b>Entity resolution:</b> '+Object.keys(state.aliasMap).length+' persistent analyst alias mapping(s) were applied.</p>':'')
       +'<h2>Top Originators</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.origins,a.totalIn)+'</table><h2>Top Beneficiaries</h2><table><tr><th>#</th><th>Name</th><th>Count</th><th>Total</th><th>Share</th></tr>'+cp(a.benefits,a.totalOut)+'</table><h2>Indicators</h2>'+(a.alerts.map(x=>'<p><b>'+esc(x.title)+'</b><br>'+esc(x.detail)+'<br><small>'+esc(x.evidence||'')+'</small></p>').join('')||'<p>No material rule-based indicator triggered.</p>');
   }
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.5.0 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc($('caseName').value)+'</title><style>body{font:14px Arial;max-width:1000px;margin:35px auto;color:#17202a}h1,h2{color:#123b4c}.meta{color:#64727b}table{width:100%;border-collapse:collapse;margin:12px 0 25px}th,td{border:1px solid #ccd5da;padding:7px;text-align:left}pre{white-space:pre-wrap;font:14px/1.6 Arial}.warn{border-left:4px solid #b98520;padding:10px;background:#fff8e7}</style></head><body><h1>FinIntel AML v3.5.1 — '+esc($('caseName').value||'Analysis Report')+'</h1><p class="meta">Dataset: '+esc(datasetLabel())+' | Source: '+esc(state.sourceName)+' | Generated: '+esc(new Date().toLocaleString())+'</p><div class="warn"><b>Analyst review required.</b> This report contains analytical screening/profile outputs, not a finding of criminality.</div><h2>Mapped Field Profile</h2><table><tr><th>Field</th><th>Source</th><th>Type</th><th>Completeness</th><th>Unique</th><th>Repeated</th></tr>'+profileRows+'</table>'+tx+'<h2>Analytical Summary</h2><pre>'+esc(summary)+'</pre></body></html>';
 }
 
 function renderSchemaDialog(){
@@ -3097,7 +3092,7 @@ function cryptoRowsHtml(rows){return '<table><thead><tr><th>Date</th><th>Type</t
 function cryptoAppendicesHtml(a){return '<div class="ir-page-break"><h2>APPENDIX I – CRYPTO ASSET AND NETWORK SUMMARY</h2>'+cryptoSummaryHtml(a)+'</div><div class="ir-page-break"><h2>APPENDIX II – ALL CRYPTO RECORDS</h2>'+cryptoRowsHtml(a.records)+'</div><div class="ir-page-break"><h2>APPENDIX III – DEPOSIT TRANSACTIONS</h2>'+cryptoRowsHtml(a.records.filter(r=>r.cryptoType==='deposit'))+'</div><div class="ir-page-break"><h2>APPENDIX IV – WITHDRAWAL TRANSACTIONS</h2>'+cryptoRowsHtml(a.records.filter(r=>r.cryptoType==='withdrawal'))+'</div>';}
 function cryptoReportBody(a,logoData=''){
  const appendices=cryptoAppendicesHtml(a),logo=logoData||new URL('assets/nfiu-logo.jpg?v=20261025b',location.href).href;
- return '<p class="ir-small-note">Generated with FinIntel v3.5.0 – Crypto record analysis</p><div class="ir-header"><img src="'+esc(logo)+'" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Sensitive intelligence. Dissemination requires appropriate authorization.</div><h2>INTELLIGENCE REPORT</h2></div><table><tr><th>Case reference</th><td>'+esc(irField('irCaseNumber'))+'</td><th>Date</th><td>'+esc(irField('irReportDate'))+'</td></tr><tr><th>Agency / To</th><td colspan="3">'+esc(irField('irAgency')+' / '+irField('irRecipient'))+'</td></tr><tr><th>Subject</th><td colspan="3">'+esc(irField('irSubject')||irField('subjectName'))+'</td></tr></table><h2>ABSTRACT</h2><p>'+esc(irField('irAbstract'))+'</p><h2>NARRATIVE</h2><p>'+esc(irField('irBackground'))+'</p>'+irProfileHtml()+'<h2>CRYPTOCURRENCY / VASP RECORD ANALYSIS</h2>'+cryptoSummaryHtml(a)+irExternalSection('Law Enforcement Database',irField('irLawStatus'),irField('irLawText'))+irExternalSection('Regulatory Authority Database',irField('irRegStatus'),irField('irRegText'))+irExternalSection('Commercial Database',irField('irCommercialStatus'),irField('irCommercialText'))+irExternalSection('Open Source',irField('irOsintStatus'),irField('irOsintText'))+'<h2>FINDINGS</h2><div class="ir-pre">'+esc(irField('irFindings'))+'</div><h2>INFERENCE</h2><p>'+esc(irField('irInference'))+'</p><h2>RECOMMENDATION</h2><p>'+esc(irField('irRecommendation'))+'</p>'+irAttachmentsHtml(appendices)+appendices;
+ return '<p class="ir-small-note">Generated with FinIntel v3.5.1 – Crypto record analysis</p><div class="ir-header"><img src="'+esc(logo)+'" alt="NFIU logo"><h1>NIGERIAN FINANCIAL INTELLIGENCE UNIT</h1><div class="ir-warning">Sensitive intelligence. Dissemination requires appropriate authorization.</div><h2>INTELLIGENCE REPORT</h2></div><table><tr><th>Case reference</th><td>'+esc(irField('irCaseNumber'))+'</td><th>Date</th><td>'+esc(irField('irReportDate'))+'</td></tr><tr><th>Agency / To</th><td colspan="3">'+esc(irField('irAgency')+' / '+irField('irRecipient'))+'</td></tr><tr><th>Subject</th><td colspan="3">'+esc(irField('irSubject')||irField('subjectName'))+'</td></tr></table><h2>ABSTRACT</h2><p>'+esc(irField('irAbstract'))+'</p><h2>NARRATIVE</h2><p>'+esc(irField('irBackground'))+'</p>'+irProfileHtml()+'<h2>CRYPTOCURRENCY / VASP RECORD ANALYSIS</h2>'+cryptoSummaryHtml(a)+irExternalSection('Law Enforcement Database',irField('irLawStatus'),irField('irLawText'))+irExternalSection('Regulatory Authority Database',irField('irRegStatus'),irField('irRegText'))+irExternalSection('Commercial Database',irField('irCommercialStatus'),irField('irCommercialText'))+irExternalSection('Open Source',irField('irOsintStatus'),irField('irOsintText'))+'<h2>FINDINGS</h2><div class="ir-pre">'+esc(irField('irFindings'))+'</div><h2>INFERENCE</h2><p>'+esc(irField('irInference'))+'</p><h2>RECOMMENDATION</h2><p>'+esc(irField('irRecommendation'))+'</p>'+irAttachmentsHtml(appendices)+appendices;
 }
 function generateCryptoReport(a){
  irSetIfBlank('irReportDate',irTodayInput());irSetIfBlank('irSubject',irField('subjectName')||firstMappedValue('name'));irSetIfBlank('irFullName',irField('irSubject'));
@@ -3184,98 +3179,3 @@ function downloadCurrencyWorkbook(a){
  }catch(error){status('irExportStatus','Currency workbook export failed: '+error.message,true);}
 }
 
-
-
-const cleaningSelection=new Set();let cleaningPage=1;
-function cleaningState(){return state.cleaning||(state.cleaning={enabled:false,uppercase:false,requireReview:true,events:[]});}
-function cleanPartyName(value){const s=String(value??'').replace(/\u00a0/g,' ').replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/[\u2010-\u2015]/g,'-').replace(/\s+/g,' ').trim();return cleaningState().uppercase?s.toUpperCase():s;}
-function cleaningRecords(){const a=state.analysis;return a?.kind==='transaction'?(a.allRecords||a.records):[];}
-function cleaningOtherParty(r){return r.direction==='inflow'?r.originator:r.direction==='outflow'?r.beneficiary:'';}
-function cleaningSourceName(r,role){
- if(r.values?.[role]!==undefined&&String(r.values[role]).trim())return String(r.values[role]);
- if((role==='originator'&&r.direction==='inflow')||(role==='beneficiary'&&r.direction==='outflow'))return String(r.values?.counterparty??'');
- return String(r.values?.[role]??'');
-}
-function cleaningStatus(r){
- if(r.counterpartyResolutionApplied)return 'Analyst resolved';
- if(r.counterpartyResolutionIgnored&&isUnknownProfileParty(cleaningOtherParty(r)))return 'Acknowledged unknown';
- if(!['inflow','outflow'].includes(r.direction))return 'Direction unresolved';
- if(isUnknownProfileParty(cleaningOtherParty(r)))return 'Unknown';
- if(r.counterpartyFromDescription)return 'Extracted name — review';
- if(r.aliasAppliedOriginator||r.aliasAppliedBeneficiary)return 'Alias applied';
- return 'Source identified';
-}
-function cleaningCandidates(r){
- const found=resolutionCandidates(r).map(c=>({...c,basis:'Narration extraction',confidence:c.confidence||null})),party=cleaningOtherParty(r);
- if(party&&!isUnknownProfileParty(party)&&r.counterpartyFromDescription)found.unshift({name:party,basis:'Unverified narration fallback',confidence:r.extracted?.counterpartyConfidence||null});
- const source=cleaningSourceName(r,r.direction==='inflow'?'originator':'beneficiary');
- const fingerprint=name=>norm(name).replace(/[^\p{L}\p{N}]/gu,'');
- if(source&&!isUnknownProfileParty(source))for(const other of cleaningRecords()){
-  const name=cleaningOtherParty(other);if(!name||isUnknownProfileParty(name)||other.counterpartyFromDescription)continue;
-  if(norm(name)!==norm(source)&&fingerprint(name)===fingerprint(source))found.push({name,basis:'Formatting similarity only — verify identity',confidence:null});
- }
- const seen=new Set();return found.filter(c=>{const key=norm(c.name);if(!key||isUnknownProfileParty(c.name)||seen.has(key))return false;seen.add(key);return true;}).slice(0,8);
-}
-function cleaningFiltered(){const q=norm($('cleaningSearch')?.value||''),status=$('cleaningStatusFilter')?.value||'all',currency=$('cleaningCurrencyFilter')?.value||'all';return cleaningRecords().filter(r=>{
- const label=cleaningStatus(r);if(status==='review'&&!['Unknown','Acknowledged unknown','Extracted name — review','Direction unresolved'].includes(label))return false;
- if(status==='resolved'&&label!=='Analyst resolved')return false;if(currency!=='all'&&r.currency!==currency)return false;
- return !q||norm([r.dateRaw,r.amount,r.currency,cleaningSourceName(r,'originator'),cleaningSourceName(r,'beneficiary'),r.originator,r.beneficiary,r.narration,r.sheet,r.row].join(' ')).includes(q);
-});}
-function cleaningLog(action,r,before,after,reason){cleaningState().events.push({time:new Date().toISOString(),action,key:r?.resolutionKey||'',sheet:r?.sheet||'',row:r?.row||'',currency:r?.currency||'',before:String(before??''),after:String(after??''),reason:reason||''});}
-function rerunCleaning(message){
- const count=state.standardized.length;state.standardized=standardize();if(count&&state.standardized.length!==count)throw Error('Cleaning changed the record count.');
- renderAnalysis(transactionAnalysis(state.standardized));if(typeof markCaseDirty==='function')markCaseDirty();status('cleaningStatus',message);
-}
-function applyCleaningResolution(records,name,reason,basis='Manual analyst assignment'){
- name=String(name||'').trim();if(!name||isUnknownProfileParty(name))throw Error('Enter an identified counterparty name. Use Acknowledge Unknown for genuinely unknown records.');
- let count=0;for(const r of records){if(!['inflow','outflow'].includes(r.direction))continue;
- setCounterpartyResolution(r.resolutionKey,{name,ignored:false,force:true,source:'analyst-cleaning',reason,basis},false);
- cleaningLog('Counterparty assignment',r,cleaningOtherParty(r),name,reason||basis);count++;}
- persistCounterpartyResolutions();cleaningSelection.clear();rerunCleaning(count+' record(s) assigned to '+name+'. Financial values were preserved.');
-}
-function renderCleaningWorkspace(a){
- let panel=$('cleaningWorkspace');if(!panel){panel=document.createElement('section');panel.id='cleaningWorkspace';panel.className='card pad';$('transactionResults').before(panel);}
- panel.hidden=a.kind!=='transaction';if(panel.hidden)return;
- const previous={search:$('cleaningSearch')?.value||'',filter:$('cleaningStatusFilter')?.value||'all',currency:$('cleaningCurrencyFilter')?.value||'all',name:$('cleaningResolvedName')?.value||'',reason:$('cleaningReason')?.value||''},settings=cleaningState();
- panel.innerHTML='<div class="cleaning-head"><div><h3>Data Cleaning & Counterparty Resolution</h3><p>Review and correct record-level counterparties across currencies. Source data and financial values are retained. Suggested names are not verified identities.</p></div><span class="pill">'+cleaningRecords().length+' source records</span></div><div class="cleaning-controls"><label><input id="cleaningUppercase" type="checkbox" '+(settings.uppercase?'checked':'')+'> Standardise names to uppercase</label><label><input id="cleaningRequireReview" type="checkbox" '+(settings.requireReview?'checked':'')+'> Hold unverified extracted names as unknown</label><button id="applySafeCleaning" class="btn secondary" type="button">Apply safe formatting</button></div><div class="form-grid"><label>Search records<input id="cleaningSearch" type="search" placeholder="Name, narration, amount or source"></label><label>Review status<select id="cleaningStatusFilter"><option value="all">All records</option><option value="review">Requires review / acknowledged unknown</option><option value="resolved">Analyst resolved</option></select></label><label>Currency<select id="cleaningCurrencyFilter"><option value="all">All currencies</option>'+currencyViews(a).map(v=>'<option value="'+esc(v.currency)+'">'+esc(v.currency)+'</option>').join('')+'</select></label></div><div class="form-grid"><label>Resolved counterparty<input id="cleaningResolvedName" placeholder="Apply to selected records"></label><label>Reason for correction<input id="cleaningReason" placeholder="Supporting source or explanation"></label></div><div class="button-row"><button id="cleaningApplyAssignment" class="btn primary" type="button">Assign to selected</button><button id="cleaningAcknowledge" class="btn secondary" type="button">Acknowledge Unknown</button><button id="cleaningClear" class="btn ghost" type="button">Clear selection</button></div><div id="cleaningTable" class="table-wrap"></div><div id="cleaningPagination" class="pagination"></div><details class="cleaning-downloads"><summary>Download cleaned data and resolution records</summary><p>Cleaned files include original source columns, original and resolved names, currency, narration and resolution provenance. No rows are removed or consolidated.</p><div class="button-row">'+['cleaned','unresolved','log'].map(kind=>'<button type="button" class="btn ghost" data-clean-download="'+kind+'" data-format="csv">'+({cleaned:'Cleaned Transactions',unresolved:'Unresolved Records',log:'Cleaning & Resolution Log'}[kind])+' CSV</button><button type="button" class="btn secondary" data-clean-download="'+kind+'" data-format="xlsx">'+({cleaned:'Cleaned Transactions',unresolved:'Unresolved Records',log:'Cleaning & Resolution Log'}[kind])+' Excel</button>').join('')+'</div></details><p id="cleaningStatus" class="status" role="status"></p>';
- $('cleaningSearch').value=previous.search;$('cleaningStatusFilter').value=previous.filter;$('cleaningCurrencyFilter').value=previous.currency;$('cleaningResolvedName').value=previous.name;$('cleaningReason').value=previous.reason;
- for(const id of ['cleaningSearch','cleaningStatusFilter','cleaningCurrencyFilter'])$(id).addEventListener(id==='cleaningSearch'?'input':'change',()=>{cleaningPage=1;renderCleaningTable();});
- $('cleaningClear').onclick=()=>{cleaningSelection.clear();renderCleaningTable();};
- $('applySafeCleaning').onclick=()=>{
-  settings.enabled=true;settings.uppercase=$('cleaningUppercase').checked;settings.requireReview=$('cleaningRequireReview').checked;
-  for(const r of cleaningRecords())for(const role of ['originator','beneficiary']){const original=r[role]||'',formatted=cleanPartyName(original);if(original!==formatted)cleaningLog('Safe name formatting',r,original,formatted,'Whitespace, typographic punctuation'+(settings.uppercase?' and case':'')+' standardisation; no identity merge.');}
-  cleaningLog('Cleaning policy',null,'',JSON.stringify({uppercase:settings.uppercase,requireReview:settings.requireReview}),'Applied by analyst.');rerunCleaning('Safe formatting applied. Review candidates before assigning identities.');
- };
- $('cleaningApplyAssignment').onclick=()=>{try{const records=cleaningRecords().filter(r=>cleaningSelection.has(r.resolutionKey));if(!records.length)throw Error('Select records first.');if(!$('cleaningReason').value.trim())throw Error('Enter the reason or source supporting this assignment.');applyCleaningResolution(records,$('cleaningResolvedName').value,$('cleaningReason').value);}catch(error){status('cleaningStatus',error.message,true);}};
- $('cleaningAcknowledge').onclick=()=>{let count=0;for(const r of cleaningRecords()){if(!cleaningSelection.has(r.resolutionKey)||!isUnknownProfileParty(cleaningOtherParty(r)))continue;setCounterpartyResolution(r.resolutionKey,{name:'',ignored:true,source:'analyst-cleaning',reason:$('cleaningReason').value||'Reviewed; identity not established.'},false);cleaningLog('Acknowledged unknown',r,'','Unknown',$('cleaningReason').value||'Identity not established.');count++;}if(!count){status('cleaningStatus','Select genuinely unknown records. Identified parties are not cleared by this action.',true);return;}persistCounterpartyResolutions();cleaningSelection.clear();rerunCleaning(count+' record(s) acknowledged as unknown.');};
- panel.querySelectorAll('[data-clean-download]').forEach(button=>button.onclick=()=>downloadCleaningData(button.dataset.cleanDownload,button.dataset.format));renderCleaningTable();
-}
-function renderCleaningTable(){
- const rows=cleaningFiltered(),pages=Math.max(1,Math.ceil(rows.length/10));cleaningPage=Math.max(1,Math.min(cleaningPage,pages));
- $('cleaningTable').innerHTML='<p>'+rows.length+' matches · '+cleaningSelection.size+' selected</p><table><thead><tr><th><input id="cleaningSelectAll" type="checkbox" aria-label="Select all filtered records"></th><th>Date / Currency</th><th>Direction / Amount</th><th>Original / Current counterparty</th><th>Review status</th><th>Candidate for review</th></tr></thead><tbody>'+rows.slice((cleaningPage-1)*10,cleaningPage*10).map(r=>{const candidates=cleaningCandidates(r),source=cleaningSourceName(r,r.direction==='inflow'?'originator':'beneficiary');return '<tr><td><input type="checkbox" data-clean-key="'+encodeURIComponent(r.resolutionKey)+'" '+(cleaningSelection.has(r.resolutionKey)?'checked':'')+'></td><td>'+esc(r.dateRaw)+'<br><strong>'+esc(r.currency)+'</strong></td><td>'+esc(r.direction)+'<br>'+esc(fmt(r.amount,r.currency))+'</td><td>'+esc(source||'Unknown')+'<br><strong>'+esc(cleaningOtherParty(r)||'Unknown')+'</strong><details><summary>Source details</summary><p>'+esc(r.narration||'No narration supplied')+'</p><small>'+esc(r.sheet)+' · Imported record '+r.row+'</small></details></td><td>'+esc(cleaningStatus(r))+'</td><td>'+(candidates.length?'<select data-clean-candidate="'+encodeURIComponent(r.resolutionKey)+'" aria-label="Candidate for review">'+candidates.map((c,i)=>'<option value="'+i+'">'+esc(c.name+' — '+c.basis+(c.confidence?' ('+c.confidence+'% extraction confidence)':''))+'</option>').join('')+'</select><button class="btn ghost" type="button" data-clean-accept="'+encodeURIComponent(r.resolutionKey)+'">Accept candidate</button>':'No supported candidate')+'</td></tr>';}).join('')+'</tbody></table>';
- const all=$('cleaningSelectAll'),selected=rows.filter(r=>cleaningSelection.has(r.resolutionKey)).length;all.checked=rows.length>0&&selected===rows.length;all.indeterminate=selected>0&&selected<rows.length;all.onchange=()=>{for(const r of rows)all.checked?cleaningSelection.add(r.resolutionKey):cleaningSelection.delete(r.resolutionKey);renderCleaningTable();};
- $('cleaningTable').querySelectorAll('[data-clean-key]').forEach(input=>input.onchange=()=>{const key=decodeURIComponent(input.dataset.cleanKey);input.checked?cleaningSelection.add(key):cleaningSelection.delete(key);renderCleaningTable();});
- $('cleaningTable').querySelectorAll('[data-clean-accept]').forEach(button=>button.onclick=()=>{const key=decodeURIComponent(button.dataset.cleanAccept),r=cleaningRecords().find(row=>row.resolutionKey===key),select=Array.from($('cleaningTable').querySelectorAll('[data-clean-candidate]')).find(el=>decodeURIComponent(el.dataset.cleanCandidate)===key),candidate=cleaningCandidates(r)[Number(select.value)];applyCleaningResolution([r],candidate.name,$('cleaningReason').value||'Analyst accepted candidate after reviewing source details.',candidate.basis);});
- $('cleaningPagination').innerHTML='<span>Page '+cleaningPage+' of '+pages+'</span><button id="cleaningPrev" class="btn ghost" type="button" '+(cleaningPage===1?'disabled':'')+'>Previous</button><button id="cleaningNext" class="btn ghost" type="button" '+(cleaningPage===pages?'disabled':'')+'>Next</button>';
- $('cleaningPrev').onclick=()=>{cleaningPage--;renderCleaningTable();};$('cleaningNext').onclick=()=>{cleaningPage++;renderCleaningTable();};
-}
-function cleaningExportRows(unresolved=false){
- return cleaningRecords().filter(r=>!unresolved||['Unknown','Acknowledged unknown','Extracted name — review','Direction unresolved'].includes(cleaningStatus(r))).map(r=>{
- const resolution=getCounterpartyResolutionByKey(r.resolutionKey),out={Date:r.dateRaw,Amount:r.amount,Currency:r.currency,Direction:r.direction,Originator:r.originator||'',Beneficiary:r.beneficiary||'',Narration:r.narration,Account:String(r.account||''),'Original Originator':cleaningSourceName(r,'originator'),'Original Beneficiary':cleaningSourceName(r,'beneficiary'),'Original Counterparty':String(r.values.counterparty??''),'Source Currency':r.currencyRaw||'','Currency Source':r.currencySource||'','Resolution Status':cleaningStatus(r),'Resolution Source':resolution?.source||(r.counterpartyFromDescription?'Description extraction (unverified)':r.aliasAppliedOriginator||r.aliasAppliedBeneficiary?'Alias library':'Source field'),'Resolution Time':resolution?.updatedAt||'','Resolution Reason':resolution?.reason||'','Resolution Basis':resolution?.basis||'','Extraction Candidate':r.extracted?.counterparty||'','Extraction Confidence':r.extracted?.counterpartyConfidence||'', 'Formatting Applied':cleaningState().enabled?'Yes':'No','Source File':state.sourceName,'Source Sheet':r.sheet,'Source Record':r.row};
- for(const [key,value] of Object.entries(r.raw||{}))if(!key.startsWith('__finintel_'))out['Original::'+key]=String(value??'');return out;
- });
-}
-function cleaningExportLog(){
- const events=cleaningState().events.map(event=>({'Timestamp':event.time,Action:event.action,'Record Key':event.key,'Source Sheet':event.sheet,'Source Record':event.row,Currency:event.currency,Before:event.before,After:event.after,Reason:event.reason}));
- for(const r of cleaningRecords())if(r.aliasAppliedOriginator||r.aliasAppliedBeneficiary){const party=cleaningOtherParty(r),source=cleaningSourceName(r,r.direction==='inflow'?'originator':'beneficiary'),entry=aliasEntry(source);events.push({Timestamp:entry?.updatedAt||'',Action:'Existing alias applied','Record Key':r.resolutionKey,'Source Sheet':r.sheet,'Source Record':r.row,Currency:r.currency,Before:source,After:party,Reason:'Alias library mapping; source name retained in cleaned export.'});}
- for(const r of cleaningRecords()){const saved=getCounterpartyResolutionByKey(r.resolutionKey);if(!saved||saved.source==='analyst-cleaning')continue;events.push({Timestamp:saved.updatedAt||'',Action:saved.ignored?'Existing unknown acknowledgement':'Existing analyst resolution','Record Key':r.resolutionKey,'Source Sheet':r.sheet,'Source Record':r.row,Currency:r.currency,Before:cleaningSourceName(r,r.direction==='inflow'?'originator':'beneficiary'),After:saved.name||'Unknown',Reason:saved.reason||'Existing analyst decision restored from the resolution store.'});}
- return events;
-}
-function downloadCleaningData(kind,format){
- try{const rows=kind==='log'?cleaningExportLog():cleaningExportRows(kind==='unresolved'),headers=[...new Set(rows.flatMap(row=>Object.keys(row)))];
- if(!headers.length)headers.push('No matching records');const data=[headers,...rows.map(row=>headers.map(key=>row[key]??''))],name='FinIntel_'+({cleaned:'Cleaned_Transactions',unresolved:'Unresolved_Counterparties',log:'Cleaning_Resolution_Log'}[kind]);
- if(format==='xlsx'){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data),'Records');FinIntelDocx.save(name+'.xlsx',new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));}
- else download(name+'.csv','\ufeff'+data.map(row=>row.map(csvEscape).join(',')).join('\n'),'text/csv;charset=utf-8');
- status('cleaningStatus',rows.length+' record(s) exported. Source fields and currencies retained.');
- }catch(error){status('cleaningStatus',error.message,true);}
-}
