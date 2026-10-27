@@ -14,8 +14,8 @@ function restoreCaseForms(values){
  }
 }
 function makeCaseSnapshot(){
- return {format:'finintel-case',schemaVersion:1,appVersion:'3.4.1',savedAt:new Date().toISOString(),
-  dataset:{rawRows:state.rawRows,columns:state.columns,sourceName:state.sourceName,sourceType:state.sourceType,sheets:state.sheets,datasetType:state.datasetType,sourceMapping:state.sourceMapping,amountLayout:state.amountLayout,partyLayout:state.partyLayout,sheetDirections:state.sheetDirections,preferredCurrency:state.preferredCurrency,currencyReferences:state.currencyReferences},
+ return {format:'finintel-case',schemaVersion:1,appVersion:'3.5.0',savedAt:new Date().toISOString(),
+  dataset:{rawRows:state.rawRows,columns:state.columns,sourceName:state.sourceName,sourceType:state.sourceType,sheets:state.sheets,datasetType:state.datasetType,sourceMapping:state.sourceMapping,amountLayout:state.amountLayout,partyLayout:state.partyLayout,sheetDirections:state.sheetDirections,preferredCurrency:state.preferredCurrency,currencyReferences:state.currencyReferences,cleaning:state.cleaning},
   library:{customFields:state.customFields,templates:state.templates,aliasMap:state.aliasMap,counterpartyResolutions:state.counterpartyResolutions},
   forms:caseFormValues(),analysed:!!state.analysis,photo:irSubjectPhotoData,accounts:accountRows,accountFields,
   view:{networkZoom,networkFocus}
@@ -29,6 +29,7 @@ function validateCaseSnapshot(data){
  if(!['transaction','kyc','entity','crypto','custom'].includes(d.datasetType))throw Error('Unsupported case dataset type.');
  if(!plain(l)||!Array.isArray(l.customFields)||!Array.isArray(l.templates)||!plain(l.aliasMap)||!plain(l.counterpartyResolutions)||!plain(data.forms)||!Array.isArray(data.accounts)||!Array.isArray(data.accountFields))throw Error('Case profile or configuration is incomplete.');
  if(d.rawRows.some(row=>!plain(row)))throw Error('Invalid transaction rows.');
+ if(d.cleaning&&(!plain(d.cleaning)||!Array.isArray(d.cleaning.events)))throw Error('Invalid cleaning configuration.');
  if(data.accounts.some(row=>!plain(row)))throw Error('Invalid account register.');
  if(data.accountFields.some(f=>!plain(f)||typeof f.id!=='string'||typeof f.label!=='string'))throw Error('Invalid account field definitions.');
  if(data.photo&&(!/^data:image\/(png|jpeg|jpg|gif|webp);base64,/i.test(data.photo)||typeof data.photo!=='string'))throw Error('Unsupported case photograph.');
@@ -44,7 +45,7 @@ function applyCaseSnapshot(data){
  state.customFields=data.library.customFields;state.templates=data.library.templates;state.aliasMap=data.library.aliasMap;state.counterpartyResolutions=data.library.counterpartyResolutions;
  $('datasetType').value=data.dataset.datasetType;
  loadRows(data.dataset.rawRows,data.dataset.sourceName,data.dataset.sourceType,data.dataset.sheets,false);
- Object.assign(state,{sourceMapping:data.dataset.sourceMapping,sheetDirections:data.dataset.sheetDirections,amountLayout:data.dataset.amountLayout,partyLayout:data.dataset.partyLayout,datasetType:data.dataset.datasetType,preferredCurrency:data.dataset.preferredCurrency||'',currencyReferences:data.dataset.currencyReferences||{},analysis:null,standardized:[]});
+ Object.assign(state,{sourceMapping:data.dataset.sourceMapping,sheetDirections:data.dataset.sheetDirections,amountLayout:data.dataset.amountLayout,partyLayout:data.dataset.partyLayout,datasetType:data.dataset.datasetType,preferredCurrency:data.dataset.preferredCurrency||'',currencyReferences:data.dataset.currencyReferences||{},cleaning:data.dataset.cleaning||{enabled:false,uppercase:false,requireReview:true,events:[]},analysis:null,standardized:[]});
  renderCustomFieldList();renderTemplateSelect();refreshMappingUI();restoreCaseForms(data.forms);
  accountRows=JSON.parse(JSON.stringify(data.accounts));accountFields.splice(0,accountFields.length,...data.accountFields);accountPage=1;renderAccountsRegister();
  irSubjectPhotoData=data.photo||'';
@@ -55,7 +56,7 @@ function applyCaseSnapshot(data){
   state.standardized=standardize();const a=state.datasetType==='transaction'?transactionAnalysis(state.standardized):universalAnalysis(state.standardized);
   renderAnalysis(a);
   // Rendering supplies defaults. Restore the saved edits and drafts afterward.
-  restoreCaseForms(data.forms);renderAccountsRegister();
+  restoreCaseForms(data.forms);renderAccountsRegister();if(a.kind==='transaction')renderCleaningTable();
   if(a.kind==='crypto')renderIntelligenceReportPreview();
   if(a.kind==='transaction'){renderIntelligenceReportPreview();networkZoom=Number(data.view?.networkZoom)||NETWORK_DEFAULT_ZOOM;renderNetwork(a);}
   setStep(5);
@@ -85,6 +86,7 @@ document.addEventListener('input',event=>{if(event.target.closest('main, #accoun
 document.addEventListener('change',event=>{if(event.target.id!=='openCaseFile')markCaseDirty();});
 document.addEventListener('click',event=>{if(event.target.closest('#runAnalysisBtn,#generateIrDraftBtn,#accountAdd,#accountEditorSave,#accountsRows,#accountsColumns,#saveAliasBtn,#applyResolutionBtn,#acknowledgeUnknownBtn,#accountConfirm,#subjectImportApply'))markCaseDirty();});
 window.addEventListener('beforeunload',event=>{if(window.finintelCaseDirty){event.preventDefault();event.returnValue='';}});
+
 
 
 
