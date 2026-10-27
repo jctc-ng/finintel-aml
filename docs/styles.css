@@ -1703,3 +1703,14 @@ footer strong{color:#17384c;font-weight:850}
 
 
 .case-tools{padding:20px 24px;margin-bottom:20px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px}.case-tools>div:first-child{flex:1 1 280px}.case-tools strong{font-size:1rem}.case-tools p{margin:4px 0;color:#637b8d;font-size:.82rem}.case-tool-actions{display:flex;flex-wrap:wrap;gap:8px}.case-tools>p{flex-basis:100%}#offlineStatus{font-size:.78rem;font-weight:750;padding:6px 10px;background:#f0f5fa;border-radius:20px;color:#647c8d}#offlineStatus[data-ready="true"]{background:#e7f5ec;color:#176344}#offlineActionStatus:empty{display:none}@media(max-width:650px){.case-tools{padding:16px}.case-tool-actions{width:100%}.case-tool-actions button{flex:1 1 140px}}
+
+/* Currency controls */
+#currencyWorkspace .form-grid{align-items:end;gap:18px}
+#currencyWorkspace .form-grid>label{display:flex;flex-direction:column;gap:8px;min-width:0;font-size:.88rem;font-weight:700;color:#173b51}
+#currencyWorkspace #analysisCurrency,#currencyWorkspace #currencyScenarioReference{display:block;width:100%;min-width:0;min-height:46px;margin:0;box-sizing:border-box;padding:11px 14px;border:1px solid #b9cddd;border-radius:10px;background-color:#fff;color:#183b51;font:inherit;font-size:.92rem;font-weight:500;line-height:1.4;transition:border-color .15s,box-shadow .15s}
+#currencyWorkspace #analysisCurrency{appearance:none;-webkit-appearance:none;padding-right:44px;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23365e78' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;background-size:18px}
+#currencyWorkspace #analysisCurrency:hover{border-color:#739cb9;background-color:#fbfdff}
+#currencyWorkspace #analysisCurrency:focus-visible,#currencyWorkspace #currencyScenarioReference:focus-visible{outline:none;border-color:#237bb2;box-shadow:0 0 0 3px #237bb21f}
+#currencyWorkspace #analysisCurrency option{background:#fff;color:#183b51;font-weight:400}
+#currencyWorkspace #applyCurrencyReference{min-height:46px}
+@media(max-width:650px){#currencyWorkspace .form-grid{grid-template-columns:minmax(0,1fr)}}
