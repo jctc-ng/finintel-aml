@@ -2,7 +2,7 @@
 let offlineRegistration=null,installPrompt=null;
 async function refreshOfflineStatus(){
  const el=document.getElementById('offlineStatus');if(!el)return;
- const cache=await caches.open('finintel-aml-v3.4.1-exchange1');
+ const cache=await caches.open('finintel-aml-v3.4.1-cryptolinks1');
  const ready=await Promise.all(['./index.html','./vendor/xlsx.full.min.js?v=0.18.5','./case-workspace.js?v=3.4.1','./docx-export.js?v=3.4.1'].map(path=>cache.match(path)));
  const prepared=ready.every(Boolean)&&!!navigator.serviceWorker.controller;
  el.textContent=prepared?(navigator.onLine?'Online · Ready for offline use':'Offline · Ready to work'):(navigator.onLine?'Online · Preparing offline files…':'Offline · Setup incomplete');
